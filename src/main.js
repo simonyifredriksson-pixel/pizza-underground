@@ -27,7 +27,8 @@ async function boot() {
   const HORIZON = '#f0d4f0';
   scene.background = new THREE.Color(HORIZON);
   scene.fog = new THREE.Fog(HORIZON, 110, 420);
-  const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 1200);
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 1200);
+  scene.add(camera); // first-person hands hang off it
 
   // lights
   const hemi = new THREE.HemisphereLight('#fff0ff', '#7a5aa8', 1.35); scene.add(hemi);

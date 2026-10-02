@@ -168,6 +168,8 @@ export class Traffic {
       this.cars.push(t);
     }
   }
+  /** the intro road must be empty: only the limo is allowed to hit you */
+  setVisible(v) { for (const c of this.cars) c.C.group.visible = v; }
   _next(n, prev) {
     const opts = [];
     for (const [dx, dz] of [[STEP, 0], [-STEP, 0], [0, STEP], [0, -STEP]]) {

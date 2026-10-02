@@ -75,6 +75,7 @@ export class Town {
     this.forest();
     this.mountains();
     this.lampsAndProps();
+    this.streetLife();
     this.hospitalRoom();
     for (const [, me] of this.chunks) this.root.add(me.build());
     // the edge of the world: invisible walls
@@ -137,8 +138,37 @@ export class Town {
     const m = this.m(cx, cz);
     m.box(cx, 0, cz, w, h, d, color);
     m.box(cx, h, cz, w + 0.4, 0.35, d + 0.4, o.trim || C.trim);   // roof trim
-    if (o.gable) m.roof(cx, h + 0.35, cz, w + 0.6, d + 0.6, o.gable, o.roof || ROOF_COLORS[0], (front === 'e' || front === 'w') ? Math.PI / 2 : 0);
-    else m.box(cx, h + 0.35, cz, w - 0.6, 0.2, d - 0.6, '#8a84a0');
+    if (o.gable) {
+      m.roof(cx, h + 0.35, cz, w + 0.6, d + 0.6, o.gable, o.roof || ROOF_COLORS[0], (front === 'e' || front === 'w') ? Math.PI / 2 : 0);
+      // a chimney
+      m.box(cx + w * 0.25, h, cz + d * 0.15, 0.9, o.gable + 1.2, 0.9, '#9a6a5a');
+      m.box(cx + w * 0.25, h + o.gable + 1.2, cz + d * 0.15, 1.1, 0.2, 1.1, '#7a4a3a');
+    } else {
+      m.box(cx, h + 0.35, cz, w - 0.6, 0.2, d - 0.6, '#8a84a0');
+      // rooftop clutter: AC units, vents, sometimes a water tower
+      const n = 1 + Math.floor(this.rand() * 3);
+      for (let i = 0; i < n; i++) {
+        const ax = cx + (this.rand() - 0.5) * (w - 3), az = cz + (this.rand() - 0.5) * (d - 3);
+        m.box(ax, h + 0.55, az, 1.6, 0.9, 1.2, '#c8c8d8'); m.cyl(ax, h + 1.45, az, 0.45, 0.06, '#5a5a6a', 8);
+      }
+      if (this.rand() < 0.5) m.cyl(cx - w * 0.3, h + 0.55, cz - d * 0.25, 0.25, 1.2, '#9a9aaa', 6);
+      if (h > 7 && this.rand() < 0.5) {
+        const tx = cx + w * 0.3, tz = cz - d * 0.2;
+        for (const [a, b] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) m.box(tx + a, h + 0.55, tz + b, 0.15, 2, 0.15, '#6a4a3a');
+        m.cyl(tx, h + 2.5, tz, 1.3, 2.2, '#a87c54', 10); m.cone(tx, h + 4.7, tz, 1.45, 0.9, '#7a5a3a', 10);
+      }
+    }
+    // a strip of flowers along the front
+    if (o.flowers !== false && !o.boarded) {
+      const [fx2, fz2] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[front];
+      const span = (fx2 ? d : w) / 2 - 2.6;
+      for (const side of [-1, 1]) for (let k = 0; k < 3; k++) {
+        const along = side * (2.6 + k * span / 3);
+        const px = cx + fx2 * (w / 2 + 0.5) + (fx2 ? 0 : along), pz = cz + fz2 * (d / 2 + 0.5) + (fx2 ? along : 0);
+        m.ico(px, 0.3, pz, 0.9, 0.55, 0.9, '#5fb85a', 0, k);
+        m.ico(px + 0.2, 0.62, pz, 0.28, 0.24, 0.28, ['#ff8fc8', '#ffd23f', '#ff6b6b', '#c9a8f0'][(k + (side > 0 ? 1 : 0)) % 4], 0, k);
+      }
+    }
     // windows on all four sides
     const floors = Math.max(1, Math.floor((h - 0.5) / 3.2));
     const lit = o.lit ?? 0.3;
@@ -499,7 +529,13 @@ export class Town {
     const rf = new Mesher(0.08);
     rf.box((H.x0 + H.x1) / 2, wallH, (H.z0 + H.z1) / 2, H.x1 - H.x0 + 1.4, 0.4, H.z1 - H.z0 + 1.4, '#5a4a6a');
     rf.box(158, wallH + 0.4, 76, 2, 1.2, 2, '#8a8aa0');
-    this.hqRoof = rf.build(); this.root.add(this.hqRoof);
+    this.hqRoof = rf.build({ cast: false }); this.root.add(this.hqRoof);
+    // hanging lamps under the roof (seen from inside in first person)
+    for (const [x, z] of [[146, 76], [146, 84], [158, 76], [158, 84]]) {
+      this.root.add(part(geo.cyl(6), '#2a2238', x, 3.9, z, 0.05, 0.7, 0.05));
+      this.root.add(part(geo.cone(6), '#ff8fc8', x, 3.55, z, 0.7, 0.35, 0.7));
+      this.root.add(part(geo.ico(0), '#fff6c8', x, 3.4, z, 0.25, 0.2, 0.25, { emissive: 0xfff2b0, ei: 1 }));
+    }
     // front: the sign, a boarded window, the door frame
     this.hqSign = this.sign(['OLD SHOE REPAIR', '(CLOSED)'], H.x0 - 0.55, 3.9, 80, -Math.PI / 2, 4.6, 1.0, { bg: '#5a4a3a', fg: '#ffd65a' });
     for (const wz of [75, 85]) {
@@ -516,6 +552,8 @@ export class Town {
     const bf = new Mesher(0.06);
     for (let x = B.x0; x < B.x1; x += 2) for (let z = B.z0; z < B.z1; z += 2) bf.flat(x, z, x + 2, z + 2, by + 0.05, ((x + z) / 2) % 2 ? '#7a6aa0' : '#c8a8d0', 2, 0.06);
     this.root.add(bf.build({ cast: false }));
+    const ceil = new Mesher(0.08); ceil.box((B.x0 + B.x1) / 2, by + 5.6, (B.z0 + B.z1) / 2, B.x1 - B.x0 + 1, 0.3, B.z1 - B.z0 + 1, '#4a3a5a');
+    const cm = ceil.build({ cast: false }); cm.material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, side: THREE.BackSide }); this.root.add(cm);
     const bw = [];
     bw.push({ mesh: brick(B.x0 - t, B.z0 - t, B.x1 + t, B.z0, by, 5.6), axis: 'z', at: B.z0, out: -1 });
     bw.push({ mesh: brick(B.x0 - t, B.z1, B.x1 + t, B.z1 + t, by, 5.6), axis: 'z', at: B.z1, out: 1 });
@@ -654,16 +692,60 @@ export class Town {
     }
   }
 
+  /** crosswalks, street trees in planters, and cars parked along the curbs */
+  streetLife() {
+    const nearJunction = a => ROADS.some(q => Math.abs(a - q) < 15);
+    for (const x of ROADS) for (const z of ROADS) {
+      // zebra crossings on all four sides of every junction
+      for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        const m = this.m(x, z);
+        for (let i = -2; i <= 2; i++) {
+          if (dx === 0) m.box(x + i * 2.2, 0.03, z + dz * (RW / 2 + 1.4), 1.2, 0.02, 2.4, '#f6f1e6', 0, 0.02);
+          else m.box(x + dx * (RW / 2 + 1.4), 0.03, z + i * 2.2, 2.4, 0.02, 1.2, '#f6f1e6', 0, 0.02);
+        }
+      }
+    }
+    const styles = ['civ1', 'civ2', 'civ3', 'civ4', 'van', 'civ1', 'civ3'];
+    for (const r of ROADS) for (let a = -EXT + 12; a < EXT - 8; a += 13) {
+      if (nearJunction(a) || nearJunction(a - 6.5)) continue;
+      // street trees in little planters, at the curb edge of the sidewalk
+      for (const [x, z, side] of [[r + RW / 2 + 0.9, a + 6.5, 1], [r - RW / 2 - 0.9, a + 6.5, -1], [a + 6.5, r + RW / 2 + 0.9, 1], [a + 6.5, r - RW / 2 - 0.9, -1]]) {
+        if (z < -128 || (Math.abs(x) < 34 && Math.abs(z) < 34)) continue;
+        if ((a / 13 | 0) % 2) continue;
+        const m = this.m(x, z);
+        m.box(x, 0, z, 1.3, 0.35, 1.3, '#b7a8d6');
+        m.flat(x - 0.5, z - 0.5, x + 0.5, z + 0.5, 0.36, '#6a4a3a', 1);
+        this.tree(x, z, 0.6, this.rand() < 0.3 ? 'pink' : 'round');
+      }
+      // parked cars, right side of the road, not on pepper road (the intro needs it empty)
+      if (r === -120) continue;
+      for (const [x, z, yaw] of [[r + 4.8, a, Math.PI], [r - 4.8, a, 0], [a, r + 4.8, Math.PI / 2], [a, r - 4.8, -Math.PI / 2]]) {
+        if (this.rand() > 0.22 || z < -128) continue;
+        if (Math.abs(x - 120) < 7 && z > 60 && z < 100) continue; // keep the hideout curb clear
+        const c = makeCar(styles[Math.floor(this.rand() * styles.length)]);
+        c.group.position.set(x, 0, z); c.group.rotation.y = yaw; c.group.updateMatrixWorld(true);
+        const m = this.m(x, z);
+        c.group.traverse(o => { if (o.isMesh && o.material.color && !o.material.transparent) m.add(o.geometry, o.matrixWorld, '#' + o.material.color.getHexString(), 0.03); });
+        const along = Math.abs(Math.sin(yaw)) > 0.5;
+        this.col.boxc(x, z, along ? c.S.len : c.S.wid, along ? c.S.wid : c.S.len, { h: 1.6 });
+      }
+    }
+  }
+
   /* ---------------- the hospital room (a separate set, off the map) ---------------- */
   hospitalRoom() {
     const { x: X, z: Z } = HOSPITAL_SET;
     const m = new Mesher(0.06);
     m.flat(X - 8, Z - 6, X + 8, Z + 6, 0, '#d8e8f0', 2, 0.05);
     const wall = (x0, z0, x1, z1) => { m.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, 7, z1 - z0, '#bfe0d8'); this.col.box(x0, z0, x1, z1, { h: 7 }); };
-    m.box(X, 6.9, Z, 16.8, 0.2, 12.8, '#e8f0f0');
+    // the ceiling, lit as if by hospital tubes (you stare at it when you wake up)
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(16.8, 12.8), new THREE.MeshBasicMaterial({ color: '#dfe8ec' }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(X, 6.9, Z); this.root.add(ceil);
+    for (const tx of [-4, 0, 4]) { const tube = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 0.4), new THREE.MeshBasicMaterial({ color: '#ffffff' })); tube.position.set(X + tx, 6.85, Z - 2); this.root.add(tube); }
     wall(X - 8.4, Z - 6.4, X + 8.4, Z - 6); wall(X - 8.4, Z + 6, X + 8.4, Z + 6.4);
     wall(X - 8.4, Z - 6, X - 8, Z + 6); wall(X + 8, Z - 6, X + 8.4, Z - 2); wall(X + 8, Z + 2, X + 8.4, Z + 6);
     m.box(X + 8.2, 0, Z, 0.1, 2.8, 4, '#6a8aa8');  // the door
+    m.box(X + 8.2, 2.8, Z, 0.4, 4.2, 4, '#bfe0d8'); // wall over the door
     m.box(X, 0, Z - 6, 16, 1.0, 0.1, '#9ac8c0');     // dado
     // beds along the north wall
     this.poi.beds = [];

@@ -31,7 +31,7 @@ export class Game {
     Object.assign(this, { renderer, scene, camera, input, audio, net, profile });
     this.W = newWorld();
     this.remotes = new Map();
-    this.cam = { override: null, snap: true, mode: 'third', pitch: 0.38, dist: 6.5, pos: new THREE.Vector3(), look: new THREE.Vector3(), carYaw: 0, free: 0 };
+    this.cam = { override: null, snap: true, mode: 'first', fpPitch: 0, pitch: 0.38, dist: 6.5, pos: new THREE.Vector3(), look: new THREE.Vector3(), carYaw: 0, free: 0 };
     this.mesher = { textTexture };
     this.kitchenNames = { pizzaName };
     this.phase = 'title';
@@ -295,7 +295,7 @@ export class Game {
           ui.alarm('BUSTED!');
           ui.toast(e.line, 'bad');
           ui.toast((e.n ? e.n + ' item' + (e.n > 1 ? 's' : '') + ' confiscated. ' : '') + 'Fine: ' + money(e.fine) + '.', 'bad');
-          this.fx.text('-' + money(e.fine), P.pos.clone().add(new THREE.Vector3(0, 2.6, 0)), '#ff5a5a', true);
+          { const f = this.frontPos(3, 2.9); this.fx.text('-' + money(e.fine), new THREE.Vector3(f.x, f.y, f.z), '#ff5a5a', true); }
         } else ui.toast((this.nameOf(e.pid)) + ' got busted! ' + money(e.fine) + ' fine.', 'bad');
         break;
       case 'clue': {
@@ -317,7 +317,7 @@ export class Game {
   nameOf(pid) { if (pid === this.me) return this.profile.name; const r = this.remotes.get(pid); return r ? r.name : (this.net.profiles.get(pid)?.name || 'Someone'); }
   bubble(who, text) {
     let obj = who;
-    if (who === this.me) obj = () => this.player.pos;
+    if (who === this.me) obj = () => (this.cam.mode === 'first' ? this.frontPos(3.2, 0.9) : this.player.pos);
     else if (who === 'dez') obj = () => ({ x: this.npcs.dez.x, z: this.npcs.dez.z, y: this.npcs.dez.floor === 1 ? HQ.base.y : 0 });
     else if (typeof who === 'string' && this.remotes.has(who)) { const r = this.remotes.get(who); obj = () => r.pos; }
     this.ui.bubble(obj, text);
@@ -440,6 +440,7 @@ export class Game {
     this.orders.sync(dt);
     this.police.sync(dt);
     this.npcs.update(dt);
+    this.traffic.setVisible(this.phase !== 'intro');
     if (this.phase === 'play') { this.traffic.update(dt); this.citizens.update(dt); this.story.localUpdate(dt); }
     for (const r of this.remotes.values()) r.update(dt);
     this.chased = this.police.chasingMe;
@@ -478,6 +479,7 @@ export class Game {
     const I = this.input, P = this.player, ui = this.ui;
     if (I.pressed('Tab')) this.phone();
     if (I.pressed('KeyM')) this.map.show();
+    if (I.pressed('KeyV')) { this.cam.mode = this.cam.mode === 'first' ? 'third' : 'first'; this.cam.snap = true; this.ui.toast(this.cam.mode === 'first' ? 'First person' : 'Third person'); }
     if (I.pressed('Escape')) this.pause();
     if (I.pressed('KeyT') && this.net.isOnline) this.openChat();
     if (I.pressed('KeyQ') && !P.car && this.hold(this.me).length) { this.act({ k: 'toss', x: P.pos.x + Math.sin(P.yaw), z: P.pos.z + Math.cos(P.yaw) }); this.audio.whoosh(); }
@@ -618,10 +620,12 @@ export class Game {
   _camera(dt) {
     const cam = this.camera, C = this.cam, P = this.player, I = this.input;
     if (C.override) {
+      P.vm.visible = false;
       cam.position.copy(C.override.pos); cam.lookAt(C.override.look);
       this._shake(); this._lights(); return;
     }
     const look = I.look();
+    if (C.mode === 'first') { this._fpCamera(dt, look); return; }
     if (!this.frozen() || this.phase === 'play') { P.camYaw -= look.x; C.pitch = clamp(C.pitch + look.y, -0.25, 1.25); }
     if (I.mouse.wheel && !this.ui.menuOpen) C.dist = clamp(C.dist + I.mouse.wheel * 0.8, 3, 13);
     const room = roomAt(P.pos.x, P.pos.z, P.floor);
@@ -669,6 +673,38 @@ export class Game {
     this._shake();
     this.town.cutaway(cam.position, room === 'front' || room === 'back', P.floor === 1);
     this._lights();
+  }
+  /** first person: eyes in your head (or in the driver's seat, or peeking out of a dumpster) */
+  _fpCamera(dt, look) {
+    const cam = this.camera, C = this.cam, P = this.player;
+    if (!this.ui.menuOpen) { P.camYaw -= look.x; C.fpPitch = clamp((C.fpPitch || 0) + look.y, -1.45, 1.45); }
+    let eye, yaw = P.camYaw + Math.PI;
+    if (P.car !== C.lastCar) { C.lastCar = P.car; const c0 = P.car && this.vehicles.car(P.car); if (c0) { P.camYaw = c0.yaw - Math.PI; C.fpPitch = 0.08; } }
+    if (P.car) {
+      const c = this.vehicles.car(P.car);
+      // free look inside the car, relative to where the car points
+      C.carLook = clamp(wrapAngle(yaw - (c ? c.yaw : yaw)), -2.4, 2.4);
+      if (c) { yaw = c.yaw + C.carLook; P.camYaw = yaw - Math.PI; }
+      eye = new THREE.Vector3(P.pos.x, P.pos.y + 1.28, P.pos.z);
+    } else if (P.hidden) eye = new THREE.Vector3(P.pos.x, 1.2, P.pos.z);
+    else {
+      C.bob = (C.bob || 0) + dt * P.speed * 1.9;
+      const b = P.onGround ? Math.sin(C.bob) * 0.045 * Math.min(1, P.speed / 5) : 0;
+      eye = new THREE.Vector3(P.pos.x, P.pos.y + 1.62 + b, P.pos.z);
+    }
+    const p = C.fpPitch || 0;
+    cam.position.copy(eye);
+    cam.lookAt(eye.x + Math.sin(yaw) * Math.cos(p), eye.y - Math.sin(p), eye.z + Math.cos(yaw) * Math.cos(p));
+    if (P.flying) { C.roll = (C.roll || 0) + dt * 9; cam.rotateZ(C.roll); } else C.roll = 0;
+    C.pos.copy(cam.position);
+    this._shake();
+    this.town.cutaway(cam.position, false, false);
+    this._lights();
+  }
+  /** a point just in front of your eyes (for your own speech bubbles in first person) */
+  frontPos(d = 3, up = 0) {
+    const cam = this.camera, f = new THREE.Vector3(); cam.getWorldDirection(f);
+    return { x: cam.position.x + f.x * d, y: cam.position.y + f.y * d - 2.7 + up, z: cam.position.z + f.z * d };
   }
   _camSolid(x, z, y) {
     let s = false;

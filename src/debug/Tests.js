@@ -87,7 +87,7 @@ function inputTest(g) {
   const I = g.input, P = g.player, W = g.W, me = g.me;
   const tap = (code) => { I.fake(code, true); sim(g, 1 / 30); I.fake(code, false); sim(g, 1 / 30); };
   const holdKey = (code, sec) => { I.fake(code, true); sim(g, sec); I.fake(code, false); sim(g, 1 / 30); };
-  const face = (id) => { const s = STATION[id]; const fx = Math.sin(s.ry), fz = Math.cos(s.ry); P.teleport(s.x + fx * (s.d / 2 + 0.6), s.z + fz * (s.d / 2 + 0.6), 0); P.yaw = Math.atan2(-fx, -fz); P.vel.set(0, 0, 0); sim(g, 0.1); };
+  const face = (id) => { const s = STATION[id]; const fx = Math.sin(s.ry), fz = Math.cos(s.ry); P.teleport(s.x + fx * (s.d / 2 + 0.6), s.z + fz * (s.d / 2 + 0.6), 0); P.yaw = Math.atan2(-fx, -fz); P.camYaw = P.yaw - Math.PI; g.cam.fpPitch = 0.5; P.vel.set(0, 0, 0); sim(g, 0.1); };
   g.npcs.dez.x = 160; g.npcs.dez.z = 86; g.npcs.dez.wander.t = 999;
   face('dough1'); tap('KeyE');
   log(g.hold(me)[0]?.k === 'dough', 'E at the tub: dough in hand');

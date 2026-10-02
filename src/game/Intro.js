@@ -37,7 +37,7 @@ export class Intro {
       friends.forEach((p, i) => { const r = makeChar(lookFor(p.look | 0, null)); const s = C.seats[2 + i]; r.root.position.set(s.x, s.y - 0.35, s.z); r.root.scale.setScalar(0.85); C.group.add(r.root); extras.push(r); });
       const pizza = makeItem({ k: 'box' }); pizza.position.set(s1.x, s1.y + 0.42, s1.z + 0.45); C.group.add(pizza);
       const limo = makeCar('limo'); limo.group.visible = false; grp.add(limo.group);
-      let t = +(new URLSearchParams(location.search).get('introT') || 0), spin = 0, crashed = false, fly = null, done = false, last = '';
+      let t = +(new URLSearchParams(location.search).get('introT') || 0), spin = 0, crashed = false, fly = null, done = false, last = '', launch = null;
       const car = { x: X0, z: Z, yaw: Math.PI / 2 };
       g.ui.cinema(true); g.ui.hudVisible(false);
       g.audio.musicOn = true;
@@ -62,16 +62,29 @@ export class Intro {
             g.audio.engine = 0.45;
             if (t >= CRASH_T) {
               crashed = true; spin = 11;
-              g.audio.crash(null); g.audio.scream(null); g.ui.flash(); g.fx.shake = 1;
+              // the limo hits the side: the car goes flying, tumbling end over end
+              launch = { vx: 7, vy: 13, vz: 16, y: 0.1, rx: 0, rz: 0, wx: 7.5, wz: -5, bounces: 0 };
+              C.group.rotation.order = 'YXZ';
+              g.audio.crash(null); g.audio.scream(null); g.audio.boom(null); g.ui.flash(); g.fx.shake = 1.4;
+              g.fx.burst(car.x, 1, car.z, '#e8473a', 18, 7, 0.3); g.fx.burst(car.x, 1, car.z, '#bfe4ff', 16, 8, 0.15); g.fx.smoke(car.x, 1, car.z, 10, 0.5);
               fly = { p: new THREE.Vector3(car.x + 1.5, 1.4, Z), v: new THREE.Vector3(9, 8, 3) };
               C.group.remove(pizza); grp.add(pizza); pizza.position.copy(fly.p);
               const real = makeItem({ k: 'pizza', sauce: 1, cheese: 2, top: ['pepperoni'], cook: 1 }); real.scale.setScalar(1.6); pizza.add(real);
               you.mouthOpen = 0; dez.mouthOpen = 0;
             }
           } else {
-            spin = damp(spin, 0, 1.4, dt);
+            const L = launch;
+            spin = damp(spin, 0, 0.8, dt);
             car.yaw += spin * dt;
-            car.x += 5 * dt * Math.max(0, spin / 11); car.z += 7 * dt * Math.max(0, spin / 11);
+            L.vy -= 22 * dt;
+            car.x += L.vx * dt; car.z += L.vz * dt; L.y += L.vy * dt;
+            L.rx += L.wx * dt; L.rz += L.wz * dt;
+            if (L.y <= 0 && L.vy < 0) {
+              L.y = 0; L.bounces++;
+              L.vy = L.bounces < 3 ? -L.vy * 0.45 : 0; L.vx *= 0.55; L.vz *= 0.55; L.wx *= 0.5; L.wz *= 0.5; spin *= 0.5;
+              if (L.bounces < 3) { g.audio.crash(null); g.fx.shake = 0.8; g.fx.smoke(car.x, 0.5, car.z, 6, 0.4); g.fx.burst(car.x, 0.5, car.z, '#2b2b38', 8, 5, 0.2); }
+            }
+            if (L.bounces >= 3) { L.rx = damp(L.rx, Math.round(L.rx / Math.PI) * Math.PI, 4, dt); L.rz = damp(L.rz, Math.round(L.rz / Math.PI) * Math.PI, 4, dt); }
             g.audio.engine = 0;
             if (fly) { fly.v.y -= 9 * dt; fly.p.addScaledVector(fly.v, dt); pizza.position.copy(fly.p); pizza.rotation.x += dt * 8; pizza.rotation.z += dt * 5; if (fly.p.y < 0.05) { fly.p.y = 0.05; fly.v.set(0, 0, 0); } }
             if (t > CRASH_T + 2.6 && !this._faded) { this._faded = true; g.ui.fade(true); g.ui.sub(null); }
@@ -84,7 +97,8 @@ export class Intro {
             const lz = lt < 0 ? Z + lt * 36 - 1.6 : Z - 1.6 + Math.min(lt, 0.5) * 12;
             limo.group.position.set(40, 0, lz); limo.group.rotation.y = lt > 0 ? Math.min(lt, 0.6) * 0.9 : 0;
           }
-          C.group.position.set(car.x, Math.abs(Math.sin(t * 9)) * 0.03, car.z); C.group.rotation.y = car.yaw;
+          if (launch) { C.group.position.set(car.x, launch.y + 0.9 * Math.min(1, Math.abs(Math.sin(launch.rx)) + Math.abs(Math.sin(launch.rz))), car.z); C.group.rotation.set(launch.rx, car.yaw, launch.rz); }
+          else { C.group.position.set(car.x, Math.abs(Math.sin(t * 9)) * 0.03, car.z); C.group.rotation.y = car.yaw; }
           for (const w of C.wheels) w.rotation.x += V * dt * 2.5;
           const panic = t > CRASH_T - 1.6 ? 1 : 0;
           const talk = (who) => g.ui.subWho === who && !crashed;
@@ -94,7 +108,7 @@ export class Intro {
           // camera
           const cam = g.camera, w2l = (x, y, z) => new THREE.Vector3(x, y, z).applyAxisAngle(new THREE.Vector3(0, 1, 0), car.yaw).add(new THREE.Vector3(car.x, 0, car.z));
           let pos, look;
-          if (crashed) { pos = new THREE.Vector3(28, 4, -104); look = new THREE.Vector3(car.x + 2, 1, car.z); }
+          if (crashed) { pos = new THREE.Vector3(49, 3.2, -103); look = new THREE.Vector3(car.x, 1 + (launch ? launch.y * 0.7 : 0), car.z); }
           else if (t < 6) { pos = new THREE.Vector3(car.x + 14 - t * 1.2, 2.4, Z + 9); look = new THREE.Vector3(car.x, 1.0, Z); }
           else if (t > CRASH_T - 2.8) { pos = w2l(-1.4, 1.9, -2.2); look = limo.group.visible ? limo.group.position.clone().setY(1) : new THREE.Vector3(40, 1, Z - 60); }
           else if (Math.floor((t - 6) / 5.5) % 2 === 0) { pos = w2l(0.05, 2.15, 3.6); look = w2l(0.05, 1.35, -0.2); }
@@ -122,6 +136,8 @@ export class Intro {
       // you, lying in bed
       const lying = makeChar(lookFor(g.profile.look, null));
       lying.root.position.set(b.x, 0.9, b.z + 1.0); lying.root.rotation.x = -Math.PI / 2; grp.add(lying.root);
+      lying.head.visible = false; // we are looking out of this head
+      const look = new THREE.Vector3(b.x, 4, b.z + 3);
       P.forceHidden = true;
       const st ={ doc: { x: X + 7.4, z: ZZ, tx: X + 7.4, tz: ZZ }, nurse: { x: X + 9, z: ZZ, tx: X + 9, tz: ZZ }, t: 0 };
       let eyes = 0;
@@ -141,12 +157,22 @@ export class Intro {
           dez.anim(dt, { speed: 4, talk: false });
           lying.anim(dt, { talk: g.ui.talking === 'you', panic: g.ui.talking === 'you' && /WHAT|THREE/.test(g.ui.dlg?.full || '') ? 0.8 : 0 });
           eyes = Math.min(1, eyes + dt * 0.5);
-          g.cam.override = { pos: new THREE.Vector3(b.x + 4.2, 2.7, b.z + 5.6), look: new THREE.Vector3(b.x - 0.6, 0.9, b.z + 0.6) };
+          // first person, lying in the bed: look at whoever is talking
+          const who = g.ui.talking;
+          const tgt = who === 'doc' ? new THREE.Vector3(st.doc.x, 2.05, st.doc.z)
+            : who === 'nurse' ? new THREE.Vector3(st.nurse.x, 2.0, st.nurse.z)
+              : who === 'dez' ? new THREE.Vector3(X - 7.6, 1.2, ZZ + 2.5)
+                : st.t < 4 ? new THREE.Vector3(b.x, 4, b.z + 3) : new THREE.Vector3(st.doc.x, 1.9, st.doc.z);
+          look.lerp(tgt, 1 - Math.exp(-3 * dt));
+          const head = new THREE.Vector3(b.x, 1.4 + Math.sin(st.t * 1.3) * 0.01, b.z - 0.8);
+          if (who === 'you' && /WHAT|THREE/.test(g.ui.dlg?.full || '')) head.y += 0.35; // sits bolt upright
+          g.cam.override = { pos: head, look };
         },
       };
       g.ui.fade(true, 'SOME TIME LATER...', '');
       await wait(2200);
-      g.ui.fade(false);
+      // waking up: blink, blink
+      g.ui.fade(false); await wait(700); g.ui.fade(true); await wait(500); g.ui.fade(false);
       await wait(900);
       st.doc.tx = b.x + 1.2; st.doc.tz = b.z + 1.6;
       await wait(2600);
@@ -164,6 +190,7 @@ export class Intro {
       grp.remove(lying.root);
       P.forceHidden = false;
       P.teleport(b.x + 1.4, b.z + 1.4, 0, Math.PI / 2);
+      g.cam.fpPitch = 0;
       g.cam.override = null;
       g.cam.snap = true;
       this.active = { skip: null, update: (dt) => { dez.anim(dt, { speed: 4 }); } };

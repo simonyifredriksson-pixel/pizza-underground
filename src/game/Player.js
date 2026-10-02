@@ -7,7 +7,7 @@ import { makeItem } from '../art/Props.js';
 import { LOOKS } from '../data/Data.js';
 import { clamp, damp, dampAngle, wrapAngle } from '../core/Util.js';
 import { HQ } from '../world/Town.js';
-import { textTexture } from '../art/Mesher.js';
+import { textTexture, part, geo } from '../art/Mesher.js';
 
 export const WALK = 5.6, RUN = 9.4;
 
@@ -44,6 +44,12 @@ export class Player {
     this.speed = 0; this.running = false; this.spraying = false;
     this.stack = new THREE.Group();
     this.stackKey = '';
+    // first person: what you carry, held out in front of the camera
+    this.vm = new THREE.Group(); this.vmStack = new THREE.Group(); this.vm.add(this.vmStack);
+    this.vmHands = [];
+    for (const s of [-1, 1]) { const h = part(geo.ico(0), LOOKS[look % 4].skin, s * 0.36, 0.02, 0.05, 0.16, 0.16, 0.18); h.castShadow = false; this.vm.add(h); this.vmHands.push(h); }
+    this.vm.position.set(0, -0.5, -0.95); this.vm.visible = false;
+    game.camera.add(this.vm);
     this._mk();
   }
   _mk() {
@@ -73,11 +79,26 @@ export class Player {
     // the stack of things you are holding
     const items = this.held;
     const key = JSON.stringify(items) + (this.g.W.law?.k === 'square');
-    if (key !== this.stackKey) { this.stackKey = key; buildStack(this.stack, items, this.g.W.law?.k === 'square'); }
+    if (key !== this.stackKey) {
+      this.stackKey = key; buildStack(this.stack, items, this.g.W.law?.k === 'square');
+      buildStack(this.vmStack, items, this.g.W.law?.k === 'square');
+      this.vmStack.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    }
     const n = items.length;
     this.stack.rotation.z = n > 4 ? Math.sin(performance.now() * 0.004) * 0.012 * n * (this.running ? 2 : 1) : 0;
     this.stack.rotation.x = n > 4 ? Math.sin(performance.now() * 0.003 + 1) * 0.008 * n : 0;
-    this.rig.root.visible = !this.hidden && !this.forceHidden && !this.tooClose;
+    const fp = this.g.cam.mode === 'first' && !this.g.cam.override;
+    this.rig.root.visible = !this.hidden && !this.forceHidden && !this.tooClose && !fp;
+    // the first-person hands: sway with walking, wobble with a tall stack
+    this.vm.visible = fp && n > 0 && !this.car && !this.hidden;
+    if (this.vm.visible) {
+      const t = performance.now() * 0.001, w = Math.min(1, this.speed / 6);
+      const ext = items[n - 1].k === 'ext';
+      this.vm.position.set(ext ? 0.32 : Math.sin(t * 6) * 0.015 * w, (ext ? -0.45 : -0.55) + Math.abs(Math.cos(t * 6)) * 0.02 * w, ext ? -0.6 : -0.95);
+      this.vmStack.rotation.z = this.stack.rotation.z; this.vmStack.rotation.x = this.stack.rotation.x;
+      this.vmStack.rotation.y = ext ? Math.PI : 0;
+      for (const h of this.vmHands) h.visible = !ext;
+    }
 
     if (this.car) { this.speed = 0; return; } // the vehicle moves us
     this.rig.root.scale.setScalar(1);
@@ -102,7 +123,7 @@ export class Player {
       const dx = (fx * mz + rx * -mx) / len, dz = (fz * mz + rz * -mx) / len;
       this.vel.x = damp(this.vel.x, dx * target, 12, dt);
       this.vel.z = damp(this.vel.z, dz * target, 12, dt);
-      this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 12, dt);
+      if (this.g.cam.mode !== 'first') this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 12, dt);
     } else {
       this.vel.x = damp(this.vel.x, 0, 14, dt); this.vel.z = damp(this.vel.z, 0, 14, dt);
     }
@@ -121,6 +142,8 @@ export class Player {
     this.pos.x = r.x; this.pos.z = r.z;
     this.speed = Math.hypot(this.vel.x, this.vel.z);
     this.stun = Math.max(0, this.stun - dt);
+    // first person: you face where you look (so the others see you turn, and E works on what you look at)
+    if (this.g.cam.mode === 'first') this.yaw = this.camYaw + Math.PI;
 
     const R = this.rig;
     R.root.position.copy(this.pos);
