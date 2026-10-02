@@ -1,0 +1,173 @@
+/* Player.js - you (third person) and your friends (remote rigs).
+   The carried stack is drawn in front of the chest: one dough ball, or a
+   pizza, or a tower of boxes that wobbles more the taller it gets. */
+import * as THREE from '../../lib/three.module.js';
+import { makeChar } from '../art/Chars.js';
+import { makeItem } from '../art/Props.js';
+import { LOOKS } from '../data/Data.js';
+import { clamp, damp, dampAngle, wrapAngle } from '../core/Util.js';
+import { HQ } from '../world/Town.js';
+import { textTexture } from '../art/Mesher.js';
+
+export const WALK = 5.6, RUN = 9.4;
+
+export function lookFor(look, wear) {
+  const o = { ...LOOKS[look % 4] };
+  if (wear === 'mustache') { o.mustache = '#2a1a14'; o.nose = 1.25; }
+  if (wear === 'coat') { o.coat = '#8a6a4a'; o.hat = 'fedora'; o.glasses = 'sun'; o.mustache = '#2a1a14'; }
+  if (wear === 'cop') { o.hat = 'cop'; o.shirt = '#2a3a7a'; o.pants = '#1e2a5a'; o.badge = true; o.mustache = '#2a1a14'; }
+  return o;
+}
+
+/** draw a stack of held items into a group */
+export function buildStack(group, items, sq) {
+  while (group.children.length) group.remove(group.children[0]);
+  let y = 0;
+  for (const it of items || []) {
+    const m = makeItem(sq && it.k !== 'box' ? { ...it, square: true } : it);
+    m.position.y = y;
+    if (it.k === 'ext') { m.position.set(0.25, -0.5, -0.1); m.rotation.x = 0.8; }
+    group.add(m);
+    y += it.k === 'box' ? 0.14 : it.k === 'trash' ? 0.6 : 0.16;
+  }
+}
+
+export class Player {
+  constructor(game, look) {
+    this.g = game;
+    this.look = look; this.wear = null;
+    this.pos = new THREE.Vector3(0, 0, 0);
+    this.vel = new THREE.Vector3();
+    this.yaw = 0; this.camYaw = 0; this.camPitch = 0.38; this.camDist = 6.5;
+    this.floor = 0; this.onGround = true;
+    this.stun = 0; this.flying = false; this.hidden = null; this.car = null; this.seat = 0;
+    this.speed = 0; this.running = false; this.spraying = false;
+    this.stack = new THREE.Group();
+    this.stackKey = '';
+    this._mk();
+  }
+  _mk() {
+    if (this.rig) this.g.scene.remove(this.rig.root);
+    this.rig = makeChar(lookFor(this.look, this.wear));
+    this.rig.root.add(this.stack);
+    this.stack.position.set(0, 1.08, 0.58);
+    this.g.scene.add(this.rig.root);
+  }
+  setWear(w) { if (w !== this.wear) { this.wear = w; this._mk(); } }
+  teleport(x, z, floor = 0, yaw) {
+    this.pos.set(x, floor === 1 ? HQ.base.y : 0, z); this.vel.set(0, 0, 0); this.floor = floor;
+    if (yaw != null) { this.yaw = yaw; this.camYaw = yaw + Math.PI; }
+  }
+  groundY() { return this.floor === 1 ? HQ.base.y + 0.05 : 0.04; }
+  get held() { return this.g.hold(this.g.me); }
+
+  fling(dx, dz, power = 1) {
+    if (this.car || this.hidden) return;
+    this.vel.set(dx * 11 * power, 9 * power, dz * 11 * power);
+    this.flying = true; this.onGround = false;
+  }
+
+  update(dt, frozen) {
+    const I = this.g.input;
+    const ground = this.groundY();
+    // the stack of things you are holding
+    const items = this.held;
+    const key = JSON.stringify(items) + (this.g.W.law?.k === 'square');
+    if (key !== this.stackKey) { this.stackKey = key; buildStack(this.stack, items, this.g.W.law?.k === 'square'); }
+    const n = items.length;
+    this.stack.rotation.z = n > 4 ? Math.sin(performance.now() * 0.004) * 0.012 * n * (this.running ? 2 : 1) : 0;
+    this.stack.rotation.x = n > 4 ? Math.sin(performance.now() * 0.003 + 1) * 0.008 * n : 0;
+    this.rig.root.visible = !this.hidden && !this.forceHidden && !this.tooClose;
+
+    if (this.car) { this.speed = 0; return; } // the vehicle moves us
+    this.rig.root.scale.setScalar(1);
+    if (this.hidden) { this.speed = 0; this.rig.root.position.copy(this.pos); return; }
+
+    let mx = 0, mz = 0;
+    if (!frozen && this.stun <= 0 && !this.flying) {
+      mx = I.axis('KeyA', 'KeyD'); mz = I.axis('KeyS', 'KeyW');
+    }
+    const len = Math.hypot(mx, mz);
+    this.running = !frozen && len > 0 && I.held('ShiftLeft') && this.stun <= 0;
+    const slow = Math.max(0.55, 1 - 0.03 * Math.max(0, n - 1));
+    let target = (this.running ? RUN : WALK) * slow;
+    if (this.g.natural) target *= 0.55;
+    if (this.flying) {
+      this.vel.y -= 24 * dt;
+    } else if (len > 0) {
+      // move relative to the camera
+      const a = this.camYaw + Math.PI;
+      const fx = Math.sin(a), fz = Math.cos(a);
+      const rx = Math.cos(a), rz = -Math.sin(a);
+      const dx = (fx * mz + rx * -mx) / len, dz = (fz * mz + rz * -mx) / len;
+      this.vel.x = damp(this.vel.x, dx * target, 12, dt);
+      this.vel.z = damp(this.vel.z, dz * target, 12, dt);
+      this.yaw = dampAngle(this.yaw, Math.atan2(dx, dz), 12, dt);
+    } else {
+      this.vel.x = damp(this.vel.x, 0, 14, dt); this.vel.z = damp(this.vel.z, 0, 14, dt);
+    }
+    if (!this.flying) {
+      if (!frozen && this.onGround && I.pressed('Space') && this.stun <= 0) { this.vel.y = 6.5; this.onGround = false; }
+      this.vel.y -= 20 * dt;
+    }
+    this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt; this.pos.y += this.vel.y * dt;
+    if (this.pos.y <= ground) {
+      this.pos.y = ground; this.vel.y = 0;
+      if (this.flying) { this.flying = false; this.stun = 1.0; this.g.audio.thud(this.pos); this.g.fx.poof(this.pos.x, ground + 0.2, this.pos.z); }
+      this.onGround = true;
+    }
+    const r = this.g.town.col.resolve(this.pos.x, this.pos.z, 0.38, this.floor, this.pos.y - ground);
+    if (r.hit && this.flying) { this.vel.x *= -0.4; this.vel.z *= -0.4; }
+    this.pos.x = r.x; this.pos.z = r.z;
+    this.speed = Math.hypot(this.vel.x, this.vel.z);
+    this.stun = Math.max(0, this.stun - dt);
+
+    const R = this.rig;
+    R.root.position.copy(this.pos);
+    R.root.rotation.y = this.yaw;
+    if (this.flying) { R.root.rotation.x += dt * 9; } else R.root.rotation.x = 0;
+    R.anim(dt, { speed: this.speed, carry: n > 0 && items[n - 1].k !== 'ext', spray: this.spraying, panic: this.flying || this.stun > 0 || (this.running && n > 2 && this.g.chased) ? 1 : 0, talk: this.g.ui.talking === 'you', wave: this.g.natural && n === 0 });
+  }
+}
+
+/* ---------------- a friend over the network ---------------- */
+export class Remote {
+  constructor(game, id, prof) {
+    this.g = game; this.id = id; this.name = prof.name; this.look = prof.look | 0; this.wear = null;
+    this.pos = new THREE.Vector3(); this.target = new THREE.Vector3(); this.yaw = 0; this.tyaw = 0;
+    this.s = null; this.floor = 0; this.car = null;
+    this.stack = new THREE.Group(); this.stackKey = '';
+    this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture([this.name], { w: 256, h: 64, bg: 'rgba(42,22,64,0.75)', fg: '#ffffff', border: false }), depthTest: false }));
+    this.tag.scale.set(1.6, 0.4, 1);
+    this._mk();
+    this.seen = false;
+  }
+  _mk() {
+    if (this.rig) this.g.scene.remove(this.rig.root);
+    this.rig = makeChar(lookFor(this.look, this.wear));
+    this.rig.root.add(this.stack); this.stack.position.set(0, 1.08, 0.58);
+    this.rig.root.add(this.tag); this.tag.position.set(0, 2.75, 0);
+    this.g.scene.add(this.rig.root);
+  }
+  apply(s) {
+    this.s = s; this.target.set(s.x, s.y, s.z); this.tyaw = s.yaw; this.floor = s.f | 0; this.car = s.car || null;
+    if (!this.seen) { this.pos.copy(this.target); this.yaw = s.yaw; this.seen = true; }
+    if ((s.w || null) !== this.wear) { this.wear = s.w || null; this._mk(); }
+  }
+  update(dt) {
+    if (!this.s) { this.rig.root.visible = false; return; }
+    const items = this.g.hold(this.id);
+    const key = JSON.stringify(items) + (this.g.W.law?.k === 'square');
+    if (key !== this.stackKey) { this.stackKey = key; buildStack(this.stack, items, this.g.W.law?.k === 'square'); }
+    if (this.target.distanceTo(this.pos) > 8) this.pos.copy(this.target);
+    this.pos.lerp(this.target, 1 - Math.exp(-12 * dt));
+    this.yaw = dampAngle(this.yaw, this.tyaw, 12, dt);
+    const R = this.rig;
+    R.root.visible = !this.s.h;
+    R.root.position.copy(this.pos); R.root.rotation.y = this.yaw;
+    R.root.scale.setScalar(this.s.car ? 0.85 : 1);
+    R.root.rotation.x = this.s.fl ? R.root.rotation.x + dt * 9 : 0;
+    R.anim(dt, { speed: this.s.sp || 0, carry: items.length > 0 && items[items.length - 1].k !== 'ext', spray: !!this.s.sy, panic: this.s.p ? 1 : 0, sit: !!this.s.car, drive: this.s.car && this.s.car.seat === 0, talk: !!this.s.t, wave: !!this.s.nat });
+  }
+  dispose() { this.g.scene.remove(this.rig.root); }
+}
