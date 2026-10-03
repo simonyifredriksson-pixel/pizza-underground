@@ -118,7 +118,8 @@ export class UI {
     el.style.display = '';
     const { pizzaName } = this.g.kitchenNames;
     const top = items[items.length - 1];
-    el.innerHTML = `<div class="h-top">${esc(pizzaName(top))}</div>` + (items.length > 1 ? `<div class="h-n">+ ${items.length - 1} more under it</div>` : '') + `<div class="h-help"><b class="key">Q</b> throw away top</div>` + (top.k === 'ext' ? `<div class="h-help"><b class="key">LMB</b> spray</div>` : '');
+    const name = top.k === 'bag' ? 'Trash bag (' + top.name + ', wriggling)' : pizzaName(top);
+    el.innerHTML = `<div class="h-top">${esc(name)}</div>` + (items.length > 1 ? `<div class="h-n">+ ${items.length - 1} more under it</div>` : '') + `<div class="h-help"><b class="key">Q</b> throw away top</div>` + (top.k === 'ext' ? `<div class="h-help"><b class="key">LMB</b> spray</div>` : '');
   }
 
   toast(text, kind = '') {

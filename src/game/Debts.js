@@ -13,6 +13,7 @@ import { makeChar, makeCritter, SKINS } from '../art/Chars.js';
 import { makeValuable, MAFIA } from '../art/Props.js';
 import { TIERS, tierOf, BUSINESSES, BIZ_TAB, TAB_LINES, ENCOUNTERS, PAY_LINES, REFUSE_LINES, DEADLINE_LINES, SEIZE_LINES, RETURN_LINES, FORGIVE_LINES, BIZ_SEIZE, KNUCKLES, TIER_EVENTS, RIVAL } from '../data/Mafia.js';
 import { CUSTOMERS } from '../data/Data.js';
+import { GEAR } from '../data/BlackMarket.js';
 import { SPEAKERS, Q } from '../data/Story.js';
 import { HQ } from '../world/Town.js';
 import { path, nearestNode } from './Police.js';
@@ -113,8 +114,8 @@ export class Debts {
       } else if (d.state === 'bagged') {
         // a sack is not a long-term plan: dropped, confiscated or just slow, they wriggle out
         d.bt = (d.bt ?? 240) - dt;
-        if (!this.bagOf(d.id)) { this.release(d, ' wriggled out of the sack and sprinted home. Rude.'); changed = true; }
-        else if (d.bt <= 0) { this.release(d, ' chewed through the sack and escaped. It was a cheap sack.'); changed = true; }
+        if (!this.bagOf(d.id)) { this.release(d, ' wriggled out of the trash bag and sprinted home. Rude.'); changed = true; }
+        else if (d.bt <= 0) { this.release(d, ' chewed through the trash bag and escaped. It was a cheap bag.'); changed = true; }
       } else if (d.state === 'guest') {
         d.t -= dt;
         if (d.t <= 0) { this.pay(null, d); changed = true; }
@@ -153,7 +154,7 @@ export class Debts {
     const who = { debtor: { name: d.name, color: '#c8c8d8' } };
     const say = (lines) => g.broadcastEvent({ k: 'dlg', lines, pid, who });
     const suit = W.wear[pid] === 'suit' || W.wear[pid] === 'coat' ? 0.12 : 0;
-    const bonus = this.tier * 0.06 + suit;
+    const bonus = this.tier * 0.06 + suit + (GEAR[W.eq?.[pid]]?.bonus || 0);   // a foam bat is very persuasive
     switch (a.op) {
       case 'talk': {
         if (d.state === 'seized') return say([['debtor', 'I\'m saving up! I\'m saving! Please take care of my ' + this.itemOf(d) + '!']]);
@@ -195,14 +196,14 @@ export class Debts {
         // the Comically Large Sack: they go in, you carry them to a trunk
         const inv = W.inv?.[pid], H = g.hold(pid);
         if (!BAGGABLE.includes(d.state)) return;
-        if (!inv || !(inv.sack > 0)) return g.tell(pid, 'You need a Comically Large Sack (General store at the mall).');
+        if (!inv || !(inv.sack > 0)) return g.tell(pid, 'You need a Comically Large Trash Bag (General store at the mall).');
         if (H.length) return g.tell(pid, 'You need both hands free to bag someone.');
         inv.sack--;
         d.prev = d.state; d.state = 'bagged'; d.bt = 240;
         H.push({ k: 'bag', id: d.id, name: d.name });
         g.addHeat(3); this.addRep(1);
         g.sfx('whoosh', at);
-        say([['you', 'Get in the sack.'], ['debtor', 'The WHAT?'], ['narr', '*FWUMP.* ' + d.name + ' is in the sack. Put them in a car trunk (back of the car, E) and take them to the Time-Out Chair in the hidden storage room.'], ['debtor', '(muffled) THIS IS A VIOLATION OF MY RIGHTS. AND IT SMELLS LIKE ONIONS.']]);
+        say([['you', 'Get in the bag.'], ['debtor', 'The WHAT?'], ['narr', '*FWUMP.* ' + d.name + ' is in the trash bag. Put them in a car trunk (back of the car, E) and take them to the Time-Out Chair in the hidden storage room.'], ['debtor', '(muffled) THIS IS A VIOLATION OF MY RIGHTS. AND IT SMELLS LIKE ONIONS.']]);
         break;
       }
       case 'seat': {
@@ -211,7 +212,7 @@ export class Debts {
         if (this.list.some(x => x.state === 'guest')) return g.tell(pid, 'The Time-Out Chair is taken. One guest at a time. We are not animals.');
         H.pop();
         d.state = 'guest'; d.t = 60; d.slide = 0;
-        say([['narr', 'You sit ' + d.name + ' in the Time-Out Chair and pull off the sack. The TV clicks on.'], ['dez', 'Welcome! This is my vacation slideshow. All four thousand slides. Slide one: an airport.'], ['debtor', 'No. No no no. Not the slides.'], ['narr', 'They pay when they crack (60s), or speed it up by showing them slides yourself (E).']]);
+        say([['narr', 'You sit ' + d.name + ' in the Time-Out Chair and pull off the trash bag. The TV clicks on.'], ['dez', 'Welcome! This is my vacation slideshow. All four thousand slides. Slide one: an airport.'], ['debtor', 'No. No no no. Not the slides.'], ['narr', 'They pay when they crack (60s), or speed it up by showing them slides yourself (E).']]);
         break;
       }
       case 'slide': {
@@ -362,7 +363,7 @@ export class Debts {
     // the sack mumbles while you carry it
     const myBag = g.hold(g.me).find(i => i.k === 'bag');
     this.mmphT = (this.mmphT ?? 2) - dt;
-    if (myBag && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the sack) MMPH! I\'LL PAY! I\'LL PAY TUESDAY!', '(the sack) Is this a TRUNK? Are we going to a TRUNK?', '(the sack) MMMPH MMPH! (it sounds like "I want a lawyer")', '(the sack) It\'s dark in here and it smells like onions!', '(the sack) Can I at least get a garlic knot?'])); }
+    if (myBag && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the bag) MMPH! I\'LL PAY! I\'LL PAY TUESDAY!', '(the bag) Is this a TRUNK? Are we going to a TRUNK?', '(the bag) MMMPH MMPH! (it sounds like "I want a lawyer")', '(the bag) It\'s dark in here and it smells like old onions!', '(the bag) Can I at least get a garlic knot?'])); }
     else if (!myBag) this.mmphT = Math.max(this.mmphT, 1.5);
     // confiscated things vanish from home and appear in the storage room
     const seized = this.list.filter(d => d.state === 'seized');
@@ -411,7 +412,7 @@ export class Debts {
     for (const d of this.list) {
       const at = this.at(d), dd = Math.hypot(P.pos.x - at.x, P.pos.z - at.z);
       if (dd > 3.4 || d.state === 'bagged' || d.state === 'guest') continue;
-      const bag = BAGGABLE.includes(d.state) && sacks > 0 ? { label: H.length ? 'Bag them (free your hands first)' : 'Bag them! (' + sacks + ' sack' + (sacks > 1 ? 's' : '') + ')', act: { k: 'debt', id: d.id, op: 'bag' } } : null;
+      const bag = BAGGABLE.includes(d.state) && sacks > 0 ? { label: H.length ? 'Bag them (free your hands first)' : 'Bag them! (' + sacks + ' bag' + (sacks > 1 ? 's' : '') + ')', act: { k: 'debt', id: d.id, op: 'bag' } } : null;
       if (d.state === 'seized') out.push({ x: at.x, z: at.z, d: dd, label: d.name + ' is saving up. (Their ' + this.itemOf(d) + ' is in your storage room.)', info: true });
       else out.push({ x: at.x, z: at.z, d: dd - 0.2, label: 'Collect ' + money(d.amount) + ' from ' + d.name + ' (' + this.stateText(d) + ')', act: { k: 'debt', id: d.id, op: 'talk' }, debt: d.id, alt: bag });
     }
@@ -423,7 +424,7 @@ export class Debts {
         const guest = this.list.find(d => d.state === 'guest');
         if (top && top.k === 'bag') out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
         else if (guest) out.push({ x: ch.x, z: ch.z, d: dc, label: 'Show ' + guest.name + ' the next slide (' + this.stateText(guest) + ', owes ' + money(guest.amount) + ')', act: { k: 'debt', id: guest.id, op: 'slide' } });
-        else out.push({ x: ch.x, z: ch.z, d: dc, label: 'The Time-Out Chair. Bring a debtor in a sack (Comically Large Sack: General store).', info: true });
+        else out.push({ x: ch.x, z: ch.z, d: dc, label: 'The Time-Out Chair. Bring a debtor in a trash bag (Comically Large Trash Bag: General store).', info: true });
       }
     }
     if (W.rival) { const dd = Math.hypot(P.pos.x - W.rival.x, P.pos.z - W.rival.z); if (dd < 3) out.push({ x: W.rival.x, z: W.rival.z, d: dd, label: 'Confront the Calzone Cartel', local: 'rival' }); }
@@ -444,7 +445,7 @@ export class Debts {
     if (d.pressed !== d.state) items.push({ label: 'Pay up. NOW.', sub: 'Lean in. Look serious. (It works better in a suit.)', on: () => g.act({ k: 'debt', id, op: 'press' }) });
     if (['owed', 'late'].includes(d.state)) items.push({ label: 'You have until tomorrow.', sub: 'Set a deadline. If they miss it, you can take their ' + this.itemOf(d) + '.', on: () => g.act({ k: 'debt', id, op: 'deadline' }) });
     if (d.state === 'overdue') items.push({ label: 'We\'re taking the ' + this.itemOf(d) + '.', sub: 'Confiscate it until they pay. It goes to your hidden storage room.', on: () => g.act({ k: 'debt', id, op: 'seize' }) });
-    if (BAGGABLE.includes(d.state) && (g.W.inv?.[g.me]?.sack || 0) > 0) items.push({ label: 'Get in the sack.', sub: 'Bag them, put them in a trunk, sit them in the Time-Out Chair until they pay. Police will NOT like it.', on: () => g.act({ k: 'debt', id, op: 'bag' }) });
+    if (BAGGABLE.includes(d.state) && (g.W.inv?.[g.me]?.sack || 0) > 0) items.push({ label: 'Get in the bag.', sub: 'Bag them, put them in a trunk, sit them in the Time-Out Chair until they pay. Police will NOT like it.', on: () => g.act({ k: 'debt', id, op: 'bag' }) });
     items.push({ label: 'Forget it. You\'re forgiven.', sub: 'Lose the money. Gain a friend. Mafia rep -1.', on: () => g.act({ k: 'debt', id, op: 'forgive' }) });
     items.push({ label: 'Leave' });
     g.ui.menu({ title: d.name + ' owes ' + money(d.amount), sub: d.reason + ' · ' + this.stateText(d), items });

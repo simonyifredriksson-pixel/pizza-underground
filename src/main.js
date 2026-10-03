@@ -117,7 +117,7 @@ async function boot() {
   let last = performance.now();
   const frame = (now) => {
     const dt = (now - last) / 1000; last = now;
-    try { game.update(dt); } catch (e) { if (!game._errN || game._errN < 5) { game._errN = (game._errN || 0) + 1; window.__log('UPDATE ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 4).join(' | ')); } }
+    try { if (!game.paused) game.update(dt * (game.timeScale ?? 1)); } catch (e) { if (!game._errN || game._errN < 5) { game._errN = (game._errN || 0) + 1; window.__log('UPDATE ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 4).join(' | ')); } }
     renderer.render(scene, camera);
     input.endFrame();
     requestAnimationFrame(frame);

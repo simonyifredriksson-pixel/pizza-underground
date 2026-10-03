@@ -40,7 +40,7 @@ export const GENERAL = [
   { key: 'energy', label: 'Energy Drink "LIQUID PANIC"', price: 400, desc: 'You drink it right there. Run 40% faster for 60 seconds.' },
   { key: 'fresh', label: 'Air Freshener (Pine)', price: 800, desc: 'The hideout smells like a forest for 3 minutes: no smell heat, no smell evidence.' },
   { key: 'license', label: 'Fake Business License', price: 5000, desc: 'Laminated! The next inspection finds 3 less evidence. Then the inspector notices the spelling.' },
-  { key: 'sack', label: 'Comically Large Sack', price: 500, desc: 'For "giving debtors a ride". Bag one at their door (R), put them in a trunk, sit them in the Time-Out Chair in the hidden basement until they pay.' },
+  { key: 'sack', label: 'Comically Large Trash Bag', price: 500, desc: 'For "giving debtors a ride". Bag one at their door (R), put them in a trunk, sit them in the Time-Out Chair in the hidden basement until they pay.' },
   { key: 'mustache', label: 'Fake Mustache (costume aisle)', price: 1500, disg: true },
   { key: 'coat', label: 'Trench Coat & Shades (costume aisle)', price: 6000, disg: true },
   { key: 'suit', label: 'Suspicious Suit (costume aisle)', price: 12000, disg: true, tier: 2 },
@@ -233,7 +233,7 @@ export const BARK = {
 };
 
 export const DEZ = {
-  idle: ['Dude. DUDE. We\'re running an illegal pizza business. This is sick.', 'I still don\'t know how I got in that wall.', 'If the cops come, I\'m hiding in the fridge.', 'You think the mayor eats pizza in secret?', 'I could really go for a pizza. Oh wait.', 'We should name the business. Something subtle. Like "Pizza Crimes".'],
+  idle: ['Dude. DUDE. We\'re running an illegal pizza business. This is sick.', 'I still don\'t know how I got in that wall.', 'If the cops come, I\'m hiding in the fridge.', 'You think the mayor eats pizza in secret?', 'I could really go for a pizza. Oh wait.', 'We should name the business. Something subtle. Like "Pizza Crimes".', 'That bookshop on Pepper Road is weird. The old guy stares at one shelf ALL day. And he looks so hungry.', 'I heard if you bring the book guy a pizza, he shows you "the reading room". I don\'t read, so.'],
   sold: ['WHERE\'S THE CHEESE?', 'I sold it.', 'WHY?', 'We needed money.', 'WE SELL PIZZA.', 'I know.'],
 };
 

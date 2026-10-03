@@ -5,6 +5,7 @@
    action runs on the host. A client who types the sequence is told no. */
 import { VEHICLES, GROCERY, LAWS } from '../data/Data.js';
 import { HQ } from '../world/Town.js';
+import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
 import { money, esc } from '../core/Util.js';
 
 const SEQ = ['KeyJ', 'KeyL', 'KeyO', 'Digit3'];
@@ -71,6 +72,8 @@ export class Admin {
         if (arg === 'ext') H.push({ k: 'ext', from: 'ext1' });
         if (arg === 'stock') for (const k in W.stock) W.stock[k] += 20;
         if (arg === 'smoke') { W.inv = W.inv || {}; (W.inv[me] ||= { smoke: 0 }).smoke += 3; }
+        if (arg === 'gear') { W.gear = W.gear || {}; const inv = (W.gear[me] ||= {}); for (const k of GEAR_ORDER) inv[k] = GEAR[k].uses ? (inv[k] || 0) + 3 : 1; }
+        if (arg === 'bm') W.bm = true;
         if (arg === 'sack') { W.inv = W.inv || {}; const i = (W.inv[me] ||= { smoke: 0 }); i.sack = (i.sack || 0) + 3; }
         break;
       }
@@ -106,11 +109,11 @@ export class Admin {
       <div class="arow"><b>Orders</b> ${W.orders.length} · <b>Debts</b> ${(W.debts || []).length}</div>
       <div class="agrid">${btn('New order that refuses to pay', 'refuse')}${btn('A debtor pays immediately', 'payDebt', null, 'green')}${btn('New order', 'order')}${btn('Special: 12-pizza order', 'bigOrder')}${btn('Special: rich customer', 'richOrder')}</div>`;
     if (this.tab === 'world') {
-      const spots = { 'Hideout': { x: HQ.door.x - 2, z: HQ.door.z }, 'Inside the hideout': { x: 146, z: 80 }, 'Crumb Mall': T.mall, 'Town square': { x: 0, z: 12 }, 'City Hall': T.cityHallDoor, 'Police station': T.policeDoor, 'Hospital': T.hospitalDoor, 'Suspicious Man': T.manSpot, 'Storage room': T.storageIn, 'Junkyard': { x: 160, z: 132 }, 'Park': { x: 0, z: 150 } };
+      const spots = { 'Hideout': { x: HQ.door.x - 2, z: HQ.door.z }, 'Inside the hideout': { x: 146, z: 80 }, 'Crumb Mall': T.mall, 'Town square': { x: 0, z: 12 }, 'City Hall': T.cityHallDoor, 'Police station': T.policeDoor, 'Hospital': T.hospitalDoor, 'Suspicious Man': T.manSpot, 'Storage room': T.storageIn, 'Junkyard': { x: 160, z: 132 }, 'Park': { x: 0, z: 150 }, 'Pages & Pages (bookshop)': T.books.door, 'Underground Market': T.marketIn };
       body = `<div class="arow"><b>Teleport me</b></div><div class="agrid">${Object.entries(spots).map(([n, p]) => btn(n, 'tp', { x: p.x, z: p.z })).join('')}</div>
       <div class="arow"><b>Players</b></div><div class="agrid">${[...g.remotes.values()].map(r => btn('Bring ' + r.name + ' to me', 'tpPlayer', r.id) + btn('Go to ' + r.name, 'goto', r.id)).join('') || '<span class="adim">Nobody else is here.</span>'}</div>
       <div class="arow"><b>Spawn a vehicle in front of me</b></div><div class="agrid">${Object.entries(VEHICLES).map(([k, v]) => btn(v.name, 'car', k)).join('')}</div>
-      <div class="arow"><b>Give me</b></div><div class="agrid">${btn('A boxed pizza', 'item', 'box')}${btn('A crate of cheese', 'item', 'crate')}${btn('An extinguisher', 'item', 'ext')}${btn('3 smoke bombs', 'item', 'smoke')}${btn('3 sacks', 'item', 'sack')}</div>`;
+      <div class="arow"><b>Give me</b></div><div class="agrid">${btn('A boxed pizza', 'item', 'box')}${btn('A crate of cheese', 'item', 'crate')}${btn('An extinguisher', 'item', 'ext')}${btn('3 smoke bombs', 'item', 'smoke')}${btn('3 trash bags', 'item', 'sack')}${btn('All black-market gear', 'item', 'gear')}${btn(W.bm ? 'Black market: open' : 'Unlock the black market', 'item', 'bm')}</div>`;
     }
     if (this.tab === 'testing') body = `
       <div class="arow"><b>Current event</b> ${W.event ? esc(W.event.k) : 'none'} · <b>Weather</b> ${W.weather ? 'storm' : 'clear'}</div>

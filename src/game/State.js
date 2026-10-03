@@ -37,6 +37,8 @@ export function newWorld() {
     mrep: 0, tierSeen: 0,    // Mafia Reputation 0..100
     safe: 0,                 // cash in the secret safe: can't be fined
     kn: null, rival: null,   // Knuckles on a job; the Calzone Cartel in the park
+    bm: false,               // found the Underground Market (see BlackMarket.js)
+    gear: {}, eq: {}, incog: {}, // gear owned / in hand / disguised, per player
   };
 }
 

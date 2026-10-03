@@ -8,6 +8,7 @@ import { LOOKS } from '../data/Data.js';
 import { clamp, damp, dampAngle, wrapAngle } from '../core/Util.js';
 import { HQ } from '../world/Town.js';
 import { textTexture, part, geo } from '../art/Mesher.js';
+import { GearRig, GearVM } from './GearView.js';
 
 export const WALK = 5.6, RUN = 9.4;
 
@@ -28,8 +29,25 @@ export function buildStack(group, items, sq) {
     const m = makeItem(sq && it.k !== 'box' ? { ...it, square: true } : it);
     m.position.y = y;
     if (it.k === 'ext') { m.position.set(0.25, -0.5, -0.1); m.rotation.x = 0.8; }
+    if (it.k === 'bag') {
+      // a trash bag hangs from the knot, which is where both hands are: swing it from there
+      const pivot = new THREE.Group(); pivot.position.y = y + 0.17;
+      m.scale.setScalar(0.9); m.position.y = -1.125; pivot.add(m);
+      pivot.userData.wiggle = m; group.add(pivot); y += 0.3; continue;
+    }
     group.add(m);
     y += it.k === 'box' ? 0.14 : it.k === 'trash' ? 0.6 : 0.16;
+  }
+}
+/** the trash bag sways as you walk, and kicks now and then: somebody is in there */
+function wiggle(group, speed, t) {
+  for (const p of group.children) {
+    const m = p.userData.wiggle; if (!m) continue;
+    const kick = Math.max(0, Math.sin(t * 1.7) - 0.8) * 5;   // a kick every few seconds
+    p.rotation.z = Math.sin(t * 5.3) * 0.04 + Math.sin(t * 23) * 0.05 * kick;
+    p.rotation.x = Math.sin(t * 7) * 0.06 * Math.min(1, speed / 5) + Math.sin(t * 3.1) * 0.02;
+    const b = m.userData.body; if (b) { b.scale.set(1.0 + Math.sin(t * 17) * 0.03 * kick, 1.1 * (1 + Math.sin(t * 2.3) * 0.02 - kick * 0.03), 0.88); }
+    const n = m.userData.neck; if (n) n.rotation.z = Math.sin(t * 4) * 0.08;
   }
 }
 
@@ -51,6 +69,9 @@ export class Player {
     for (const s of [-1, 1]) { const h = part(geo.ico(0), LOOKS[look % 4].skin, s * 0.36, 0.02, 0.05, 0.16, 0.16, 0.18); h.castShadow = false; this.vm.add(h); this.vmHands.push(h); }
     this.vm.position.set(0, -0.5, -0.95); this.vm.visible = false;
     game.camera.add(this.vm);
+    // Underground Market gear: in your hand (third person) and in front of the camera (first person)
+    this.gear = new GearRig();
+    this.gearVM = new GearVM(game.camera, LOOKS[look % 4].skin, LOOKS[look % 4].shirt);
     this._mk();
   }
   _mk() {
@@ -90,20 +111,30 @@ export class Player {
     this.stack.rotation.x = n > 4 ? Math.sin(performance.now() * 0.003 + 1) * 0.008 * n : 0;
     const fp = this.g.cam.mode === 'first' && !this.g.cam.override;
     this.rig.root.visible = !this.hidden && !this.forceHidden && !this.tooClose && !fp;
+    const tnow = performance.now() * 0.001;
+    wiggle(this.stack, this.speed, tnow); wiggle(this.vmStack, this.speed, tnow);
     // the first-person hands: sway with walking, wobble with a tall stack
     this.vm.visible = fp && n > 0 && !this.car && !this.hidden;
     if (this.vm.visible) {
-      const t = performance.now() * 0.001, w = Math.min(1, this.speed / 6);
-      const ext = items[n - 1].k === 'ext';
-      this.vm.position.set(ext ? 0.32 : Math.sin(t * 6) * 0.015 * w, (ext ? -0.45 : -0.55) + Math.abs(Math.cos(t * 6)) * 0.02 * w, ext ? -0.6 : -0.95);
+      const t = tnow, w = Math.min(1, this.speed / 6);
+      const ext = items[n - 1].k === 'ext', bag = items[n - 1].k === 'bag';
+      this.vm.position.set(ext ? 0.32 : Math.sin(t * 6) * 0.015 * w, (ext ? -0.45 : bag ? -0.36 : -0.55) + Math.abs(Math.cos(t * 6)) * 0.02 * w, ext ? -0.6 : bag ? -1.25 : -0.95);
       this.vmStack.rotation.z = this.stack.rotation.z; this.vmStack.rotation.x = this.stack.rotation.x;
       this.vmStack.rotation.y = ext ? Math.PI : 0;
-      for (const h of this.vmHands) h.visible = !ext;
+      for (const [i, h] of this.vmHands.entries()) {
+        h.visible = !ext;
+        if (bag) h.position.set((i ? 1 : -1) * 0.09, 0.2 + this.vmStack.children[this.vmStack.children.length - 1].position.y - 0.17, 0.02); // both fists round the knot
+        else h.position.set((i ? 1 : -1) * 0.36, 0.02, 0.05);
+      }
     }
+    // gear: what you have equipped (put away while your hands are full)
+    const eq = this.g.W.eq?.[this.g.me] || null, incog = this.g.W.incog?.[this.g.me] > 0;
+    this.gear.set(eq); this.gearVM.set(eq);
+    this.gearVM.update(dt, { show: fp && n === 0 && !this.car && !this.hidden, speed: this.speed, running: this.running, camYaw: this.camYaw });
 
-    if (this.car) { this.speed = 0; return; } // the vehicle moves us
+    if (this.car) { this.speed = 0; this.gear.update(dt, this.rig, { hide: true, incog }); return; } // the vehicle moves us
     this.rig.root.scale.setScalar(1);
-    if (this.hidden) { this.speed = 0; this.rig.root.position.copy(this.pos); return; }
+    if (this.hidden) { this.speed = 0; this.rig.root.position.copy(this.pos); this.gear.update(dt, this.rig, { hide: true, incog }); return; }
 
     let mx = 0, mz = 0;
     if (!frozen && this.stun <= 0 && !this.flying) {
@@ -152,6 +183,7 @@ export class Player {
     R.root.rotation.y = this.yaw;
     if (this.flying) { R.root.rotation.x += dt * 9; } else R.root.rotation.x = 0;
     R.anim(dt, { speed: this.speed, carry: n > 0 && items[n - 1].k !== 'ext', spray: this.spraying, panic: this.flying || this.stun > 0 || (this.running && n > 2 && this.g.chased) ? 1 : 0, talk: this.g.ui.talking === 'you', wave: this.g.natural && n === 0 });
+    this.gear.update(dt, R, { speed: this.speed, hide: n > 0 || this.flying, incog });
   }
 }
 
@@ -162,6 +194,7 @@ export class Remote {
     this.pos = new THREE.Vector3(); this.target = new THREE.Vector3(); this.yaw = 0; this.tyaw = 0;
     this.s = null; this.floor = 0; this.car = null;
     this.stack = new THREE.Group(); this.stackKey = '';
+    this.gear = new GearRig();
     this.tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture([this.name], { w: 256, h: 64, bg: 'rgba(42,22,64,0.75)', fg: '#ffffff', border: false }), depthTest: false }));
     this.tag.scale.set(1.6, 0.4, 1);
     this._mk();
@@ -193,6 +226,9 @@ export class Remote {
     R.root.scale.setScalar(this.s.car ? 0.85 : 1);
     R.root.rotation.x = this.s.fl ? R.root.rotation.x + dt * 9 : 0;
     R.anim(dt, { speed: this.s.sp || 0, carry: items.length > 0 && items[items.length - 1].k !== 'ext', spray: !!this.s.sy, panic: this.s.p ? 1 : 0, sit: !!this.s.car, drive: this.s.car && this.s.car.seat === 0, talk: !!this.s.t, wave: !!this.s.nat });
+    wiggle(this.stack, this.s.sp || 0, performance.now() * 0.001);
+    this.gear.set(this.g.W.eq?.[this.id] || null);
+    this.gear.update(dt, R, { speed: this.s.sp || 0, hide: items.length > 0 || !!this.s.car || !!this.s.h, incog: this.g.W.incog?.[this.id] > 0 });
   }
   dispose() { this.g.scene.remove(this.rig.root); }
 }

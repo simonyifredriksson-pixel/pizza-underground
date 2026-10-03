@@ -28,7 +28,7 @@ export class Weather {
     S.fog.near = this.base.fogNear * (1 - this.k * 0.6); S.fog.far = this.base.fogFar * (1 - this.k * 0.5);
     this.dim = 1 - this.k * 0.45;
     if (g.sky) g.sky.visible = this.k < 0.6;
-    this.rain.visible = this.k > 0.05;
+    this.rain.visible = this.k > 0.05 && g.camera.position.x < 500;   // no rain in the cellars and sets far east
     if (this.rain.visible) {
       const c = g.camera.position;
       for (let i = 0; i < N; i++) {

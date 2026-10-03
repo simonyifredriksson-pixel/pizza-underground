@@ -217,9 +217,9 @@ export class Vehicles {
       const takeAlt = (c.cargo || []).length ? { label: 'Take something out (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' } } : null;
       const unloadAlt = nearHQ && crates ? { label: 'Unload all ' + crates + ' crates into the hideout fridge', act: { k: 'cargo', id: c.id, op: 'unloadAll' } } : takeAlt;
       if (top && (top.k === 'box' || top.k === 'crate' || top.k === 'bag')) {
-        const what = top.k === 'box' ? 'pizza box' : top.k === 'bag' ? 'sack (' + top.name + ', wriggling)' : 'crate';
+        const what = top.k === 'box' ? 'pizza box' : top.k === 'bag' ? 'trash bag (' + top.name + ', wriggling)' : 'crate';
         if (used + unitsOf(top) <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Put the ' + what + ' in the ' + (top.k === 'bag' ? 'trunk of the ' : '') + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
-        else out.push({ x: r.x, z: r.z, d, label: top.k === 'bag' ? 'The sack doesn\'t fit in the ' + name + ' (needs 4 space, ' + (spec.cap - used) + ' free)' : 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
+        else out.push({ x: r.x, z: r.z, d, label: top.k === 'bag' ? 'The trash bag doesn\'t fit in the ' + name + ' (needs 4 space, ' + (spec.cap - used) + ' free)' : 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
       } else if ((c.cargo || []).length) out.push({ x: r.x, z: r.z, d, label: 'Take something out of the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' }, alt: unloadAlt !== takeAlt ? unloadAlt : null });
       else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ': empty (holds ' + spec.cap + ' - a box is 1, a crate is 2)', info: true });
     }
@@ -235,7 +235,7 @@ export class Vehicles {
       c.cargo.push(H.pop()); g.sfx('drop', c);
     } else if (a.op === 'take') {
       if (!c.cargo.length || H.length >= 8) return;
-      if (c.cargo[c.cargo.length - 1].k === 'bag' && H.length) return g.tell(pid, 'You need both arms for the sack.');
+      if (c.cargo[c.cargo.length - 1].k === 'bag' && H.length) return g.tell(pid, 'You need both arms for the trash bag.');
       H.push(c.cargo.pop()); g.sfx('pickup', c);
     } else if (a.op === 'unloadAll') {
       let n = 0;

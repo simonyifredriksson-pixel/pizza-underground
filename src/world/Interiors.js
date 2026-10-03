@@ -105,6 +105,44 @@ export function furnish(T, kind, F) {
         sell(u, v, 'vehicle', it, 1.9);
       });
       return {};
+    case 'books': {
+      // Pages & Pages: a counter by the door (Vito stands behind it, see BlackMarket.js),
+      // bookcases along the walls, two aisles, an armchair. The back wall of shelves is Town's.
+      const BOOK = ['#8a2a2a', '#2a4a8a', '#2a6a3a', '#c8a03a', '#6a2a6a', '#d8c8a0', '#3a3a48', '#a8542a', '#4a7a8a'];
+      const bookcase = (u, v, len, alongU, faces) => {
+        const lu = alongU ? len : 0.5, lv = alongU ? 0.5 : len;
+        box(u, v, 0.07, lu, 2.3, lv, '#5a3a22'); solid(u, v, lu, lv, 2.3);
+        box(u, v, 2.37, lu + 0.06, 0.07, lv + 0.06, '#7a5236');
+        for (let k = 0; k < 4; k++) {
+          const y = 0.2 + k * 0.54;
+          for (const f of faces) {
+            box(alongU ? u : u + f * 0.25, alongU ? v + f * 0.25 : v, y - 0.04, alongU ? len : 0.05, 0.04, alongU ? 0.05 : len, '#7a5236');
+            let t = -len / 2 + 0.08;
+            while (t < len / 2 - 0.14) {
+              const bw = 0.08 + rand() * 0.08, bh = 0.3 + rand() * 0.16;
+              box(alongU ? u + t + bw / 2 : u + f * 0.26, alongU ? v + f * 0.26 : v + t + bw / 2, y, alongU ? bw : 0.03, bh, alongU ? 0.03 : bw, pick(BOOK));
+              t += bw + 0.012 + (rand() < 0.08 ? 0.15 : 0);
+            }
+          }
+        }
+      };
+      counter(-A + 1.9, 3.3, 0.8, 2.6, '#6a4a3a', '#4a3020');
+      box(-A + 1.9, 2.7, 0.95, 0.4, 0.28, 0.36, '#2b2b33');                         // the register
+      for (let i = 0; i < 4; i++) box(-A + 1.9, 3.6, 0.95 + i * 0.09, 0.32 - i * 0.03, 0.08, 0.44, pick(BOOK)); // a pile of books
+      bookcase(-A + 0.3, 6.4, 3.2, false, [1]);
+      bookcase(A - 0.3, 4.8, 6.4, false, [-1]);
+      bookcase(-1.4, 4.8, 3.6, false, [-1, 1]);
+      bookcase(1.6, 4.8, 3.6, false, [-1, 1]);
+      // an armchair and a reading lamp, a little table of "staff picks"
+      box(4.6, 1.6, 0.07, 1.0, 0.45, 0.9, '#8a2a3a'); box(4.6, 2.0, 0.52, 1.0, 0.6, 0.18, '#8a2a3a'); solid(4.6, 1.7, 1.0, 1.0, 0.9);
+      lamp(5.6, 2.2);
+      table(2.6, 1.5, 1.0, 0.7, '#6a4a3a');
+      for (let i = 0; i < 3; i++) box(2.3 + i * 0.3, 1.5, 0.78, 0.22, 0.06 + i * 0.04, 0.3, pick(BOOK));
+      tag(2.6, 1.0, 1.2, ['STAFF PICKS:', '"BOOKS"'], '#fff6c8');
+      rug(0.2, 7.5, 5.0, 1.3, '#6a2a3a');
+      { const p = P(-5.2, D - 3.1); T.sign(['WE ONLY', 'SELL BOOKS'], p.x, 3.3, p.z, facing, 1.6, 0.6, { bg: '#ffe14a', fg: '#2a1640' }); }
+      return {};
+    }
     case 'general':
       counter(A - 2, 1.4, 2.4, 0.8, '#e8e2d2', '#8a4ac8');
       { const p = P(A - 2, 0.6); T.person({ shirt: '#8a4ac8', pants: '#2b2b38', hairStyle: 'big', hair: '#c84a8a', skin: '#f7d6b8', glasses: 'round' }, p.x, p.z, facing + Math.PI); }

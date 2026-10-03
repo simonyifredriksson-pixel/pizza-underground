@@ -84,7 +84,7 @@ export class Police {
       this._camWarn = near;
     }
     for (const c of [...this.cops]) {
-      if (c.stun > 0) { c.stun -= dt; c.spd = 0; if (c.stun <= 0 && c.st === 'stun') c.st = c.fixed ? 'guard' : 'patrol'; continue; }
+      if (c.stun > 0) { c.stun -= dt; c.spd = 0; if (c.stun <= 0) { c.flat = false; if (c.st === 'stun') c.st = c.fixed ? 'guard' : 'patrol'; } continue; }
       if (c.kind === 'insp') { this._inspector(c, dt, players); continue; }
       if (c.kind === 'officer') continue; // the inspection moves these
       // look for crime
@@ -162,6 +162,7 @@ export class Police {
       if (p.run && W.law?.k === 'running') rate = Math.max(rate, 0.9);
       if (p.nat && !p.run) rate *= 0.5;
       if (W.wear[p.id] === 'cop' && !p.run) rate *= 0.2;
+      if (W.incog?.[p.id] > 0) rate = 0;   // the Instant Disguise Kit: who is this handsome stranger
     }
     const d = Math.hypot(p.x - c.x, p.z - c.z);
     const fov = c.kind === 'yard' ? 0.6 : 0.1;
@@ -301,7 +302,7 @@ export class Police {
   /* ---------------- network ---------------- */
   snapshot() {
     return {
-      c: this.cops.map(c => [c.id, +c.x.toFixed(2), +c.z.toFixed(2), +c.yaw.toFixed(2), c.st, c.kind, +(c.spd || 0).toFixed(1), c.tgt || 0, c.stun > 0 ? 1 : 0, Math.round(Math.max(0, ...Object.values(c.sus).concat(0)) * 100)]),
+      c: this.cops.map(c => [c.id, +c.x.toFixed(2), +c.z.toFixed(2), +c.yaw.toFixed(2), c.st, c.kind, +(c.spd || 0).toFixed(1), c.tgt || 0, c.stun > 0 ? (c.flat ? 2 : 1) : 0, Math.round(Math.max(0, ...Object.values(c.sus).concat(0)) * 100)]),
       v: this.cars.map(c => [c.id, +c.x.toFixed(2), +c.z.toFixed(2), +c.yaw.toFixed(2), c.siren, +(c.spd || 0).toFixed(1)]),
     };
   }
@@ -333,8 +334,11 @@ export class Police {
       if (Math.hypot(r.x - c.x, r.z - c.z) > 6) { r.x = c.x; r.z = c.z; }
       const R = r.rig;
       R.root.position.set(r.x, 0.04, r.z); R.root.rotation.y = r.yaw;
-      R.root.rotation.z = c.stun && c.st === 'stun' ? Math.PI / 2 * 0.9 : 0;
-      if (c.stun && c.st === 'stun') R.root.position.y = 0.4;
+      // flattened by the mallet: a cop pancake. Bonked: lying down. Frozen by the air horn: just standing there.
+      const flat = c.stun > 0 && (g.isHost ? c.flat : c.stun === 2);
+      R.root.rotation.z = c.stun && c.st === 'stun' && !flat ? Math.PI / 2 * 0.9 : 0;
+      if (c.stun && c.st === 'stun' && !flat) R.root.position.y = 0.4;
+      R.root.scale.set(flat ? 1.35 : 1, flat ? 0.2 : 1, flat ? 1.35 : 1);
       const sus = g.isHost ? Math.max(0, ...Object.values(c.sus || {}).concat(0)) : (c.susMax || 0);
       if (c.kind !== 'insp' && c.sus && c.sus[me] != null) maxSus = Math.max(maxSus, c.sus[me]);
       if (!g.isHost && c.susMax > maxSus && Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < 18) maxSus = c.susMax;

@@ -1,6 +1,7 @@
 /* Tests.js - ?skip=<quest> drops you into the story, ?script=<name> runs a
    scripted check and writes PASS/FAIL lines into #testout (read it with a
    headless browser's --dump-dom). ?shot=<name> frames a screenshot. */
+import * as THREE from '../../lib/three.module.js';
 import { newWorld } from '../game/State.js';
 import { Q } from '../data/Story.js';
 import { STOCK } from '../data/Data.js';
@@ -8,6 +9,8 @@ import { HQ } from '../world/Town.js';
 import { STATION } from '../data/Hideout.js';
 import { drive as driveFn } from '../game/Vehicles.js';
 import { VEHICLES as VEH } from '../data/Data.js';
+import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
+import { makeItem } from '../art/Props.js';
 
 export function setupAt(g, q) {
   const W = newWorld();
@@ -43,6 +46,27 @@ export function setupAt(g, q) {
       const id = W.carSeq++; W.cars.push({ id, kind: qs.get('car') || 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
       g.exec(g.me, { k: 'enter', id }); g.cam.mode = 'first';
     }
+    if (ui === 'open') { W.bm = true; g.bm.shelfK = 1; g.player.teleport(g.town.poi.books.ocx - 1.2, g.town.poi.books.zp - 3.2, 0, 0.3); g.cam.fpPitch = 0.05; }
+    if (ui === 'swingShot') setTimeout(() => {   // the reveal film, frozen with the shelf half open
+      const B = g.town.poi.books, V = g.bm.vito, k = +(qs.get('k') || 0.55);
+      W.bm = true; g.bm.cine = { book: 1 }; g.bm.shelfK = k; g.ui.cinema(true);
+      V.x = B.ocx - 1.0; V.z = B.zp - 1.05; V.st = k > 0.9 ? 'present' : 'pull';
+      g.player.teleport(B.ocx - 2, B.zp - 4, 0);
+      g.cam.override = { pos: new THREE.Vector3(B.ocx - 0.6, 1.7, B.zp - 3.4), look: new THREE.Vector3(B.ocx + 0.1, 1.2, B.zp + 0.6) };
+    }, 900);
+    if (ui === 'reveal') {
+      W.hold[g.me] = [{ k: 'box', sauce: 1, cheese: 1, top: ['pepperoni'], cook: 1 }];
+      g.player.teleport(g.bm.vito.x + 1.3, g.bm.vito.z, 0, -Math.PI / 2); g.bm.talkVito();
+      const stop = +qs.get('stop') || 0;
+      const iv = setInterval(() => { if (g.ui.dlg) { g.ui.dlg.typed = 999; g.ui._next(); } if (stop && g.bm.cine && g.bm.vito.st === qs.get('at')) { clearInterval(iv); g.paused = true; } }, 250);
+    }
+    if (ui === 'gear' || ui === 'gearUse') {
+      W.gear = { [g.me]: Object.fromEntries(GEAR_ORDER.map(k => [k, 3])) }; W.eq = { [g.me]: qs.get('gear') || 'foambat' };
+      if (qs.has('incog')) W.incog = { [g.me]: 40 };
+      for (let i = 0; i < 40; i++) { g.update(1 / 30); g.input.endFrame(); }   // past the equip animation (headless frames are slow)
+      if (ui === 'gearUse') setTimeout(() => { g.player.gear.play(GEAR[W.eq[g.me]].anim); g.player.gearVM.play(GEAR[W.eq[g.me]].anim); g.player.gear.T.t = +qs.get('t') || 0.2; g.player.gearVM.T.t = +qs.get('t') || 0.2; g.timeScale = 0.0001; }, 1200);
+    }
+    if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'chair') {
       const d = g.debts.create('house', 2, 'Gary', 2000, 'test'); d.state = 'guest'; d.t = 60;
       const ch = g.town.poi.storageChair; g.player.teleport(ch.x - 1.5, ch.z - 2.5, 0, 0.6); g.cam.fpPitch = 0.2;
@@ -80,6 +104,13 @@ function frame(g, s) {
     shop: () => { P.teleport(-80, -51.5, 0, Math.PI); g.cam.fpPitch = 0.12; },
     gas: () => { P.teleport(98, -59.5, 0, Math.PI); g.cam.fpPitch = 0.12; },
     pizzeria: () => { P.teleport(0, 54, 0, 0); g.cam.fpPitch = 0.15; },
+    plaza: () => { P.teleport(4, 28, 0, Math.PI - 0.3); g.cam.fpPitch = 0.1; g.cam.pitch = 0.2; g.cam.dist = 4; if (g.cam.mode !== 'first') P.camYaw = P.yaw + 0.75; },
+    bookOut: () => { P.teleport(-71, -115, 0, -0.45); g.cam.fpPitch = -0.08; },
+    bookIn: () => { P.teleport(-80.5, -104.8, 0, 0.25); g.cam.fpPitch = 0.08; },
+    market: () => { P.teleport(808.5, -10.5, 0, -0.75); g.cam.fpPitch = 0.12; },
+    market2: () => { P.teleport(801, 9.5, 0, Math.PI + 0.35); g.cam.fpPitch = 0.1; },
+    market3: () => { P.teleport(796, 1.5, 0, 1.2); g.cam.fpPitch = 0.15; },
+    vip: () => { P.teleport(788.5, 4.0, 0, -0.45); g.cam.fpPitch = 0.12; },
     storage: () => { const s = g.town.poi.storageIn; P.teleport(s.x, s.z, 0, -Math.PI / 2); g.cam.fpPitch = 0.12; },
     hideoutOut: () => { P.teleport(130, 82, 0, 1.5); g.cam.pitch = 0.3; g.cam.dist = 8; P.camYaw = -2.0; },
   }[s];
@@ -109,6 +140,7 @@ export async function run(g, name) {
     if (name === 'input') return inputTest(g);
     if (name === 'debts') return debts(g);
     if (name === 'kidnap') return kidnap(g);
+    if (name === 'bm') return await bmTest(g);
     if (name === 'cockdbg') {
       fresh(g); const W = g.W;
       const id = W.carSeq++; W.cars.push({ id, kind: 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
@@ -231,6 +263,103 @@ function debts(g) {
   g.exec(me, { k: 'debt', id: e.id, op: 'talk' });
   log(true, 'talked to a debtor: ' + (W.debts.includes(e) ? 'refused (menu offered)' : 'paid'));
   note('debts done');
+}
+
+/** the Underground Market: Vito, the pizza, the shelf, the stairs, every piece of gear */
+async function bmTest(g) {
+  fresh(g);
+  const me = g.me, W = g.W, P = g.player, BM = g.bm, B = g.town.poi.books;
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  const skip = () => { if (g.ui.dlg) { g.ui.dlg.typed = 1e9; g.ui._next(); } };
+  log(!!g.town.biz.books && B.shelf.col.on, 'Pages & Pages is on Pepper Road, the back shelf is solid');
+  P.teleport(BM.vito.x + 1.3, BM.vito.z, 0); sim(g, 0.3);
+  let T = []; BM.targets(P, T);
+  log(T.some(t => /bookseller/.test(t.label)), 'the bookseller: "' + (T.find(t => /bookseller/.test(t.label)) || {}).label + '"');
+  BM.talkVito(); for (let i = 0; i < 10; i++) { skip(); await tick(); }
+  log(!W.bm, 'no pizza, no secret (he just drops hints)');
+  W.hold[me] = [{ k: 'box', sauce: 1, cheese: 1, top: ['pepperoni'], cook: 1 }];
+  T = []; BM.targets(P, T);
+  log(T.some(t => /Give the bookseller your pizza/.test(t.label)), 'holding a pizza: "Give the bookseller your pizza"');
+  BM.talkVito(); await tick();
+  log(W.bm && !g.hold(me).length && !!BM.cine, 'he took the pizza; the reveal film starts');
+  let saw = { around: false, walk: false, pull: false, mid: false };
+  for (let i = 0; i < 900 && BM.cine; i++) {
+    skip(); sim(g, 0.05); await tick();
+    const st = BM.vito.st; if (st in saw) saw[st] = true;
+    if (BM.shelfK > 0.3 && BM.shelfK < 0.9) saw.mid = true;
+  }
+  log(saw.around && saw.walk && saw.pull, 'Vito looked around, walked to the shelf and pulled the red book');
+  log(saw.mid && !BM.cine && !g.cam.override, 'the shelf swung open on camera, then the film ended');
+  sim(g, 1);
+  log(B.shelf.pivot.rotation.y > 1.4 && !B.shelf.col.on, 'the secret shelf stays open (' + B.shelf.pivot.rotation.y.toFixed(2) + ' rad)');
+  P.teleport(B.landing.x, B.landing.z, 0); sim(g, 0.2);
+  T = []; BM.targets(P, T); const down = T.find(t => /secret stairs/.test(t.label));
+  log(!!down, 'behind the shelf: "Go down the secret stairs"');
+  down.fn(); await new Promise(r => setTimeout(r, 450)); sim(g, 0.2);
+  log(P.pos.x > 760, 'down in the Underground Market (' + P.pos.x.toFixed(0) + ', ' + P.pos.z.toFixed(0) + ')');
+  const items = g.town.shopItems.filter(s => s.cat === 'bm');
+  log(items.length === 12 && BM.displays.length === 12 && BM.regulars.length >= 6, 'twelve tables of gear, the Broker and ' + BM.regulars.length + ' regulars');
+  W.money = 300000;
+  for (const k of GEAR_ORDER) g.exec(me, { k: 'shop', cat: 'bm', key: k });
+  log(GEAR_ORDER.every(k => W.gear[me][k] > 0) && W.money === 300000 - GEAR_ORDER.reduce((s, k) => s + GEAR[k].price, 0), 'bought all twelve');
+  T = []; BM.targets(P, T); const up = (() => { P.teleport(g.town.poi.marketExit.x, g.town.poi.marketExit.z, 0); sim(g, 0.1); const t = []; BM.targets(P, t); return t.find(x => /back up/.test(x.label)); })();
+  log(!!up, 'the way out: "' + (up || {}).label + '"');
+  // use everything, against real cops, out in town
+  const use = (key, at) => { g.exec(me, { k: 'bm', op: 'equip', key }); const a = at || { x: P.pos.x, z: P.pos.z, yaw: P.yaw }; g.exec(me, { k: 'bm', op: 'use', key, x: a.x, z: a.z, yaw: a.yaw, f: 0 }); };
+  const cop = (d = 1.6, st = 'chase') => { const c = g.police.spawnCop(); c.x = P.pos.x + Math.sin(P.yaw) * d; c.z = P.pos.z + Math.cos(P.yaw) * d; c.st = st; c.tgt = st === 'chase' ? me : null; c.lx = P.pos.x; c.lz = P.pos.z; c.lost = 0; c.stun = 0; return c; };
+  const clear = () => { g.police.cops = g.police.cops.filter(c => c.kind === 'yard'); };
+  P.teleport(0, 30, 0, 0); sim(g, 0.1); clear();
+  let c = cop(); use('foambat');
+  log(c.st === 'stun' && c.stun > 3 && c.tgt == null, 'foam bat: BONK, the cop forgot why he was chasing you');
+  c = cop(); use('mallet');
+  log(c.st === 'stun' && c.flat && c.stun > 6, 'mallet: cop pancake (7s)');
+  clear(); const cs = [cop(3), cop(8)]; use('airhorn');
+  log(cs.every(x => x.stun >= 2.9), 'air horn: every cop within 15m froze');
+  clear(); c = cop(5); use('flashlight');
+  log(c.stun >= 1.9, 'flashlight: blinded the chasing cop');
+  clear(); c = cop(6); const n0 = W.gear[me].decoy; use('decoy');
+  log(c.st === 'search' && Math.hypot(c.tx - (P.pos.x + Math.sin(P.yaw) * 10), c.tz - (P.pos.z + Math.cos(P.yaw) * 10)) < 0.5 && W.gear[me].decoy === n0 - 1, 'decoy box: the cop goes after the box instead');
+  clear(); c = cop(2); use('docs');
+  log(c.st === 'patrol' && c.tgt == null, 'fake documents: the cop salutes and leaves');
+  clear(); c = cop(2); const m0 = W.money; use('briefcase');
+  log(c.st === 'patrol' && W.money === m0 - 2000, 'briefcase: $2,000 and a muffin, the chase is over');
+  clear(); use('disguise');
+  log(W.incog[me] > 40, 'disguise kit: 45 seconds incognito');
+  c = cop(3, 'patrol'); c.yaw = Math.atan2(P.pos.x - c.x, P.pos.z - c.z); W.hold[me] = [{ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }];
+  sim(g, 3, 1 / 15);
+  log(c.st !== 'chase' && !(c.sus[me] > 0.05), 'disguised: a cop looks right at your pizza and sees nothing');
+  W.hold[me] = []; W.incog = {}; clear();
+  // the toolbox fixes a wrecked oven
+  W.st.oven1 = W.st.oven1 || {}; W.st.oven1.burnt = true; W.st.oven1.grease = 0.8; W.st.oven1.fire = 0;
+  const ov = STATION.oven1; P.teleport(ov.x, ov.z + 1.2, 0); sim(g, 0.1); use('toolbox');
+  log(!W.st.oven1.burnt && W.st.oven1.grease === 0, 'toolbox: the wrecked oven is fixed');
+  // debts: the lock-breaking kit and Cardboard Knuckles
+  const d = g.debts.create('house', 5, 'Gary', 3000, 'test'); d.state = 'late';
+  const at = g.debts.at(d); P.teleport(at.x, at.z + 0.6, 0); sim(g, 0.1);
+  use('lockpick');
+  log(d.state === 'overdue', 'lock-breaking kit: deadline skipped, their stuff can be taken now');
+  const m1 = W.money; use('cutout');
+  log(d.cut && (W.money === m1 + d.amount || W.debts.includes(d)), 'Cardboard Knuckles at the door: ' + (W.debts.includes(d) ? 'they saw the stick' : 'they paid ' + d.amount));
+  // inspections: smoke machine and documents
+  W.gear[me].docs = 1;   // the last set went to that cop
+  W.insp = null; W.inspCool = 0; g.inspections.start('test'); P.teleport(146, 80, 0); sim(g, 0.1);
+  use('smoke'); use('docs');
+  log(W.insp.smoke && W.insp.docs, 'inspection: party fog (-3) and fake documents (-4)');
+  W.insp = null; g.police.cops = g.police.cops.filter(c => c.kind !== 'officer');
+  // animations: equip, use, away
+  P.teleport(0, 30, 0, 0); g.exec(me, { k: 'bm', op: 'equip', key: 'foambat' }); sim(g, 1.2);
+  log(P.gear.T.cur === 'foambat' && P.gear.T.ph === 'idle' && P.gearVM.T.cur === 'foambat', 'foam bat in hand (first and third person)');
+  BM.use(); sim(g, 0.1);
+  log(P.gear.T.ph === 'use' && P.gearVM.T.anim === 'swing', 'click: the swing animation plays');
+  g.exec(me, { k: 'bm', op: 'away' }); sim(g, 0.6);
+  log(!P.gear.T.cur && !P.gearVM.model, 'put away (B)');
+  W.hold[me] = [{ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }]; g.exec(me, { k: 'bm', op: 'equip', key: 'foambat' }); sim(g, 0.5);
+  log(!P.gear.holder.visible, 'carrying a pizza: the bat waits on your back');
+  W.hold[me] = [];
+  // the trash bag
+  const bag = makeItem({ k: 'bag', id: 1, name: 'Gary' });
+  log(!!bag.userData.body && !!bag.userData.neck, 'the bag is a lumpy black trash bag with a tied neck');
+  note('black market done');
 }
 
 /** the Comically Large Sack: bag a debtor, trunk, Time-Out Chair, pay. And the cockpit. */

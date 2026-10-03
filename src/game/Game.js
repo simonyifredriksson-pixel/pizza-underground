@@ -21,6 +21,7 @@ import { Debts } from './Debts.js';
 import { Inspections } from './Inspections.js';
 import { Weather } from './Weather.js';
 import { Admin } from '../ui/Admin.js';
+import { BlackMarket } from './BlackMarket.js';
 import { GROCERY, EQUIPMENT, GENERAL } from '../data/Data.js';
 import { makeCar, makeItem } from '../art/Props.js';
 import { makeChar } from '../art/Chars.js';
@@ -74,6 +75,7 @@ export class Game {
     this.inspections = new Inspections(this);
     this.weather = new Weather(this);
     this.admin = new Admin(this);
+    this.bm = new BlackMarket(this);
     this._netHooks();
   }
 
@@ -171,10 +173,11 @@ export class Game {
         case 'decline': this.orders.decline(pid, a.id); break;
         case 'clue': this.story.onClue(pid, a.id); break;
         case 'debt': case 'rival': case 'safe': this.debts.exec(pid, a); break;
+        case 'bm': this.bm.exec(pid, a); break;
         case 'toss': {
           const it = H.pop(); if (!it) break;
           if (it.k === 'ext') { const st = this.kitchen.st(it.from || 'ext1'); st.ext = true; this.tell(pid, 'The extinguisher magically returns to the wall. (Physics.)'); }
-          else if (it.k === 'bag') { this.fxAt('poof', a.x, 0.6, a.z); const d = this.debts.list.find(x => x.id === it.id); if (d && d.state === 'bagged') this.debts.release(d, ' hit the ground, wriggled out of the sack and ran home yelling "I\'M TELLING!"'); }
+          else if (it.k === 'bag') { this.fxAt('poof', a.x, 0.6, a.z); const d = this.debts.list.find(x => x.id === it.id); if (d && d.state === 'bagged') this.debts.release(d, ' hit the ground, wriggled out of the trash bag and ran home yelling "I\'M TELLING!"'); }
           else this.fxAt('splat', a.x, 1.2, a.z);
           this.sfx('splat', a); this.dirty(); break;
         }
@@ -298,12 +301,14 @@ export class Game {
         if (!pay(it.price)) return;
         W.owned.disg.push(a.key); W.wear[pid] = a.key;
       } else if (a.key === 'smoke') { if (!pay(it.price)) return; inv.smoke++; this.tell(pid, 'Smoke bombs: ' + inv.smoke + '. Press G to vanish.'); }
-      else if (a.key === 'sack') { if (!pay(it.price)) return; inv.sack = (inv.sack || 0) + 1; this.tell(pid, 'Comically Large Sacks: ' + inv.sack + '. Find someone who owes you money. Press R at their door.'); }
+      else if (a.key === 'sack') { if (!pay(it.price)) return; inv.sack = (inv.sack || 0) + 1; this.tell(pid, 'Comically Large Trash Bags: ' + inv.sack + '. Find someone who owes you money. Press R at their door.'); }
       else if (a.key === 'energy') { if (!pay(it.price)) return; this.broadcastEvent({ k: 'energy', pid }); }
       else if (a.key === 'fresh') { if (!pay(it.price)) return; W.fresh = 180; this.tell(pid, 'The hideout now smells like a pine forest. For 3 minutes.'); }
       else if (a.key === 'license') { if (W.license) return this.tell(pid, 'You already have one. One forgery at a time.'); if (!pay(it.price)) return; W.license = true; }
     } else if (a.cat === 'vehicle') {
       return this.exec(pid, { k: 'buyCar', kind: a.key });
+    } else if (a.cat === 'bm') {
+      return this.bm.buy(pid, a.key);
     }
     this.dirty();
   }
@@ -313,6 +318,7 @@ export class Game {
     if (s.cat === 'grocery') { const it = GROCERY.find(i => i.key === s.key); if (W.shortage?.s === it.stock) return { label: it.label + ': SOLD OUT', warn: true }; return { label: 'Buy ' + it.label + ' - ' + money(it.price) + ' (a crate)' }; }
     if (s.cat === 'equipment') { const it = EQUIPMENT.find(i => i.key === s.key); const own = s.key === 'oven1' ? W.oven1 : W.owned.up[s.key]; const sub = it.desc || UPGRADES[s.key]?.desc || ''; return own ? { label: it.label + ': OWNED. ' + sub, info: true } : { label: 'Buy ' + it.label + ' - ' + money(it.price) + '. ' + sub }; }
     if (s.cat === 'general') { const it = GENERAL.find(i => i.key === s.key); if (it.disg && W.owned.disg.includes(s.key)) return { label: (W.wear[this.me] === s.key ? 'Take off: ' : 'Wear: ') + it.label.replace(/ \(.*/, '') }; const lock = it.tier && tier < it.tier; return lock ? { label: it.label + ' (Mafia Rep: The Crust Family)', warn: true } : { label: 'Buy ' + it.label + ' - ' + money(it.price) + (it.desc ? '. ' + it.desc : '') }; }
+    if (s.cat === 'bm') return this.bm.shopLabel(s);
     if (s.cat === 'vehicle') {
       const v = VEHICLES[s.key];
       if (W.owned.veh.includes(s.key)) return { label: v.name + ': OWNED (cargo ' + v.cap + ')', info: true };
@@ -366,6 +372,7 @@ export class Game {
       case 'tp': if (e.pid === this.me) { P.teleport(e.x, e.z, e.floor || 0); this.cam.snap = true; ui.toast('An admin teleported you.'); } break;
       case 'debtMenu': if (e.pid === this.me) { const open = () => (ui.inDialog ? setTimeout(open, 200) : this.debts.menuFor(e.id)); setTimeout(open, 300); } break;
       case 'alarm': ui.alarm(e.text); a.fail(); break;
+      case 'bmReveal': case 'gear': this.bm.onEvent(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;
       case 'fx': {
@@ -531,6 +538,7 @@ export class Game {
       this.events.hostUpdate(dt, players);
       this.debts.hostUpdate(dt, players);
       this.inspections.hostUpdate(dt, players);
+      this.bm.hostUpdate(dt);
       for (const c of W.cars) if (c.drv) this.police.carHit(c);
       this._saveT -= dt;
       if (this._saveT <= 0 && (this._dirty || this._saveT < -30)) { this._saveT = 8; if (this._dirty) saveWorld(W); }
@@ -543,6 +551,7 @@ export class Game {
     this.police.sync(dt);
     this.npcs.update(dt);
     this.debts.sync(dt);
+    this.bm.update(dt);
     this.traffic.setVisible(this.phase !== 'intro');
     if (this.phase === 'play') { this.traffic.update(dt); this.citizens.update(dt); this.story.localUpdate(dt); }
     for (const r of this.remotes.values()) r.update(dt);
@@ -682,6 +691,7 @@ export class Game {
         this.orders.targets(P, T);
         this.npcs.targets(P, T);
         this.debts.targets(P, T);
+        this.bm.targets(P, T);
         this.vehicles.targets(P, T);
         if (P.floor === 0) for (const s of this.town.shopItems || []) {
           const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z);
@@ -727,6 +737,7 @@ export class Game {
   }
   _do(t) {
     const P = this.player;
+    if (t.fn) { t.fn(); return; }
     if (t.act) { this.act(t.act); return; }
     switch (t.local) {
       case 'talk': t.npc.talk(); break;
@@ -909,9 +920,10 @@ export class Game {
     const fx = this.cam.override ? c.x : P.pos.x, fz = this.cam.override ? c.z : P.pos.z;
     L.sun.position.set(fx + 40, 90, fz + 30); L.sun.target.position.set(fx, 0, fz); L.sun.target.updateMatrixWorld();
     const under = P.floor === 1 && !this.cam.override;
+    const market = fx > 760 && fx < 840;   // the Underground Market: dim, the lamps do the work
     const dim = this.weather?.dim ?? 1;
-    L.sun.intensity = damp(L.sun.intensity, (under ? 0.2 : 2.6) * dim, 6, 0.016);
-    L.hemi.intensity = damp(L.hemi.intensity, (under ? 2.0 : 1.3) * (0.6 + 0.4 * dim), 6, 0.016);
+    L.sun.intensity = damp(L.sun.intensity, market ? 0.75 : (under ? 0.2 : 2.6) * dim, 6, 0.016);
+    L.hemi.intensity = damp(L.hemi.intensity, market ? 1.05 : (under ? 2.0 : 1.3) * (0.6 + 0.4 * dim), 6, 0.016);
     if (this.sky) this.sky.position.set(c.x, 0, c.z);
   }
   _titleCam(dt) {

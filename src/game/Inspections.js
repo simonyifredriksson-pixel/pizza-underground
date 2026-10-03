@@ -196,6 +196,8 @@ export class Inspections {
     const notes = [];
     if (W.owned.up.shoes) { score -= 2; notes.push('The shoe racks helped (-2).'); }
     if (W.license) { score -= 3; W.license = false; notes.push('The fake license helped (-3). The inspector noticed the spelling on the way out.'); }
+    if (I.smoke) { score -= 3; notes.push('The party smoke machine: they couldn\'t see a thing (-3). One of them did a little dance.'); }
+    if (I.docs) { score -= 4; notes.push('Your "very official" documents (-4). The inspector saluted them.'); }
     score = Math.max(0, score);
     const lines = [['inspector', 'Inspection complete. Evidence found: ' + I.score + '.'], ...notes.map(n => ['narr', n])];
     const inside = g.allPlayers().filter(p => roomAt(p.x, p.z, p.floor));

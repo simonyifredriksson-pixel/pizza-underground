@@ -12,6 +12,7 @@ import { Mesher, signMesh, textTexture, vcMat, vcGlowMat, geo, part, mat } from 
 import { makeChar } from '../art/Chars.js';
 import { makeCar, makeDumpster, MAFIA, bake, makeValuable, VALUABLES, OUTDOOR_VALUABLES, makeStation, makeItem } from '../art/Props.js';
 import { GROCERY, EQUIPMENT, GENERAL, VEHICLES } from '../data/Data.js';
+import { GEAR_ORDER } from '../data/BlackMarket.js';
 import { furnish } from './Interiors.js';
 import { Colliders } from './Colliders.js';
 import { seeded } from '../core/Util.js';
@@ -93,6 +94,8 @@ export class Town {
     this.prettify();
     this.hospitalRoom();
     this.storageRoom();
+    this.bookshop(-79, -100);
+    this.blackMarket();
     for (const [, me] of this.chunks) this.root.add(me.build({ cast: !me.noCast, material: me.unlit ? vcGlowMat() : undefined }));
     // the edge of the world: invisible walls
     for (const s of [-1, 1]) { this.col.box(-230, s * 228, 230, s * 232, { h: 50 }); this.col.box(s * 228, -230, s * 232, 230, { h: 50 }); }
@@ -793,6 +796,299 @@ export class Town {
     this.poi.storageSlots = Array.from({ length: 8 }, (_, i) => ({ x: X - 0.5 + (i % 4) * 2, z: Z + 4.2 - Math.floor(i / 4) * 1.9 }));
     this.poi.storageBags = { x: X + 5, z: Z - 3.5 };
     this.poi.storage = { x0: X - W / 2, x1: X + W / 2, z0: Z - D / 2, z1: Z + D / 2 };
+  }
+
+  /* ---------------- Pages & Pages: a bookshop with a secret ----------------
+     The back of the shop is a wall of bookshelves. One of them is a door:
+     behind it a hidden room and stairs going down to the Underground Market.
+     The secret shelf is its own mesh on a hinge (BlackMarket.js swings it). */
+  bookshop(cx, cz) {
+    const w = 14, d = 12, ih = 4.4;
+    const door = this.bldg(cx, cz, w, d, 5.5, '#7a6a8a', 'n', { kind: 'books', floor: '#8a6a4a', inner: '#e8d8c0', sign: ['PAGES & PAGES', 'USED BOOKS (NO QUESTIONS)'], signBg: '#2a1a24', signFg: '#ffd23f', awning: '#3a2a4a', poster: false, lit: 0.6 });
+    this.biz.books = door;
+    const m = this.m(cx, cz), mn = this.mn(cx, cz);
+    const zf = cz - d / 2 + 0.3, zb = cz + d / 2 - 0.3, x0 = cx - w / 2 + 0.3, x1 = cx + w / 2 - 0.3;
+    const zp = zb - 2.6;                                   // the wall of shelves; the secret is behind it
+    const ox0 = cx + 2.6, ox1 = cx + 4.2, ocx = (ox0 + ox1) / 2;  // the opening the secret shelf covers
+    const WALL = '#e8d8c0', BOOK = ['#8a2a2a', '#2a4a8a', '#2a6a3a', '#c8a03a', '#6a2a6a', '#d8c8a0', '#3a3a48', '#a8542a', '#4a7a8a'];
+    m.box((x0 + ox0) / 2, 0.07, zp, ox0 - x0, ih, 0.2, WALL); this.col.box(x0, zp - 0.1, ox0, zp + 0.1, { h: 5 });
+    m.box((ox1 + x1) / 2, 0.07, zp, x1 - ox1, ih, 0.2, WALL); this.col.box(ox1, zp - 0.1, x1, zp + 0.1, { h: 5 });
+    m.box(ocx, 2.6, zp, ox1 - ox0, ih - 2.53, 0.2, WALL);
+    // one bookcase facing the shop (-z), its back at z: frame, shelves, and rows of spines
+    const bookcase = (me, x, z, len, h = 2.5) => {
+      me.box(x, 0.07, z - 0.2, len, h, 0.4, '#5a3a22');
+      me.box(x, 0.07 + h, z - 0.2, len + 0.08, 0.08, 0.46, '#7a5236');
+      for (let k = 0; k < 4; k++) {
+        const y = 0.2 + k * 0.58;
+        me.box(x, y - 0.04, z - 0.42, len, 0.04, 0.05, '#7a5236');
+        let t = -len / 2 + 0.08;
+        while (t < len / 2 - 0.14) {
+          const bw = 0.07 + this.rand() * 0.08, bh = 0.32 + this.rand() * 0.16, lean = this.rand() < 0.08 ? 0.25 : 0;
+          if (lean) me.boxc(x + t + bw / 2, y + bh / 2, z - 0.41, bw, bh, 0.03, BOOK[Math.floor(this.rand() * BOOK.length)], 0, 0, lean);
+          else me.box(x + t + bw / 2, y, z - 0.41, bw, bh, 0.03, BOOK[Math.floor(this.rand() * BOOK.length)]);
+          t += bw + 0.012 + (this.rand() < 0.1 ? 0.12 : 0);
+        }
+      }
+    };
+    for (let x = ox0 - 0.8; x > x0 + 0.7; x -= 1.6) { bookcase(m, x, zp - 0.1, 1.56); this.col.box(x - 0.8, zp - 0.55, x + 0.8, zp - 0.1, { h: 3 }); }
+    bookcase(m, (ox1 + x1) / 2, zp - 0.1, x1 - ox1 - 0.04); this.col.box(ox1, zp - 0.55, x1, zp - 0.1, { h: 3 });
+    this.sign(['FICTION', '(ALL OF IT)'], cx - 3, 2.95, zp - 0.12, Math.PI, 1.6, 0.5, { bg: '#f6f1e6', fg: '#2a1640' });
+    this.sign(['HISTORY'], cx + 0.2, 2.95, zp - 0.12, Math.PI, 1.3, 0.4, { bg: '#f6f1e6', fg: '#2a1640' });
+    this.sign(['MYSTERY'], ocx, 2.95, zp - 0.12, Math.PI, 1.3, 0.4, { bg: '#f6f1e6', fg: '#2a1640' });
+
+    // the secret shelf: the same bookcase, on a hinge at its back right corner
+    const pivot = new THREE.Group(); pivot.position.set(ox1, 0, zp + 0.1); this.root.add(pivot);
+    const sm = new Mesher(0.04);
+    const len = ox1 - ox0;
+    sm.box(-len / 2, 0.07, -0.3, len, 2.5, 0.56, '#5a3a22');
+    sm.box(-len / 2, 2.57, -0.3, len + 0.08, 0.08, 0.6, '#7a5236');
+    for (let k = 0; k < 4; k++) {
+      const y = 0.2 + k * 0.58;
+      sm.box(-len / 2, y - 0.04, -0.62, len, 0.04, 0.05, '#7a5236');
+      let t = -len + 0.08;
+      while (t < -0.14) {
+        const bw = 0.07 + this.rand() * 0.08, bh = 0.32 + this.rand() * 0.16;
+        if (!(k === 2 && t > -0.75 && t < -0.55)) sm.box(t + bw / 2, y, -0.61, bw, bh, 0.03, BOOK[Math.floor(this.rand() * BOOK.length)]);
+        t += bw + 0.012;
+      }
+    }
+    sm.box(-len / 2, 0.07, 0.0, len, 2.5, 0.04, '#3a2a1a');           // the back: plain boards and a cobweb
+    pivot.add(sm.build({ cast: true }));
+    // the red book you pull
+    const book = new THREE.Group(); book.position.set(-0.65, 0.2 + 2 * 0.58, -0.6); pivot.add(book);
+    book.add(part(geo.box(), '#d6232a', 0, 0.22, 0, 0.13, 0.44, 0.06));
+    book.add(part(geo.box(), '#ffd23f', 0, 0.3, 0.032, 0.09, 0.03, 0.005));
+    const shelfCol = this.col.box(ox0, zp - 0.45, ox1, zp + 0.1, { h: 3 });
+
+    // the hidden room behind: dark panelling, dusty boards, one bulb, stairs going down into the dark
+    mn.box(cx, 0.075, (zp + zb) / 2, w - 0.7, 0.02, zb - zp - 0.1, '#5a4030', 0, 0.06);
+    m.box(cx, 0.07, zb - 0.04, w - 0.62, ih, 0.06, '#3a2a30');                                   // back wall
+    m.box((x0 + ox0) / 2, 0.07, zp + 0.13, ox0 - x0, ih, 0.04, '#3a2a30');                         // the back of the shelf wall
+    m.box((ox1 + x1) / 2, 0.07, zp + 0.13, x1 - ox1, ih, 0.04, '#3a2a30');
+    for (const x of [x0 + 0.03, x1 - 0.03]) m.box(x, 0.07, (zp + zb) / 2, 0.06, ih, zb - zp, '#3a2a30');
+    mn.box(cx, ih - 0.06, (zp + zb) / 2, w - 0.62, 0.05, zb - zp - 0.05, '#241a22');             // a low dark ceiling
+    for (let i = 0; i < 6; i++) m.box(x0 + 1.5 + i * 2.1, 0.07, zb - 0.09, 0.12, ih - 0.1, 0.04, '#2a1e24'); // battens
+    const sx1 = ox0 - 0.25, sx0 = sx1 - 4.6, sz0 = zp + 0.35, sz1 = zb - 0.12, smz = (sz0 + sz1) / 2;
+    for (let i = 0; i < 9; i++) {
+      const c = new THREE.Color('#8a6a4a').lerp(new THREE.Color('#0b0808'), i / 8);
+      mn.box(sx1 - 0.25 - i * 0.5, 0.098, smz, 0.5, 0.012, sz1 - sz0, '#' + c.getHexString(), 0, 0.02);
+      mn.box(sx1 - 0.5 - i * 0.5, 0.098, smz, 0.03, 0.016, sz1 - sz0, '#0b0808', 0, 0);   // the edge of each step
+    }
+    for (const z of [sz0, sz1]) {
+      m.boxc((sx0 + sx1) / 2, 0.62, z, 4.7, 0.06, 0.06, '#8a8aa0', 0, 0, 0.17);           // handrails sloping down
+      for (let i = 0; i < 4; i++) { const x = sx1 - 0.2 - i * 1.4, top = 1.02 - i * 0.26; m.box(x, 0.07, z, 0.05, top, 0.05, '#8a8aa0'); }
+    }
+    this.root.add(part(geo.box(), '#ff9a3a', sx0 + 0.3, 0.085, smz, 0.6, 0.01, sz1 - sz0 - 0.1, { emissive: 0xff7a20, ei: 1.3 })); // warm light from below
+    this.col.box(sx0 - 0.2, sz0 - 0.1, sx1 + 0.05, sz1 + 0.1, { h: 1.2 });
+    // right opposite the secret shelf: the first thing you see when it swings open
+    this.sign(['UNDERGROUND MARKET', '<<< DOWNSTAIRS'], ocx - 0.2, 2.1, zb - 0.1, Math.PI, 2.4, 0.75, { bg: '#ff3a8a', fg: '#ffffff', border: false });
+    {
+      const lx = ocx - 0.4, lz = (zp + zb) / 2, add = { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide };
+      m.box(lx, ih - 0.45, lz, 0.03, 0.4, 0.03, '#1b1b24');
+      this.root.add(part(geo.ico(0), '#fff1c0', lx, ih - 0.6, lz, 0.2, 0.22, 0.2, { emissive: 0xffd890, ei: 1.4 }));
+      const b = new THREE.Mesh(new THREE.ConeGeometry(1.3, ih - 0.6, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#ffcc66', opacity: 0.06, ...add }));
+      b.position.set(lx, (ih - 0.6) / 2, lz); this.root.add(b);
+      const p = new THREE.Mesh(new THREE.CircleGeometry(1.25, 16), new THREE.MeshBasicMaterial({ color: '#ffb84a', opacity: 0.18, ...add }));
+      p.rotation.x = -Math.PI / 2; p.position.set(lx, 0.11, lz); this.root.add(p);
+    }
+    this.sign(['STAFF ONLY', '(VERY STAFF)'], cx - 5, 2.0, zb - 0.06, Math.PI, 1.6, 0.6, { bg: '#ffe14a', fg: '#2a1640' });
+    m.box(cx, ih - 0.6, (zp + zb) / 2, 0.03, 0.6, 0.03, '#1b1b24');
+    this.root.add(part(geo.ico(0), '#fff1c0', cx, ih - 0.75, (zp + zb) / 2, 0.22, 0.24, 0.22, { emissive: 0xffd890, ei: 1.2 }));
+    for (let i = 0; i < 3; i++) put3(this, MAFIA.crate(['BOOKS', 'MORE BOOKS', '"BOOKS"'][i]), x0 + 0.6, (i % 2) * 0.88, zp + 0.9 + Math.floor(i / 2) * 0.95, Math.PI / 2);
+    this.col.box(x0, zp + 0.3, x0 + 1.2, zp + 2.2, { h: 2 });
+    for (const [x, s] of [[x0 + 0.1, 1], [x1 - 0.1, -1]]) m.boxc(x + s * 0.3, ih - 0.3, zb - 0.3, 0.8, 0.02, 0.8, '#d8d8e0', 0, 0.6, s * 0.6); // cobwebs
+
+    this.poi.books = {
+      door, shelf: { pivot, book, col: shelfCol }, zp, ocx,
+      vito: { x: cx - 5.9, z: zf + 3.3 },
+      vitoPath: [{ x: cx - 5.9, z: zf + 5.0 }, { x: cx - 4.0, z: zp - 1.15 }, { x: ocx, z: zp - 1.15 }],
+      stairs: { x: sx1 + 0.2, z: smz }, landing: { x: ocx, z: zp + 1.2 },
+      cam1: { x: cx - 4.4, y: 1.95, z: zf + 3.3 }, cam2: { x: cx + 0.8, y: 2.3, z: zp - 3.6 },
+    };
+
+    function put3(T, g, x, y, z, ry) { g.position.set(x, y, z); g.rotation.y = ry; bake(T.m(x, z), g); }
+  }
+
+  /* ---------------- the Underground Market ----------------
+     A big dim cellar off the map: crates, shelves of jars, cash, a cork
+     board of secret documents, glass cases, a cheese wheel with teeth, a
+     machine nobody understands, a VIP room behind a bead curtain, a steel
+     door nobody opens, the broker's counter and twelve tables of gear. */
+  blackMarket() {
+    const X = 800, Z = 0, W = 34, D = 26, H = 5.2, m = new Mesher(0.06);
+    const X0 = X - W / 2, X1 = X + W / 2, Z0 = Z - D / 2, Z1 = Z + D / 2;
+    const BRICK = '#4a3448', MORTAR = '#38283a';
+    // floor tiles, walls with a wood wainscot, the ceiling and its pipes
+    for (let x = X0; x < X1; x += 2) for (let z = Z0; z < Z1; z += 2) m.box(x + 1, 0, z + 1, 1.98, 0.06, 1.98, ((x + z) / 2) % 2 ? '#3a3040' : '#2e2636', 0, 0.08);
+    const wall = (x0, z0, x1, z1) => {
+      m.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, H, z1 - z0, BRICK);
+      for (let y = 1.4; y < H; y += 0.5) m.box((x0 + x1) / 2, y, (z0 + z1) / 2, x1 - x0 + 0.03, 0.05, z1 - z0 + 0.03, MORTAR, 0, 0.02);
+      this.col.box(x0, z0, x1, z1, { h: 6 });
+    };
+    wall(X0 - 0.4, Z0 - 0.4, X1 + 0.4, Z0); wall(X0 - 0.4, Z1, X1 + 0.4, Z1 + 0.4); wall(X0 - 0.4, Z0, X0, Z1); wall(X1, Z0, X1 + 0.4, Z1);
+    m.box(X, 0, Z0 + 0.06, W, 1.1, 0.12, '#4a3020'); m.box(X, 0, Z1 - 0.06, W, 1.1, 0.12, '#4a3020');
+    m.box(X0 + 0.06, 0, Z, 0.12, 1.1, D, '#4a3020'); m.box(X1 - 0.06, 0, Z, 0.12, 1.1, D, '#4a3020');
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ color: '#140f1a' }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(X, H, Z); this.root.add(ceil);
+    for (const z of [-8, 2, 9]) m.boxc(X, H - 0.35, z, W, 0.22, 0.22, '#5a5a6a', 0, 0, 0);
+    for (const x of [790, 806]) m.boxc(x, H - 0.6, Z, 0.16, 0.16, D, '#7a5a3a', 0, 0, 0);
+    const put = (g, x, y, z, ry = 0, s = 1) => { g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(s); bake(m, g); };
+    const lamp = (x, z, y = 3.6, beam = 2.2) => {
+      m.box(x, y + 0.25, z, 0.03, H - y - 0.25, 0.03, '#1b1b24');
+      m.cone(x, y, z, 0.45, 0.35, '#2f5a3a', 8);
+      this.root.add(part(geo.ico(0), '#fff1c0', x, y - 0.04, z, 0.22, 0.22, 0.22, { emissive: 0xffd890, ei: 1.5 }));
+      const add = { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide };
+      const b = new THREE.Mesh(new THREE.ConeGeometry(beam, y, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#ffcc66', opacity: 0.05, ...add }));
+      b.position.set(x, y / 2, z); this.root.add(b);
+      const p = new THREE.Mesh(new THREE.CircleGeometry(beam * 1.05, 18), new THREE.MeshBasicMaterial({ color: '#ffb84a', opacity: 0.16, ...add }));
+      p.rotation.x = -Math.PI / 2; p.position.set(x, 0.08, z); this.root.add(p);
+    };
+
+    // the stairs down from the bookshop (north-east corner)
+    for (let i = 0; i < 9; i++) { m.box(X1 - 5.2 + i * 0.55, 0, Z0 + 1.4, 0.56, 0.5 + i * 0.5, 2.6, i % 2 ? '#5a4030' : '#4a3424'); }
+    this.col.box(X1 - 5.5, Z0, X1, Z0 + 2.8, { h: 6 });
+    m.boxc(X1 - 2.9, 2.6, Z0 + 2.75, 5.2, 0.07, 0.07, '#8a8aa0', 0, 0, 0.75);
+    this.sign(['EXIT', '(UP TO THE BOOKS)'], X1 - 6.0, 2.4, Z0 + 1.4, -Math.PI / 2, 1.5, 0.6, { bg: '#43e07a', fg: '#1b1b24', border: false });
+
+    // the broker's counter, north wall: cash, a register, a bell, a neon sign
+    const bx = X - 2, bz = Z0 + 3.4;
+    m.box(bx, 0, bz, 7, 1.0, 1.0, '#3a2418'); m.box(bx, 1.0, bz, 7.2, 0.08, 1.15, '#7a5236');
+    this.col.box(bx - 3.6, bz - 0.6, bx + 3.6, bz + 0.6, { h: 1.1 });
+    m.box(bx - 2.4, 1.08, bz, 0.6, 0.35, 0.45, '#2b2b33'); m.box(bx - 2.4, 1.43, bz - 0.1, 0.5, 0.18, 0.12, '#3a3a48');
+    for (let i = 0; i < 7; i++) m.box(bx + 0.4 + (i % 4) * 0.36, 1.08 + Math.floor(i / 4) * 0.13, bz + 0.1 - (i % 2) * 0.15, 0.32, 0.12, 0.16, '#3f9a52');
+    m.cyl(bx + 2.6, 1.08, bz + 0.2, 0.1, 0.06, '#e8b83a', 8); m.ico(bx + 2.6, 1.17, bz + 0.2, 0.08, 0.06, 0.08, '#e8b83a');
+    this.sign(['THE UNDERGROUND MARKET'], bx, 3.7, Z0 + 0.06, 0, 6, 0.9, { bg: '#1b1b24', fg: '#ff3a8a', borderColor: '#ff3a8a' });
+    this.sign(['NO REFUNDS', 'NO RECEIPTS', 'NO QUESTIONS'], bx + 4.6, 2.4, Z0 + 0.06, 0, 1.8, 0.9, { bg: '#ffe14a', fg: '#1b1b24' });
+    for (let i = 0; i < 4; i++) put(MAFIA.moneyBag(), bx - 4.6 + (i % 2) * 0.7, Math.floor(i / 2) * 0.7, Z0 + 1.0 + (i % 2) * 0.3, i);
+    // a pallet of cash bricks
+    m.box(bx + 5.6, 0, Z0 + 1.2, 1.6, 0.14, 1.2, '#a87c44');
+    for (let i = 0; i < 18; i++) m.box(bx + 5.0 + (i % 3) * 0.5, 0.14 + Math.floor(i / 6) * 0.22, Z0 + 0.85 + Math.floor((i % 6) / 3) * 0.55, 0.46, 0.2, 0.5, i % 2 ? '#3f9a52' : '#4aa85e');
+    this.col.box(bx + 4.7, Z0 + 0.5, bx + 6.5, Z0 + 1.9, { h: 1 });
+
+    // twelve tables of gear in two rows facing the middle aisle
+    this.poi.marketTables = [];
+    const shop = (it) => (this.shopItems = this.shopItems || []).push(it);
+    for (let i = 0; i < 12; i++) {
+      const row = i < 6 ? -1 : 1, x = X - 12.5 + (i % 6) * 5, z = Z + row * 3.6;
+      m.box(x, 0, z, 1.7, 0.82, 1.0, '#5a3a22');
+      m.box(x, 0.82, z, 1.8, 0.05, 1.1, '#8a1a2a');                       // red velvet
+      m.box(x, 0.4, z - row * 0.5, 1.8, 0.44, 0.03, '#8a1a2a');            // the cloth hanging down the front
+      m.cyl(x, 0.87, z, 0.38, 0.06, '#c8a03a', 12);                      // a little turntable
+      this.col.boxc(x, z, 1.8, 1.1, { h: 1 });
+      this.poi.marketTables.push({ x, z, y: 0.93, ry: row < 0 ? 0 : Math.PI, i });
+      shop({ cat: 'bm', key: GEAR_ORDER[i], x, z: z - row * 1.4 });
+    }
+    // lamps over the tables, the counter, the corners
+    for (const x of [789, 800, 811]) for (const z of [-3.6, 3.6]) lamp(x, z);
+    lamp(bx, bz, 3.4, 1.8); lamp(X + 1, Z1 - 3, 3.4, 2.0);
+
+    // west wall: suspicious shelves of jars and boxes with question marks
+    for (let s = 0; s < 3; s++) {
+      const z = Z0 + 4 + s * 3.2;
+      m.box(X0 + 0.45, 0, z, 0.8, 2.6, 2.8, '#3a2418');
+      for (let k = 0; k < 4; k++) {
+        const y = 0.25 + k * 0.6;
+        m.box(X0 + 0.5, y - 0.04, z, 0.82, 0.04, 2.8, '#6a4a2a');
+        for (let j = 0; j < 5; j++) {
+          const jz = z - 1.1 + j * 0.55, c = ['#8a4ac8', '#43a85a', '#d6232a', '#ffd23f', '#43c0ff'][(s + k + j) % 5];
+          if ((j + k) % 3) { m.cyl(X0 + 0.7, y, jz, 0.13, 0.34, c, 8); m.cyl(X0 + 0.7, y + 0.34, jz, 0.1, 0.05, '#c8c8d8', 8); }
+          else m.box(X0 + 0.7, y, jz, 0.3, 0.3, 0.38, '#c79a5b');
+        }
+      }
+      this.col.box(X0, z - 1.4, X0 + 0.9, z + 1.4, { h: 3 });
+    }
+    this.sign(['PICKLED', '???'], X0 + 0.92, 2.95, Z0 + 4, Math.PI / 2, 1.2, 0.5, { bg: '#f6f1e6', fg: '#2a1640' });
+    // crates, stacked, south-east corner and by the stairs
+    const crate = (label, x, y, z, ry) => put(MAFIA.crate(label), x, y, z, ry);
+    const L = ['FOAM', 'RUBBER CHICKENS', 'NOT CONTRABAND', 'DEFINITELY BOOKS', 'FRAGILE (BONK)', 'MUSTACHES', 'PARTY FOG', 'EMPTY BOXES'];
+    for (let i = 0; i < 8; i++) crate(L[i], X1 - 1.2 - (i % 3) * 1.15, Math.floor(i / 3) * 0.9, Z1 - 1.0 - (i % 2) * 1.1, (i % 2) * 0.2);
+    this.col.box(X1 - 4.0, Z1 - 2.2, X1, Z1, { h: 3 });
+    for (let i = 0; i < 4; i++) crate(L[(i + 3) % 8], X1 - 1.1, (i % 2) * 0.9, Z0 + 4.2 + Math.floor(i / 2) * 1.1, Math.PI / 2);
+    this.col.box(X1 - 1.8, Z0 + 3.6, X1, Z0 + 6.0, { h: 2 });
+
+    // east wall: three locked glass cases (a trophy, a diamond, a golden slice)
+    for (let k = 0; k < 3; k++) {
+      const z = Z - 2.5 + k * 3.3, x = X1 - 0.8;
+      m.box(x, 0, z, 1.0, 0.9, 1.4, '#2b2b38'); m.box(x, 2.3, z, 1.05, 0.08, 1.45, '#2b2b38');
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.box(x + a * 0.48, 0.9, z + b * 0.66, 0.05, 1.4, 0.05, '#c8a03a');
+      const glass = part(geo.box(), '#bfe4ff', x, 1.6, z, 0.98, 1.38, 1.38, { opacity: 0.18, rough: 0.05 }); glass.castShadow = false; this.root.add(glass);
+      m.box(x - 0.55, 0.62, z, 0.06, 0.2, 0.16, '#e8b83a'); m.box(x - 0.55, 0.78, z, 0.04, 0.08, 0.1, '#c8c8d8'); // the padlock
+      if (k === 0) { m.cyl(x, 0.9, z, 0.18, 0.1, '#e8b83a', 8); m.cyl(x, 1.0, z, 0.05, 0.35, '#e8b83a', 6); m.cone(x, 1.35, z, 0.22, 0.4, '#e8b83a', 8); }
+      if (k === 1) m.ico(x, 1.4, z, 0.45, 0.55, 0.45, '#7ae8ff', 0, 0.5, 0.15);
+      if (k === 2) { m.boxc(x, 1.15, z, 0.1, 0.05, 0.7, '#e8b83a', 0, 0, 0); m.cone(x, 1.12, z, 0.38, 0.06, '#ffd23f', 3); }
+      this.col.box(x - 0.55, z - 0.75, x + 0.55, z + 0.75, { h: 2.4 });
+    }
+    this.sign(['WORLD\'S OK-EST', 'MOBSTER'], X1 - 0.06, 2.75, Z - 2.5, -Math.PI / 2, 1.3, 0.45, { bg: '#e8b83a', fg: '#1b1b24', border: false });
+    this.sign(['DO NOT TOUCH', '(IT KNOWS)'], X1 - 0.06, 2.75, Z + 0.8, -Math.PI / 2, 1.3, 0.45, { bg: '#ffffff', fg: '#d6232a', border: false });
+    // a steel door nobody opens
+    m.box(X1 - 0.1, 0, Z + 7.8, 0.2, 2.6, 1.6, '#6a6a7a'); m.box(X1 - 0.2, 1.2, Z + 7.3, 0.06, 0.12, 0.2, '#c8c8d8');
+    m.box(X1 - 0.22, 1.9, Z + 7.8, 0.02, 0.12, 0.4, '#1b1b24');
+    this.sign(['DO NOT LOOK IN', 'THE BACK ROOM'], X1 - 0.06, 3.0, Z + 7.8, -Math.PI / 2, 1.6, 0.6, { bg: '#d6232a', fg: '#ffffff', border: false });
+
+    // the cork board of secret documents and red string, south wall
+    const cbx = X + 2, cbz = Z1 - 0.08;
+    m.box(cbx, 1.3, cbz, 4.2, 2.0, 0.06, '#c8955a');
+    const pins = [[-1.6, 2.7], [-0.4, 2.1], [0.9, 2.8], [1.6, 1.8], [-1.2, 1.6], [0.2, 1.55]];
+    for (const [i, [px, py]] of pins.entries()) { m.box(cbx + px, py - 0.25, cbz - 0.05, 0.45, 0.55, 0.01, i % 2 ? '#f6f1e6' : '#fff6c8'); m.ico(cbx + px, py + 0.24, cbz - 0.07, 0.05, 0.05, 0.03, '#d6232a'); }
+    for (let i = 0; i < pins.length; i++) {
+      const [ax, ay] = pins[i], [bxx, by] = pins[(i + 2) % pins.length], len = Math.hypot(bxx - ax, by - ay);
+      m.boxc(cbx + (ax + bxx) / 2, (ay + by) / 2 + 0.24, cbz - 0.08, len, 0.02, 0.01, '#d6232a', 0, 0, Math.atan2(by - ay, bxx - ax));
+    }
+    this.sign(['WHO ATE', 'THE MAYOR\'S', 'SANDWICH?'], cbx, 3.55, cbz - 0.02, Math.PI, 1.8, 0.7, { bg: '#1b1b24', fg: '#ffe14a', border: false });
+    // a table of secret paperwork
+    m.box(X + 2, 0, Z1 - 2.4, 2.2, 0.76, 1.0, '#5a3a22'); this.col.boxc(X + 2, Z1 - 2.4, 2.2, 1.0, { h: 0.8 });
+    for (let i = 0; i < 4; i++) m.box(X + 1.3 + i * 0.5, 0.76, Z1 - 2.4 + (i % 2) * 0.15, 0.42, 0.06 + i * 0.05, 0.55, '#f6f1e6');
+    const stamp = signMesh(['TOP', 'SECRET'], 0.42, 0.3, { bg: '#ffffff', fg: '#d6232a', borderColor: '#d6232a' }); stamp.rotation.x = -Math.PI / 2; stamp.position.set(X + 2.8, 0.97, Z1 - 2.25); this.root.add(stamp);
+
+    // strange equipment: the DOUGH-TRON 3000, and the cheese wheel that bites
+    const dx = X - 6, dz = Z1 - 2.2;
+    m.box(dx, 0, dz, 2.4, 2.2, 1.4, '#7a8a9a'); m.box(dx, 2.2, dz, 1.6, 0.4, 1.0, '#5a6a7a');
+    m.cone(dx + 0.6, 2.6, dz, 0.4, 0.6, '#c8c8d8', 8); m.cyl(dx - 0.7, 2.2, dz, 0.15, 1.6, '#c8c8d8', 6);
+    m.boxc(dx - 0.2, 3.8, dz, 1.1, 0.12, 0.12, '#c8c8d8', 0, 0, 0);
+    for (let i = 0; i < 4; i++) m.cyl(dx - 0.8 + i * 0.5, 1.5, dz - 0.72, 0.13, 0.05, ['#ffd23f', '#ff8fc8', '#43c0ff', '#43e07a'][i], 8);
+    for (let i = 0; i < 3; i++) this.root.add(part(geo.box(), ['#ff3a3a', '#43e07a', '#ffd23f'][i], dx - 0.6 + i * 0.6, 1.05, dz - 0.71, 0.18, 0.12, 0.03, { emissive: [0xff2020, 0x20ff60, 0xffd020][i], ei: 1 }));
+    this.col.boxc(dx, dz, 2.4, 1.4, { h: 3 });
+    this.sign(['DOUGH-TRON 3000', '(DO NOT ASK)'], dx, 1.95, dz - 0.72, Math.PI, 1.8, 0.45, { bg: '#1b1b24', fg: '#43e07a', border: false });
+    const cw = { x: X - 2, z: Z1 - 2.5 };
+    m.cyl(cw.x, 0, cw.z, 0.9, 0.6, '#5a4a6a', 12);
+    m.cyl(cw.x, 0.6, cw.z, 0.85, 0.7, '#ffd23f', 14);
+    for (let i = 0; i < 5; i++) m.cyl(cw.x + Math.sin(i * 1.3) * 0.5, 0.95 + (i % 2) * 0.2, cw.z + Math.cos(i * 1.3) * 0.5, 0.08, 0.02, '#e8b830', 6);
+    for (const s of [-1, 1]) { m.ico(cw.x + s * 0.28, 1.15, cw.z - 0.78, 0.26, 0.3, 0.12, '#ffffff'); m.ico(cw.x + s * 0.26, 1.15, cw.z - 0.86, 0.1, 0.12, 0.05, '#14101c'); }
+    m.box(cw.x, 0.8, cw.z - 0.84, 0.5, 0.08, 0.04, '#3a0f1a');
+    for (let i = 0; i < 5; i++) m.cone(cw.x - 0.2 + i * 0.1, 0.82, cw.z - 0.86, 0.035, 0.07, '#ffffff', 4);
+    this.col.circle(cw.x, cw.z, 0.95, { h: 1.4 });
+    this.sign(['DO NOT', 'FEED'], cw.x, 1.9, cw.z - 0.2, Math.PI, 0.9, 0.45, { bg: '#ffffff', fg: '#d6232a' });
+    this.poi.cheeseWheel = cw;
+
+    // the VIP room behind a bead curtain, south-west corner
+    const vx0 = X0, vx1 = X0 + 8, vz0 = Z1 - 7;
+    wall(vx0, vz0, vx0 + 3, vz0 + 0.3); wall(vx0 + 5, vz0, vx1, vz0 + 0.3); wall(vx1 - 0.3, vz0, vx1, Z1);
+    m.box(vx0 + 4, 2.6, vz0 + 0.15, 2, H - 2.6, 0.3, BRICK);
+    for (let i = 0; i < 14; i++) for (let k = 0; k < 9; k++) m.ico(vx0 + 3.07 + i * 0.14, 0.3 + k * 0.26, vz0 + 0.15, 0.07, 0.11, 0.07, ['#ff3a8a', '#ffd23f', '#43c0ff', '#c9a8f0'][(i + k) % 4], 0, 0, 0.02);
+    this.sign(['VIP LOUNGE', '(VERY IMPORTANT PIZZA)'], vx0 + 4, 3.3, vz0 - 0.02, Math.PI, 2.6, 0.7, { bg: '#2a1640', fg: '#ffd23f', borderColor: '#ffd23f' });
+    const pt = { x: vx0 + 4, z: Z1 - 3.4 };
+    m.cyl(pt.x, 0, pt.z, 0.25, 0.72, '#3a2418', 8); m.cyl(pt.x, 0.72, pt.z, 1.2, 0.08, '#2f8a4a', 14); m.cyl(pt.x, 0.68, pt.z, 1.28, 0.06, '#5a3a22', 14);
+    for (let i = 0; i < 5; i++) m.box(pt.x - 0.5 + i * 0.25, 0.81, pt.z + (i % 2) * 0.2, 0.18, 0.01, 0.26, i % 2 ? '#d6232a' : '#ffffff', i);
+    for (let i = 0; i < 6; i++) m.cyl(pt.x + 0.5, 0.81 + i * 0.03, pt.z - 0.3, 0.09, 0.03, ['#d6232a', '#1b1b24', '#ffffff'][i % 3], 10);
+    this.col.circle(pt.x, pt.z, 1.3, { h: 0.9 });
+    for (const [a, z] of [[1, pt.z], [-1, pt.z]]) { m.box(pt.x + a * 1.9, 0, z, 0.5, 0.48, 0.5, '#5a1a2a'); m.box(pt.x + a * 2.1, 0.48, z, 0.1, 0.6, 0.5, '#5a1a2a'); }
+    lamp(pt.x, pt.z, 2.9, 1.4);
+
+    // the regulars: who stands where, doing what (BlackMarket.js brings them to life)
+    this.poi.marketNpcs = [
+      { x: X - 9, z: Z, ry: Math.PI / 2, look: { hat: 'fedora', coat: '#8a6a4a', glasses: 'sun', skin: '#e0a57c', mustache: '#2a1a14' }, pose: 'talk' },
+      { x: X - 7.6, z: Z, ry: -Math.PI / 2, look: { hat: 'beanie', hatColor: '#d6232a', shirt: '#2b2b38', pants: '#2b2b38', skin: '#c98a5e', glasses: 'round', belly: 1.3 }, pose: 'talk', briefcase: true },
+      { x: X + 6, z: Z + 0.4, ry: 0.3, look: { hat: 'bald', shirt: '#f7a8c8', pants: '#3a5a9a', skin: '#f2c29b', mustache: true, beard: '#5a3a1a', belly: 1.2 }, pose: 'talk' },
+      { x: X + 7.2, z: Z + 1.2, ry: -2.6, look: { hat: 'chef', shirt: '#ffffff', pants: '#2b2b38', glasses: 'sun', skin: '#e0a57c', mustache: '#1a1410' }, pose: 'talk' },
+      { x: X1 - 6.8, z: Z0 + 4.0, ry: -2.4, look: { hat: 'fedora', hatColor: '#1b1b24', coat: '#1b1b24', skin: '#f7d6b8', hair: '#c8742a' }, pose: 'paper' },
+      { x: pt.x + 1.9, z: pt.z, ry: -Math.PI / 2, look: { hat: 'cowboy', shirt: '#ffcf33', pants: '#3a5a9a', skin: '#e0a57c', glasses: 'sun' }, pose: 'sit' },
+      { x: pt.x - 1.9, z: pt.z, ry: Math.PI / 2, look: { hat: 'crown', shirt: '#8a4ac8', pants: '#2a1640', skin: '#c98a5e', mustache: '#e0e0e0', hair: '#e0e0e0' }, pose: 'sit' },
+    ];
+    this.poi.broker = { x: bx, z: bz - 1.0 };
+    this.poi.marketIn = { x: X1 - 6.4, z: Z0 + 1.6, ry: -Math.PI / 2 };
+    this.poi.marketExit = { x: X1 - 5.6, z: Z0 + 1.5 };
+    this.poi.market = { x0: X0, x1: X1, z0: Z0, z1: Z1 };
+    this.root.add(m.build({ cast: true }));
   }
 
   junkyard(cx, cz) {
