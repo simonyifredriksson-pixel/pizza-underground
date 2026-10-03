@@ -388,6 +388,7 @@ export class Game {
       case 'guestBonk': this.debts.onBonk(e); break;
       case 'ransom': this.rivals.onRansom(e); break;
       case 'photo': this.rivals.onPhoto(e); break;
+      case 'dumped': this.rivals.onDumped(e); break;
       case 'rvNews': case 'rvBark': case 'rvSpotted': case 'rvSab': case 'camOff': case 'motion': case 'raidDone': case 'raidFoiled': case 'caught': this.rivals.onEvent(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;

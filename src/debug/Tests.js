@@ -258,9 +258,11 @@ export async function run(g, name) {
         log(!!st, 'at the chair: "' + (st || {}).label + '"');
         g.exec(g.me, st.act); sim(g, 0.3, 1 / 20);
         log(RV.R.captive && g.debts.guest && !g.hold(g.me).length, RV.R.captive?.name + ' is in the Time-Out Chair (hood, cuffs, gang clothes)');
-        T3 = []; RV.targets(P, T3); const pt = T3.find(t => t.act && t.act.op === 'photo');
+        T3 = []; RV.targets(P, T3); const pt = T3.find(t => t.fn && /Deal with/.test(t.label));
         log(!!pt, 'prompt: "' + (pt || {}).label + '"');
-        g.exec(g.me, pt.act); sim(g, 0.2, 1 / 20);
+        pt.fn(); const opts = g.ui.menuOpen?.items.map(i => i.label) || []; g.ui.closeMenu();
+        log(opts.some(l => /photo/.test(l)) && opts.some(l => /Bag him back up/.test(l)) && opts.some(l => /Let him go/.test(l)), 'the chair menu: ' + opts.slice(0, 3).join(' / '));
+        g.exec(g.me, { k: 'rv', op: 'photo' }); sim(g, 0.2, 1 / 20);
         log(W.inv[g.me].photo?.id === RV.R.captive.id && document.querySelector('.polaroid canvas'), 'FLASH: the photo is printed (and shown on screen)');
         const Pl = RV.place('italian'); P.teleport(Pl.out.door.x, Pl.out.door.z, 0); sim(g, 0.1, 1 / 20);
         const T2 = []; RV.targets(P, T2); const rt = T2.find(t => t.act && t.act.op === 'ransom');
@@ -279,8 +281,20 @@ export async function run(g, name) {
         g.exec(g.me, { k: 'rv', op: 'ransom', step: 'start' });
         for (let i = 0; i < 3 && RV.R.ransom[g.me]; i++) g.exec(g.me, { k: 'rv', op: 'ransom', step: 'demand', amt: RV.R.ransom[g.me].value * 5 });
         log(!RV.R.ransom[g.me] && RV.R.captive, 'asked for way too much: the boss walked away (his guy is still in your chair)');
-        g.exec(g.me, { k: 'rv', op: 'letGoCaptive' });
-        log(!RV.R.captive, 'let him go');
+        // he won't pay? bag his guy back up and take him to a dumpster
+        P.teleport(ch.x + 1.2, ch.z - 0.8, 0); W.hold[g.me] = [];
+        g.exec(g.me, { k: 'rv', op: 'rebag' });
+        log(!RV.R.captive && g.hold(g.me).some(i => i.hostage) && !W.inv[g.me].photo, 'bagged him back up (the photo is no good any more)');
+        const dm = g.town.poi.dumpsters[0]; P.teleport(dm.x + 2.2, dm.z, 0); sim(g, 0.1, 1 / 20);
+        const T4 = []; RV.targets(P, T4); const dt4 = T4.find(t => t.act && t.act.op === 'dumpster');
+        log(!!dt4, 'at a dumpster: "' + (dt4 || {}).label + '"');
+        const G = RV.gang('frozen'), rel0 = G.rel, rep0 = W.mrep || 0;
+        g.exec(g.me, dt4.act);
+        log(!g.hold(g.me).length && ev.includes('dumped') && G.rel < rel0 && (W.mrep || 0) > rep0 && G.raidT <= 90, 'CLANG: he sleeps with the anchovies (their rep ' + rel0 + ' -> ' + G.rel + ', your mafia rep +5, they want revenge)');
+        // and one you just let go
+        g.admin.run('rvHostage', 'delivery'); g.admin.close(); P.teleport(ch.x + 1.2, ch.z - 0.8, 0);
+        g.exec(g.me, { k: 'rv', op: 'seatHostage' }); g.exec(g.me, { k: 'rv', op: 'letGoCaptive' });
+        log(!RV.R.captive, 'let the next one go');
       }
       g.onEvent = on; return;
     }

@@ -663,6 +663,29 @@ export class Rivals {
         g.broadcastEvent({ k: 'photo', pid, g: c.g, name: c.name });
         break;
       }
+      case 'rebag': {   // out of the chair, back in the bag, into your arms
+        const c = R.captive; if (!c) return;
+        if (H.length) return g.tell(pid, 'You need both hands free.');
+        R.captive = null;
+        for (const v of Object.values(W.inv || {})) if (v.photo?.id === c.id) delete v.photo;
+        H.push({ k: 'bag', hostage: true, g: c.g, id: c.id, name: c.name });
+        g.broadcastEvent({ k: 'dlg', pid, lines: [['narr', 'Cuffs off, hood stays on, back in the bag he goes.'], ['hostage', 'Wait. Where are we going? WHERE ARE WE GOING?']], who: { hostage: { name: c.name, color: '#9a9aaa' } } });
+        g.sfx('whoosh', p);
+        break;
+      }
+      case 'dumpster': {   // he sleeps with the anchovies (and climbs out later, very humiliated)
+        const bi = H.findIndex(i => i.k === 'bag' && i.hostage); if (bi < 0) return;
+        if (Math.hypot(p.x - a.x, p.z - a.z) > 3.5) return;
+        const b = H.splice(bi, 1)[0], G = this.gang(b.g), N = GANGS[b.g];
+        G.rel = Math.max(-100, G.rel - 20); this._xp(b.g, -0.3); G.eff = Math.max(0.2, G.eff - 0.2);
+        G.raidT = Math.min(G.raidT, 90);   // they WILL want revenge
+        g.debts.addRep(5); g.addHeat(2);
+        W.stats.dumped = (W.stats.dumped || 0) + 1;
+        g.broadcastEvent({ k: 'dumped', pid, x: a.x, z: a.z, g: b.g, name: b.name });
+        setTimeout(() => g.broadcastEvent({ k: 'rvNews', text: 'CRUMB NEWS: ' + b.name + ' of ' + N.name + ' was found climbing out of a dumpster, covered in old anchovies, wearing a hood. The whole town is laughing at ' + N.name + '. ' + N.boss + ' is "not available for comment".', alarm: N.short.toUpperCase() + ' HUMILIATED' }), 7000);
+        g.sfx('thud', p);
+        break;
+      }
       case 'letGoCaptive': {
         const c = R.captive; if (!c) return;
         R.captive = null; this.gang(c.g).rel = Math.min(100, this.gang(c.g).rel + 5);
@@ -820,6 +843,29 @@ export class Rivals {
       }
       case 'leave': delete R.ransom[pid]; return send([['you', 'I\'ll think about it.'], ['boss', 'You do that.']], true);
     }
+  }
+  /** E at the chair with a rival's guy in it */
+  captiveMenu() {
+    const g = this.g, W = this.W, c = this.R.captive; if (!c) return;
+    const N = GANGS[c.g], inv = W.inv?.[g.me] || {}, has = inv.photo?.id === c.id;
+    g.ui.menu({
+      title: c.name + ' (' + N.name + ')', sub: 'Hood on, cuffed to your Time-Out Chair. ' + (has ? 'You have his photo: show it to ' + N.boss + ' at ' + N.place + '.' : 'Snap his photo and show it to ' + N.boss + ' for a ransom.'),
+      items: [
+        { label: has ? 'Take another photo' : 'Take his photo (ransom proof)', sub: inv.polaroid ? 'Say cheese. He will.' : 'You need an instant camera (General store at the mall).', disabled: !inv.polaroid, on: () => g.act({ k: 'rv', op: 'photo' }) },
+        { label: 'Bag him back up and take him somewhere', sub: 'His boss won\'t pay? Every dumpster in town is roomy. (Or drop him off on his gang\'s doorstep.)', disabled: g.hold(g.me).length > 0, on: () => g.act({ k: 'rv', op: 'rebag' }) },
+        { label: 'Let him go', sub: 'He runs home. His gang likes you a tiny bit more.', on: () => g.act({ k: 'rv', op: 'letGoCaptive' }) },
+        { label: 'Leave him there' },
+      ],
+    });
+  }
+  /** everyone: somebody went in a dumpster */
+  onDumped(e) {
+    const g = this.g, a = g.audio, at = { x: e.x, z: e.z };
+    a.thud(at); setTimeout(() => a.thud(at), 250); setTimeout(() => a.tone(160, 0.35, 'square', 0.12), 300);   // the lid: CLANG
+    g.fx.poof(e.x, 1.2, e.z); g.fx.splat(e.x, 1.4, e.z);
+    g.fx.text('CLANG!', new THREE.Vector3(e.x, 2.4, e.z), '#ffd23f', true);
+    g.bubble(() => at, pick(['NOOO! NOT THE DUMPSTER! IT\'S MOIST!', 'IT SMELLS LIKE OLD ANCHOVIES IN HERE!', 'BOSS! BOSSSS! ...he\'s not coming, is he.', 'This is the worst day of my LIFE.']));
+    if (e.pid === g.me) g.ui.alarm('SLEEPS WITH THE ANCHOVIES');
   }
   /** the photo: a white flash, a click, and a real picture of what you're looking at, in a white frame */
   onPhoto(e) {
@@ -1035,9 +1081,13 @@ export class Rivals {
         const taken = g.debts.chairTaken();
         out.push({ x: ch.x, z: ch.z, d: dc - 0.6, label: taken ? 'The Time-Out Chair is taken' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: taken ? null : { k: 'rv', op: 'seatHostage' }, warn: taken });
       } else if (c) {
-        const cam = W.inv?.[g.me]?.polaroid, has = W.inv?.[g.me]?.photo?.id === c.id;
-        out.push({ x: ch.x, z: ch.z, d: dc, label: cam ? (has ? 'Take another photo of ' + c.name + ' (you have one: show it to ' + GANGS[c.g].boss + ')' : 'Take a photo of ' + c.name + ' (ransom proof)') : c.name + ' (' + GANGS[c.g].short + ') is in your chair. Get an instant camera (General store) for a ransom photo', act: cam ? { k: 'rv', op: 'photo' } : null, info: !cam, alt: { label: 'Let him go', act: { k: 'rv', op: 'letGoCaptive' } } });
+        out.push({ x: ch.x, z: ch.z, d: dc, label: 'Deal with ' + c.name + ' (' + GANGS[c.g].short + ')', fn: () => this.captiveMenu() });
       }
+    }
+    // a rival's guy in a bag, next to a dumpster: he sleeps with the anchovies
+    if (top && top.k === 'bag' && top.hostage) for (const dm of T.dumpsters || []) {
+      const dd = d(dm.x, dm.z);
+      if (dd < 3) { out.push({ x: dm.x, z: dm.z, d: dd - 1.5, label: 'Toss ' + top.name + ' in the dumpster (he sleeps with the anchovies)', act: { k: 'rv', op: 'dumpster', x: dm.x, z: dm.z } }); break; }
     }
     // your hideout: cameras to fix, mess to clean, the monitor, trophies to display
     for (const c of this.hqCams()) { if (!R.hqOff[c.id]) continue; const dc = d(c.x, c.z); if (dc < 2.6) out.push({ x: c.x, z: c.z, d: dc, label: 'Fix the ' + c.name, hold: 2.0, act: { k: 'rv', op: 'fixCam', id: c.id } }); }
@@ -1117,7 +1167,7 @@ export class Rivals {
     if (R.raid && R.raid.st === 'caught') out.unshift({ t: 'CAUGHT ' + R.raid.name.toUpperCase() + '! Bag him (E) - ' + Math.ceil(R.raid.t) + 's', c: 'red' });
     else if (R.raid && R.raid.st !== 'gone' && R.raid.st !== 'flee') out.unshift({ t: 'INTRUDER at the hideout! (' + GANGS[R.raid.g].short + ') Catch him!', c: 'red' });
     const hb = this.g.hold(this.g.me).find(i => i.k === 'bag' && i.hostage) || (W.cars || []).flatMap(c => c.cargo || []).find(i => i.k === 'bag' && i.hostage);
-    if (hb) out.unshift({ t: hb.name + ' is in a bag: sit him in your Time-Out Chair (storage room)', c: 'yellow' });
+    if (hb) out.unshift({ t: hb.name + ' is in a bag: sit him in your Time-Out Chair (storage room) - or toss him in a dumpster', c: 'yellow' });
     if (R.captive) { const ph = W.inv?.[this.g.me]?.photo?.id === R.captive.id; out.unshift({ t: R.captive.name + ' is in your chair: ' + (ph ? 'show the photo to ' + GANGS[R.captive.g].boss + ' at ' + GANGS[R.captive.g].place : 'take his photo (instant camera)'), c: 'yellow' }); }
     if (M) {
       const D = MISSIONS[M.k], t = Math.max(0, Math.ceil(M.t));
