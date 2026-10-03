@@ -592,7 +592,7 @@ export class Game {
   /** the to-do list on the HUD: everything that needs doing RIGHT NOW */
   tasks() {
     const W = this.W, out = [];
-    if (W.quest < Q.BIZ) return out;
+    if (W.quest < Q.BIZ && !W.orders.length) return out;
     const I = W.insp;
     if (I && I.ph === 'warn') out.push({ t: 'HIDE EVERYTHING! Inspection in ' + Math.ceil(I.t) + 's', c: 'red' });
     if (I && I.ph === 'search') out.push({ t: 'POLICE INSIDE: act normal (X). Don\'t run.', c: 'red' });
@@ -748,7 +748,7 @@ export class Game {
   /* ---------------- phone, pause, chat ---------------- */
   phone() {
     const W = this.W, ui = this.ui;
-    if (W.quest < Q.FIRST) { ui.card('Phone', 'No orders yet. Nobody even knows you exist.\n\n(Keep going with the story.)'); return; }
+    if (W.quest < Q.FIRST && !W.orders.length) { ui.card('Phone', 'No orders yet. Nobody even knows you exist.\n\n(Keep going with the story.)'); return; }
     const items = W.orders.map(o => {
       const at = this.orders.at(o);
       const time = o.story ? '' : o.state === 'new' ? ' · answer in ' + Math.ceil(o.exp) + 's' : o.t > 0 ? ' · ' + Math.ceil(o.t / 60) + ' min left' : ' · LATE';

@@ -101,6 +101,43 @@ export async function run(g, name) {
     if (name === 'input') return inputTest(g);
     if (name === 'debts') return debts(g);
     if (name === 'mall') return mall(g);
+    if (name === 'admin') {
+      setupAt(g, 3); sim(g, 0.2);
+      const W = g.W, A = g.admin, m0 = W.money;
+      A.run('give', 10000); log(W.money === m0 + 10000, 'admin: give money');
+      A.run('set', 5); log(W.money === 5, 'admin: set money');
+      A.run('order'); A.close(); g.phone();
+      log(document.getElementById('panel').textContent.includes(W.orders[0]?.name || '###'), 'admin order shows on the phone early in the story');
+      g.ui.closeMenu();
+      A.run('inspect'); A.close();
+      const t0 = W.insp?.t; sim(g, 3, 1 / 15);
+      log(W.insp && W.insp.t < t0 - 2, 'inspection countdown ticks down (' + Math.round(t0) + ' -> ' + Math.round(W.insp?.t) + ')');
+      for (let i = 0; i < 60 && W.insp && W.insp.ph === 'warn'; i++) sim(g, 1, 1 / 15);
+      log(W.insp?.ph === 'search' && g.police.cops.some(c => c.kind === 'officer'), 'the officers arrived');
+      for (let i = 0; i < 120 && W.insp; i++) sim(g, 1, 1 / 15);
+      log(!W.insp, 'the inspection finished');
+      A.run('event', 'supplierVan'); log(W.event?.k === 'supplierVan', 'admin: supplier van event');
+      A.run('resetEvent'); log(!W.event, 'admin: reset event');
+      A.run('event', 'checkpoint'); const cps = g.police.cops.filter(c => c.kind === 'check').map(c => c.x + ',' + c.z).join(); sim(g, 2, 1 / 15);
+      log(g.police.cops.filter(c => c.kind === 'check').map(c => c.x + ',' + c.z).join() !== cps, 'checkpoint cops move early in the story');
+      A.run('resetEvent');
+      const n = W.cars.length; A.run('car', 'getaway'); log(W.cars.length === n + 1, 'admin: spawn a getaway car');
+      A.run('tp', { x: 0, z: 12 }); log(Math.hypot(g.player.pos.x, g.player.pos.z - 12) < 1, 'admin: teleport');
+      A.run('storm'); log(!!W.weather, 'admin: storm on');
+      A.run('refuse'); log(g.orders.forceTab, 'admin: next customer refuses');
+      A.run('item', 'box'); log(g.hold(g.me).some(i => i.k === 'box'), 'admin: give a pizza box');
+      A.close();
+      note('admin done');
+      return;
+    }
+    if (name === 'phone') {
+      setupAt(g, 3); sim(g, 0.2);
+      g.admin.run('order'); g.admin.close();
+      g.phone();
+      const html = document.getElementById('panel').textContent;
+      log(g.W.orders.length === 1 && html.includes(g.W.orders[0].name), 'early in the story, an admin order shows on the phone: ' + g.W.orders[0].name);
+      return;
+    }
     if (name === 'perf') {
       const R = g.renderer; let tris = 0, meshes = 0; g.scene.traverse(o => { if (o.isMesh && o.visible) { meshes++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } });
       const t0 = performance.now(); for (let i = 0; i < 5; i++) R.render(g.scene, g.camera); const tr = (performance.now() - t0) / 5;

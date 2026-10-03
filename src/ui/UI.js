@@ -43,7 +43,7 @@ export class UI {
     const open = W.orders.filter(o => o.state === 'open').length, nw = W.orders.filter(o => o.state === 'new').length;
     $('phonebadge').textContent = nw ? nw + ' NEW ORDER' + (nw > 1 ? 'S' : '') + ' [TAB]' : open ? open + ' open order' + (open > 1 ? 's' : '') + ' [TAB]' : '';
     $('phonebadge').classList.toggle('ring', nw > 0);
-    $('phonebadge').style.display = W.quest >= 10 && (nw || open) ? '' : 'none';
+    $('phonebadge').style.display = nw || open ? '' : 'none';
     // status: being watched / chased
     const st = $('status');
     if (g.police.chasingMe) { st.textContent = 'CHASED! Lose them: break line of sight, hide in a dumpster (E)'; st.className = 'chase'; }

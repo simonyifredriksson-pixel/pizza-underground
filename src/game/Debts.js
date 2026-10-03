@@ -89,7 +89,6 @@ export class Debts {
 
   hostUpdate(dt, players) {
     const g = this.g, W = this.W;
-    if (W.quest < Q.BIZ) return;
     let changed = false;
     for (const d of [...this.list]) {
       if (d.state === 'owed' || d.state === 'warned') {
@@ -101,7 +100,7 @@ export class Debts {
       }
     }
     // businesses run tabs once they know who you are
-    if (this.tier >= 1) {
+    if (this.tier >= 1 && W.quest >= Q.BIZ) {
       W.tabT = (W.tabT ?? 120) - dt;
       if (W.tabT <= 0) {
         W.tabT = rand(200, 320);
@@ -114,7 +113,7 @@ export class Debts {
       }
     }
     // the rival gang shows up now and then
-    if (this.tier >= 3) {
+    if (this.tier >= 3 && W.quest >= Q.BIZ) {
       if (W.rival) { W.rival.t -= dt; if (W.rival.t <= 0) { W.rival = null; changed = true; } }
       else { W.rivalT = (W.rivalT ?? 200) - dt; if (W.rivalT <= 0) { W.rivalT = rand(300, 480); const p = g.town.poi.pete; W.rival = { x: p.x - 6, z: p.z + 3, t: 240 }; g.alarm('THE CALZONE CARTEL IS IN THE PARK!'); changed = true; } }
     }

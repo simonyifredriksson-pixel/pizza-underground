@@ -63,16 +63,18 @@ export class Police {
   /** host: who's out there - fed by Game from local + remote states */
   hostUpdate(dt, players) {
     const g = this.g, W = g.W;
-    if (W.quest < 4) return; // no police around until you know pizza is illegal
-    // headcount follows the heat
-    const footWanted = clamp(3 + Math.floor(W.heat / 12), 3, 10) - (W.ending ? 1 : 0);
-    const carWanted = clamp(1 + Math.floor(W.heat / 30), 1, 4);
-    const patrol = this.cops.filter(c => c.kind === 'cop' && !c.fixed);
-    if (patrol.length < footWanted) this.spawnCop();
-    else if (patrol.length > footWanted) { const c = patrol.find(c => c.st === 'patrol' && players.every(p => Math.hypot(p.x - c.x, p.z - c.z) > 60)); if (c) this.cops.splice(this.cops.indexOf(c), 1); }
-    if (this.cars.length < carWanted) this.spawnCar();
-    else if (this.cars.length > carWanted) { const c = this.cars.find(c => c.st === 'patrol'); if (c) this.cars.splice(this.cars.indexOf(c), 1); }
-    if (!this.cops.some(c => c.kind === 'yard')) { const y = this.spawnCop('yard', g.town.poi.yardGuard); y.fixed = true; y.st = 'guard'; y.x = g.town.poi.yardGuard.x; y.z = g.town.poi.yardGuard.z; }
+    // no patrols until you know pizza is illegal (but police sent by an event or the admin panel still move)
+    if (W.quest >= 4) {
+      // headcount follows the heat
+      const footWanted = clamp(3 + Math.floor(W.heat / 12), 3, 10) - (W.ending ? 1 : 0);
+      const carWanted = clamp(1 + Math.floor(W.heat / 30), 1, 4);
+      const patrol = this.cops.filter(c => c.kind === 'cop' && !c.fixed);
+      if (patrol.length < footWanted) this.spawnCop();
+      else if (patrol.length > footWanted) { const c = patrol.find(c => c.st === 'patrol' && players.every(p => Math.hypot(p.x - c.x, p.z - c.z) > 60)); if (c) this.cops.splice(this.cops.indexOf(c), 1); }
+      if (this.cars.length < carWanted) this.spawnCar();
+      else if (this.cars.length > carWanted) { const c = this.cars.find(c => c.st === 'patrol'); if (c) this.cars.splice(this.cars.indexOf(c), 1); }
+      if (!this.cops.some(c => c.kind === 'yard')) { const y = this.spawnCop('yard', g.town.poi.yardGuard); y.fixed = true; y.st = 'guard'; y.x = g.town.poi.yardGuard.x; y.z = g.town.poi.yardGuard.z; }
+    } else if (!this.cops.length && !this.cars.length) return;
 
     const col = g.town.col;
     // security cameras: warn when a cop comes near the hideout

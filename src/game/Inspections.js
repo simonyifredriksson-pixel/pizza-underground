@@ -55,13 +55,13 @@ export class Inspections {
 
   hostUpdate(dt, players) {
     const g = this.g, W = this.W;
-    if (W.quest < Q.BIZ) return;
     if (W.shutdown > 0) { W.shutdown -= dt; if (W.shutdown <= 0) { W.shutdown = 0; g.tell(null, 'The police tape is gone. You\'re back in business!'); g.dirty(); } }
     W.inspCool = Math.max(0, (W.inspCool || 0) - dt);
     W.tips = Math.max(0, (W.tips || 0) - dt * 0.01);
     const I = W.insp;
     if (!I) {
-      if (W.inspCool > 0 || W.shutdown > 0) return;
+      // inspections only happen on their own once the business is running (admin can start one any time)
+      if (W.quest < Q.BIZ || W.inspCool > 0 || W.shutdown > 0) return;
       // a dice roll every frame, weighted by heat and by the pile of tips
       const rate = 0.0012 + W.heat * 0.00008 + (W.tips || 0) * 0.0009;
       if (Math.random() < rate * dt) this.start();
