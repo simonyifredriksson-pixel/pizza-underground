@@ -22,6 +22,7 @@ import { Inspections } from './Inspections.js';
 import { Weather } from './Weather.js';
 import { Admin } from '../ui/Admin.js';
 import { BlackMarket } from './BlackMarket.js';
+import { Inventory } from '../ui/Inventory.js';
 import { GROCERY, EQUIPMENT, GENERAL } from '../data/Data.js';
 import { makeCar, makeItem } from '../art/Props.js';
 import { makeChar } from '../art/Chars.js';
@@ -76,6 +77,7 @@ export class Game {
     this.weather = new Weather(this);
     this.admin = new Admin(this);
     this.bm = new BlackMarket(this);
+    this.inv = new Inventory(this);
     this._netHooks();
   }
 
@@ -132,7 +134,7 @@ export class Game {
   }
   setHold(pid, arr) { this.W.hold[pid] = arr; this.dirty(); }
   dirty() { this._dirty = true; }
-  frozen() { return this.ui.inDialog || !!this.ui.menuOpen || this.phase !== 'play' || !!this.cam.override || this.chatOpen || this.admin?.open; }
+  frozen() { return this.ui.inDialog || !!this.ui.menuOpen || this.phase !== 'play' || !!this.cam.override || this.chatOpen || this.admin?.open || !!this.inv?.open; }
   allPlayers() {
     const P = this.player;
     const me = { id: this.me, x: P.pos.x, z: P.pos.z, floor: P.floor, hidden: !!P.hidden, car: P.car, carSeat: P.seat, run: P.running && P.speed > 6, nat: this.natural };
@@ -518,7 +520,7 @@ export class Game {
 
     if (this.intro.active) this.intro.active.update(dt);
     const frozen = this.frozen();
-    I.blocked = !!ui.menuOpen || this.chatOpen || this.admin.open;
+    I.blocked = !!ui.menuOpen || this.chatOpen || this.admin.open || !!this.inv?.open;
 
     if (this.phase === 'play' && !frozen) this._keys(dt);
     this.natural = !frozen && I.held('KeyX') && !P.car;
@@ -552,6 +554,7 @@ export class Game {
     this.npcs.update(dt);
     this.debts.sync(dt);
     this.bm.update(dt);
+    this.inv.update(dt);
     this.traffic.setVisible(this.phase !== 'intro');
     if (this.phase === 'play') { this.traffic.update(dt); this.citizens.update(dt); this.story.localUpdate(dt); }
     for (const r of this.remotes.values()) r.update(dt);
@@ -715,6 +718,7 @@ export class Game {
     }
     // prep counter: the topping keys
     const prep = t && t.prep ? this.kitchen.st(t.prep).item : null;
+    this.prepActive = !!(prep && prep.k === 'base');   // number keys are toppings here, not the hotbar
     ui.prepKeys(prep && prep.k === 'base' ? prep : null, W.stock);
     if (prep && prep.k === 'base') ADD_KEYS.forEach((what, i) => { if (I.pressed('Digit' + (i + 1))) this.act({ k: 'use', id: t.prep, op: 'add', what }); });
 

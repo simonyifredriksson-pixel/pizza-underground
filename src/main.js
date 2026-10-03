@@ -68,7 +68,7 @@ async function boot() {
   game.sky = sky;
   window.__game = game;
   window.__tests = () => import('./debug/Tests.js');
-  input.canLock = () => game.phase !== 'title' && game.phase !== 'lobby' && !game.ui.menuOpen && !game.chatOpen;
+  input.canLock = () => game.phase !== 'title' && game.phase !== 'lobby' && !game.ui.menuOpen && !game.chatOpen && !game.inv?.open;
   input.onLockChange = (locked) => {
     if (!locked && game.phase === 'play' && !game.ui.menuOpen && !game.chatOpen && !game.ui.inDialog && !game.cam.override) game.pause();
   };

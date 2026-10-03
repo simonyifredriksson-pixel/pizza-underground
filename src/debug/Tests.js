@@ -8,7 +8,7 @@ import { STOCK } from '../data/Data.js';
 import { HQ } from '../world/Town.js';
 import { STATION } from '../data/Hideout.js';
 import { drive as driveFn } from '../game/Vehicles.js';
-import { VEHICLES as VEH } from '../data/Data.js';
+import { VEHICLES as VEH, DISGUISES as DISG } from '../data/Data.js';
 import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
 import { makeItem } from '../art/Props.js';
 
@@ -65,6 +65,13 @@ export function setupAt(g, q) {
       if (qs.has('incog')) W.incog = { [g.me]: 40 };
       for (let i = 0; i < 40; i++) { g.update(1 / 30); g.input.endFrame(); }   // past the equip animation (headless frames are slow)
       if (ui === 'gearUse') setTimeout(() => { g.player.gear.play(GEAR[W.eq[g.me]].anim); g.player.gearVM.play(GEAR[W.eq[g.me]].anim); g.player.gear.T.t = +qs.get('t') || 0.2; g.player.gearVM.T.t = +qs.get('t') || 0.2; g.timeScale = 0.0001; }, 1200);
+    }
+    if (ui === 'inv' || ui === 'hotbar') {
+      fillInventory(g);
+      for (let i = 0; i < 5; i++) { g.update(1 / 30); g.input.endFrame(); }
+      if (qs.get('eq')) g.exec(g.me, { k: 'bm', op: 'equip', key: qs.get('eq') });
+      if (ui === 'inv') { g.inv.show(qs.get('tab') || 'gear'); g.inv.sel = +(qs.get('sel') || 0); g.inv.render(); }
+      for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
     }
     if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'chair') {
@@ -141,6 +148,7 @@ export async function run(g, name) {
     if (name === 'debts') return debts(g);
     if (name === 'kidnap') return kidnap(g);
     if (name === 'bm') return await bmTest(g);
+    if (name === 'inv') return await invTest(g);
     if (name === 'cockdbg') {
       fresh(g); const W = g.W;
       const id = W.carSeq++; W.cars.push({ id, kind: 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
@@ -263,6 +271,61 @@ function debts(g) {
   g.exec(me, { k: 'debt', id: e.id, op: 'talk' });
   log(true, 'talked to a debtor: ' + (W.debts.includes(e) ? 'refused (menu offered)' : 'paid'));
   note('debts done');
+}
+
+/** own a bit of everything */
+function fillInventory(g) {
+  const W = g.W, me = g.me;
+  W.gear = { [me]: Object.fromEntries(GEAR_ORDER.map(k => [k, GEAR[k].uses ? 3 : 1])) };
+  W.inv = { [me]: { smoke: 4, sack: 2 } }; W.license = true;
+  W.owned.disg = ['mustache', 'coat', 'suit', 'cop'].filter(k => DISG[k]);
+  W.owned.veh = ['scooter', 'pickup', 'getaway', 'icecream'].filter(k => VEH[k]);
+  g.profile.hotbar = Array(10).fill(null); g.profile.hotSeen = [];
+}
+
+/** the hotbar and the inventory screen */
+async function invTest(g) {
+  fresh(g);
+  const W = g.W, me = g.me, INV = g.inv, I = g.input, P = g.player;
+  const key = (c) => { I.fake(c, true); sim(g, 1 / 30); I.fake(c, false); sim(g, 1 / 30); };
+  log(document.getElementById('hotbar') && INV.hb.children.length === 10, 'a hotbar with 10 slots');
+  fillInventory(g); sim(g, 0.2);
+  const bar = g.profile.hotbar;
+  log(bar.filter(Boolean).length === 10 && bar[0] === 'gear:foambat', 'new things fill the hotbar by themselves: ' + bar.filter(Boolean).length + ' slots');
+  const img = INV.hb.querySelector('img');
+  log(img.src.startsWith('data:image/png') && img.src.length > 2000, 'hotbar icons are rendered from the 3D models (' + Math.round(img.src.length / 1024) + ' KB)');
+  key('Digit1');
+  log(W.eq[me] === 'foambat', 'press 1: the foam bat comes out');
+  key('Digit1');
+  log(!W.eq[me], 'press 1 again: put away');
+  key('Digit2');
+  log(W.eq[me] === 'mallet' && INV.hb.children[1].classList.contains('on'), 'press 2: the mallet, its slot lights up');
+  key('KeyI');
+  log(INV.open && document.getElementById('inv').classList.contains('on') && g.frozen(), 'I opens the inventory (the game pauses around you)');
+  log(INV.grid.querySelectorAll('.islot:not(.none)').length === 12, 'gear tab: all 12 pieces');
+  key('KeyE'); log(INV.tab === 'supplies' && INV.list.length === 3, 'E: next tab, supplies (smoke bombs, trash bags, license)');
+  key('KeyE'); log(INV.tab === 'outfits' && INV.list.length === W.owned.disg.length, 'outfits: ' + INV.list.length);
+  key('KeyE'); log(INV.tab === 'vehicles' && INV.list.length === W.owned.veh.length, 'vehicles: ' + INV.list.length);
+  key('KeyQ'); key('KeyQ'); key('KeyQ');
+  log(INV.tab === 'gear', 'Q goes back');
+  INV.sel = 11; INV.render(); key('Digit3');
+  log(bar[2] === 'gear:briefcase', 'point at the briefcase and press 3: it moves to hotbar slot 3');
+  INV.setTab('supplies'); INV.sel = 0; INV.render(); key('Digit0');
+  log(bar[9] === 'smoke', 'smoke bombs onto slot 0');
+  INV.setTab('gear'); INV.sel = 4; INV.render(); key('Enter');
+  log(W.eq[me] === 'smoke', 'Enter: take out the selected gear (Party Smoke Machine)');
+  INV.setTab('outfits'); INV.sel = 1; INV.render(); INV.primary();
+  log(W.wear[me] === W.owned.disg[1], 'outfits: wear one (' + W.wear[me] + ')');
+  log(INV.preview.obj && INV.preview.canvas.width === 360, 'the turntable preview is drawing');
+  key('KeyI');
+  log(!INV.open && !g.frozen(), 'I closes it');
+  const n0 = W.inv[me].smoke, si = bar.indexOf('smoke');
+  key(['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'][si]);
+  log(W.inv[me].smoke === n0 - 1, 'the smoke bomb slot throws one (' + n0 + ' -> ' + W.inv[me].smoke + ')');
+  // at the prep counter, numbers are toppings
+  g.prepActive = true; const e0 = W.eq[me]; key('Digit1'); g.prepActive = false;
+  log(W.eq[me] === e0, 'at the prep counter the number keys stay toppings');
+  note('inventory done');
 }
 
 /** the Underground Market: Vito, the pizza, the shelf, the stairs, every piece of gear */
@@ -504,7 +567,9 @@ function kitchen(g) {
   const o = g.orders.spawn({ accepted: true });
   o.top = ['pepperoni', 'mushroom']; o.extra = false; o.sting = false;
   const m0 = W.money;
+  g.orders.noTab = true;   // no "put it on the tab" this time
   g.exec(me, { k: 'deliver', id: o.id });
+  g.orders.noTab = false;
   log(W.money > m0 && !W.orders.includes(o), 'delivered, paid ' + (W.money - m0));
   // cheese explosion
   g.exec(me, { k: 'use', id: 'dough1', op: 'take' }); g.exec(me, { k: 'use', id: 'prep1', op: 'place' }); g.exec(me, { k: 'use', id: 'prep1', op: 'flatten' });

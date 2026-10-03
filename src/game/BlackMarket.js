@@ -110,7 +110,7 @@ export class BlackMarket {
     W.money -= G.price; W.stats.spent = (W.stats.spent || 0) + G.price;
     inv[key] = (inv[key] || 0) + 1; W.eq[pid] = key;
     g.sfx('cash', null);
-    g.tell(pid, G.label + ': yours. It\'s in your hand - click to use it, B for all your gear.');
+    g.tell(pid, G.label + ': yours. It\'s in your hand - click to use it. It\'s on your hotbar too (number keys); I opens your inventory.');
     g.dirty();
   }
   _use(pid, a, inv) {
@@ -364,7 +364,7 @@ export class BlackMarket {
   }
   brokerTalk() {
     const g = this.g;
-    g.ui.dialog([['broker', pick(BROKER.hi)], ['broker', 'Everything on the tables is for sale. Stand in front of one and press E. Then B for your gear, and click to use it.']]);
+    g.ui.dialog([['broker', pick(BROKER.hi)], ['broker', 'Everything on the tables is for sale. Stand in front of one and press E. Then the number keys (or I for your inventory) to take it out, and click to use it.']]);
   }
   goDown() {
     const g = this.g, P = g.player, M = g.town.poi.marketIn;
@@ -442,7 +442,7 @@ export class BlackMarket {
     const g = this.g, I = g.input, P = g.player, W = this.W;
     this.useT -= dt;
     if (g.frozen()) return;
-    if (I.pressed('KeyB')) this.gearMenu();
+    if (I.pressed('KeyB')) g.inv.show('gear');
     const eq = W.eq?.[g.me];
     if (!eq || P.car || P.hidden) return;
     if ((I.click(0) || I.pressed('KeyC')) && this.useT <= 0) this.use();
@@ -495,6 +495,6 @@ export class BlackMarket {
     this.hudKey = k;
     if (!G && !incog) { this.hud.style.display = 'none'; return; }
     this.hud.style.display = '';
-    this.hud.innerHTML = (G ? '<div class="g-top">' + G.label + (G.uses ? ' x' + n : '') + '</div>' + (g.hold(g.me).length ? '<div class="h-help">(put away while you carry things)</div>' : '<div class="h-help"><b class="key">LMB</b> use · <b class="key">B</b> gear</div>') : '') + (incog ? '<div class="h-help">DISGUISED (' + incog + 's)</div>' : '');
+    this.hud.innerHTML = (G ? '<div class="g-top">' + G.label + (G.uses ? ' x' + n : '') + '</div>' + (g.hold(g.me).length ? '<div class="h-help">(put away while you carry things)</div>' : '<div class="h-help"><b class="key">LMB</b> use · <b class="key">I</b> inventory</div>') : '') + (incog ? '<div class="h-help">DISGUISED (' + incog + 's)</div>' : '');
   }
 }

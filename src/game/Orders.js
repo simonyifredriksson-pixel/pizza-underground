@@ -179,7 +179,7 @@ export class Orders {
     this.g.inspections.tip(o.big ? 3 : 1);                               // somebody always talks
     // sometimes they can't pay right now: "put it on my tab"
     const owes = this.g.debts.list.some(d => d.kind === 'house' && d.ref === o.h);
-    if (pid && !o.big && !o.rich && !owes && pay > 0 && s >= 0.5 && Math.random() < (this.forceTab ? 1 : 0.12)) {
+    if (pid && !o.big && !o.rich && !owes && pay > 0 && s >= 0.5 && Math.random() < (this.forceTab ? 1 : this.noTab ? 0 : 0.12)) {
       o.left--;
       if (o.left <= 0) { W.orders.splice(W.orders.indexOf(o), 1); W.rep++; }
       W.stats.delivered++;
