@@ -107,6 +107,13 @@ export function setupAt(g, q) {
       g.update(1 / 30); g.paused = true;
     }, 900);
     if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
+    if (ui === 'photo') setTimeout(() => {   // a rival in the chair, and you take his picture
+      W.inv = { [g.me]: { polaroid: true } }; g.rivals.R.captive = { g: qs.get('g') || 'delivery', name: 'Speedy Steve', id: 'h1' };
+      const ch = g.town.poi.storageChair; g.player.teleport(ch.x + 1.7, ch.z - 1.3, 0, Math.atan2(-1.7, 1.3)); g.player.camYaw = Math.atan2(-1.7, 1.3) + Math.PI; g.cam.fpPitch = 0.3;
+      for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
+      g.rivals.keepPhoto = true; g.exec(g.me, { k: 'rv', op: 'photo' });
+      setTimeout(() => { g.paused = true; }, 1200);
+    }, 900);
     if (ui === 'chair') {
       const d = g.debts.create('house', 2, 'Gary', 2000, 'test'); d.state = 'guest'; d.res = 100;
       const ch = g.town.poi.storageChair; g.player.teleport(ch.x + 1.7, ch.z - 1.3, 0, Math.atan2(-1.7, 1.3)); g.cam.fpPitch = 0.3; g.cam.dist = 3.2; g.cam.pitch = 0.3; g.player.camYaw = Math.atan2(-1.7, 1.3) + Math.PI + (qs.has('tp') ? 0.9 : 0);
@@ -208,6 +215,16 @@ export async function run(g, name) {
         W.hold[g.me] = []; g.exec(g.me, bt.act);
         const bag = g.hold(g.me).find(i => i.hostage);
         log(!!bag && !RV.R.raid, 'bagged ' + (bag || {}).name);
+        // down to the storage room: into the chair, then a photo
+        const ch = g.town.poi.storageChair; P.teleport(ch.x + 1.2, ch.z - 0.8, 0); sim(g, 0.1, 1 / 20);
+        let T3 = []; RV.targets(P, T3); const st = T3.find(t => t.act && t.act.op === 'seatHostage');
+        log(!!st, 'at the chair: "' + (st || {}).label + '"');
+        g.exec(g.me, st.act); sim(g, 0.3, 1 / 20);
+        log(RV.R.captive && g.debts.guest && !g.hold(g.me).length, RV.R.captive?.name + ' is in the Time-Out Chair (hood, cuffs, gang clothes)');
+        T3 = []; RV.targets(P, T3); const pt = T3.find(t => t.act && t.act.op === 'photo');
+        log(!!pt, 'prompt: "' + (pt || {}).label + '"');
+        g.exec(g.me, pt.act); sim(g, 0.2, 1 / 20);
+        log(W.inv[g.me].photo?.id === RV.R.captive.id && document.querySelector('.polaroid canvas'), 'FLASH: the photo is printed (and shown on screen)');
         const Pl = RV.place('italian'); P.teleport(Pl.out.door.x, Pl.out.door.z, 0); sim(g, 0.1, 1 / 20);
         const T2 = []; RV.targets(P, T2); const rt = T2.find(t => t.act && t.act.op === 'ransom');
         log(!!rt, 'at Nonna\'s Garage: "' + (rt || {}).label + '"');
@@ -216,12 +233,17 @@ export async function run(g, name) {
         const o0 = n.offer; g.exec(g.me, { k: 'rv', op: 'ransom', step: 'demand', amt: Math.round(n.value * 1.05) });
         log(RV.R.ransom[g.me] && RV.R.ransom[g.me].offer > o0, 'haggled: he came up to ' + RV.R.ransom[g.me]?.offer);
         const m0 = W.money, off = RV.R.ransom[g.me].offer; g.exec(g.me, { k: 'rv', op: 'ransom', step: 'take' });
-        log(W.money === m0 + off && !g.hold(g.me).some(i => i.hostage), 'ransom paid: +' + off + ', he got his guy back');
+        sim(g, 0.2, 1 / 20);
+        log(W.money === m0 + off && !RV.R.captive && !W.inv[g.me].photo && !g.debts.guest, 'ransom paid: +' + off + ', the chair is empty, he went home');
         // a greedy one: he walks away
-        g.admin.run('rvHostage', 'frozen'); g.admin.close(); const Pf = RV.place('frozen'); P.teleport(Pf.out.door.x, Pf.out.door.z, 0);
+        g.admin.run('rvHostage', 'frozen'); g.admin.close(); P.teleport(ch.x + 1.2, ch.z - 0.8, 0);
+        g.exec(g.me, { k: 'rv', op: 'seatHostage' }); g.exec(g.me, { k: 'rv', op: 'photo' });
+        const Pf = RV.place('frozen'); P.teleport(Pf.out.door.x, Pf.out.door.z, 0);
         g.exec(g.me, { k: 'rv', op: 'ransom', step: 'start' });
         for (let i = 0; i < 3 && RV.R.ransom[g.me]; i++) g.exec(g.me, { k: 'rv', op: 'ransom', step: 'demand', amt: RV.R.ransom[g.me].value * 5 });
-        log(!RV.R.ransom[g.me] && g.hold(g.me).some(i => i.hostage), 'asked for way too much: the boss walked away (you still have his guy)');
+        log(!RV.R.ransom[g.me] && RV.R.captive, 'asked for way too much: the boss walked away (his guy is still in your chair)');
+        g.exec(g.me, { k: 'rv', op: 'letGoCaptive' });
+        log(!RV.R.captive, 'let him go');
       }
       g.onEvent = on; return;
     }

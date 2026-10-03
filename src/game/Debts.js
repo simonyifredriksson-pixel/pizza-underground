@@ -16,6 +16,7 @@ import { part, geo } from '../art/Mesher.js';
 import { TIERS, tierOf, BUSINESSES, BIZ_TAB, TAB_LINES, ENCOUNTERS, PAY_LINES, REFUSE_LINES, DEADLINE_LINES, SEIZE_LINES, RETURN_LINES, FORGIVE_LINES, BIZ_SEIZE, KNUCKLES, TIER_EVENTS, RIVAL } from '../data/Mafia.js';
 import { CUSTOMERS } from '../data/Data.js';
 import { GEAR } from '../data/BlackMarket.js';
+import { GANGS as RIVAL_GANGS } from '../data/Rivals.js';
 import { SPEAKERS, Q } from '../data/Story.js';
 import { HQ } from '../world/Town.js';
 import { path, nearestNode } from './Police.js';
@@ -265,7 +266,12 @@ export class Debts {
     g.dirty();
   }
   /** who is in the Time-Out Chair (one at a time) */
-  chairGuest() { return this.list.find(x => x.state === 'guest' || x.state === 'kept'); }
+  chairGuest() {
+    const d = this.list.find(x => x.state === 'guest' || x.state === 'kept'); if (d) return d;
+    // or a rival gang's guy, waiting for his boss to pay (Rivals.js)
+    const c = this.W.rv?.captive;
+    return c ? { id: c.id, captive: true, g: c.g, name: c.name, state: 'kept', res: 0, amount: 0 } : null;
+  }
   chairTaken() { return !!this.chairGuest(); }
   /** host: somebody bonked the guest with a foam bat or a mallet */
   bonk(pid, key) {
@@ -273,7 +279,7 @@ export class Debts {
     const ch = g.town.poi.storageChair;
     const was = d.res;
     if (d.state === 'guest' && d.res > 0) d.res = Math.max(0, d.res - (BONK[key] || 10) * (0.8 + Math.random() * 0.4));
-    const line = d.state === 'kept' ? 'OW! I\'m ALREADY not going anywhere!' : was > 0 && d.res <= 0 ? pick(BROKEN) : pick(BONK_YELP) + ' ' + lineFor(d.res);
+    const line = d.captive ? pick(['OW! My boss is gonna hear about this!', 'BONK?! That\'s not in the photo!', 'OW! Fine, I\'ll tell you the secret recipe! ...It\'s frozen.', 'Hey! I\'m a HOSTAGE, not a piñata!']) : d.state === 'kept' ? 'OW! I\'m ALREADY not going anywhere!' : was > 0 && d.res <= 0 ? pick(BROKEN) : pick(BONK_YELP) + ' ' + lineFor(d.res);
     g.broadcastEvent({ k: 'guestBonk', pid, key, x: ch.x, z: ch.z, res: d.res, line, broke: was > 0 && d.res <= 0, id: d.id });
     this.addRep(0.3);
     g.dirty();
@@ -403,8 +409,8 @@ export class Debts {
     if (guest && ch) {
       if (!this.guest || this.guest.id !== guest.id) {
         if (this.guest) g.scene.remove(this.guest.rig.root);
-        const s = guest.id * 7;
-        const rig = makeChar({ skin: SKINS[s % SKINS.length], shirt: ['#f7a8c8', '#8fc1e3', '#ffd23f', '#a8e0c0', '#c9a8f0'][s % 5], pants: '#3a5a9a', hat: 'bald', belly: 1 + (s % 4) * 0.1 });
+        const s = guest.captive ? 3 : guest.id * 7;
+        const rig = makeChar(guest.captive ? { ...RIVAL_GANGS[guest.g].crew, hat: 'bald', glasses: null } : { skin: SKINS[s % SKINS.length], shirt: ['#f7a8c8', '#8fc1e3', '#ffd23f', '#a8e0c0', '#c9a8f0'][s % 5], pants: '#3a5a9a', hat: 'bald', belly: 1 + (s % 4) * 0.1 });
         rig.root.position.set(ch.x - 0.05, 0.17, ch.z); rig.root.rotation.y = Math.PI / 2;
         const hood = makeHood(rig.o.headSize || 1); rig.head.add(hood);
         for (const arm of [rig.armL, rig.armR]) { const c = makeCuff(); c.position.set(0, -0.55, 0); arm.add(c); }
@@ -423,7 +429,7 @@ export class Debts {
       R.torso.rotation.z = Math.sin(performance.now() * 0.004) * 0.05 + scared * Math.sin(hit * 35) * 0.12;
       const m = this.guest.hood.userData.mouth; if (m) m.scale.y = 0.05 * (1 + (talking || hit > 0 ? Math.abs(Math.sin(performance.now() * 0.03)) * 2.5 : 0));
       this.guest.t -= dt;
-      if (this.guest.t <= 0 && Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z) < 14) { this.guest.t = rand(7, 11); g.bubble(() => ({ x: ch.x, z: ch.z }), kept ? pick(KEPT) : lineFor(guest.res)); }
+      if (this.guest.t <= 0 && Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z) < 14) { this.guest.t = rand(7, 11); g.bubble(() => ({ x: ch.x, z: ch.z }), guest.captive ? pick(['My boss will pay! ...Probably. Maybe. He likes me. I think.', '(muffled) Is that a CAMERA? Get my good side!', 'You\'re gonna regret this! ...Is there a snack?', 'The boss is gonna be SO mad. At you. And at me.']) : kept ? pick(KEPT) : lineFor(guest.res)); }
     } else if (this.guest) { g.scene.remove(this.guest.rig.root); this.guest = null; }
     // the sack mumbles while you carry it
     const myBag = g.hold(g.me).find(i => i.k === 'bag');
@@ -488,7 +494,8 @@ export class Debts {
       const dc = Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z);
       if (dc < 2.6) {
         const guest = this.chairGuest();
-        if (top && top.k === 'bag' && !top.hostage) out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
+        if (guest && guest.captive) { /* Rivals.js handles its own guest */ }
+        else if (top && top.k === 'bag' && !top.hostage) out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
         else if (guest) {
           const eq = W.eq?.[g.me], bat = eq === 'foambat' || eq === 'mallet';
           const what = guest.state === 'kept' ? guest.name + ', your permanent guest' : guest.res > 0 ? guest.name + ' (resolve ' + Math.ceil(guest.res) + '%, owes ' + money(guest.amount) + ')' : guest.name + ' is ready to pay ' + money(guest.amount);

@@ -310,6 +310,7 @@ export class Game {
         if (!pay(it.price)) return;
         W.owned.disg.push(a.key); W.wear[pid] = a.key;
       } else if (a.key === 'smoke') { if (!pay(it.price)) return; inv.smoke++; this.tell(pid, 'Smoke bombs: ' + inv.smoke + '. Press G to vanish.'); }
+      else if (a.key === 'polaroid') { if (inv.polaroid) return this.tell(pid, 'You already have one. It never runs out of film. Don\'t ask.'); if (!pay(it.price)) return; inv.polaroid = true; this.tell(pid, 'Instant camera: yours. Use it on a rival in your Time-Out Chair (E) for ransom proof.'); }
       else if (a.key === 'sack') { if (!pay(it.price)) return; inv.sack = (inv.sack || 0) + 1; this.tell(pid, 'Comically Large Trash Bags: ' + inv.sack + '. Find someone who owes you money. Press R at their door.'); }
       else if (a.key === 'energy') { if (!pay(it.price)) return; this.broadcastEvent({ k: 'energy', pid }); }
       else if (a.key === 'fresh') { if (!pay(it.price)) return; W.fresh = 180; this.tell(pid, 'The hideout now smells like a pine forest. For 3 minutes.'); }
@@ -384,6 +385,7 @@ export class Game {
       case 'bmReveal': case 'gear': this.bm.onEvent(e); break;
       case 'guestBonk': this.debts.onBonk(e); break;
       case 'ransom': this.rivals.onRansom(e); break;
+      case 'photo': this.rivals.onPhoto(e); break;
       case 'rvNews': case 'rvBark': case 'rvSpotted': case 'rvSab': case 'camOff': case 'motion': case 'raidDone': case 'raidFoiled': case 'caught': this.rivals.onEvent(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;

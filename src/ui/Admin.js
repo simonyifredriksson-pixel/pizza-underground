@@ -97,7 +97,7 @@ export class Admin {
         const RV = g.rivals, k = arg || ['italian', 'delivery', 'frozen'][Math.floor(Math.random() * 3)];
         W.owned.up.camera = true; RV.R.hqOff = {};
         RV.gang(k).ally = false;
-        W.inv = W.inv || {}; const inv = (W.inv[me] ||= { smoke: 0 }); inv.sack = Math.max(inv.sack || 0, 2);   // so you can bag him
+        W.inv = W.inv || {}; const inv = (W.inv[me] ||= { smoke: 0 }); inv.sack = Math.max(inv.sack || 0, 2); inv.polaroid = true;   // so you can bag him and snap his picture
         RV.R.raid = null; RV._startRaid(k);
         const r = RV.R.raid; r.cam = null; r.camFirst = false; r.rest = null;
         r.path = [[124, 63], [129, 66], [135.4, 75.5], [137.6, 80], [141.6, 80], r.path[r.path.length - 1]];
@@ -109,7 +109,7 @@ export class Admin {
         return;
       }
       case 'rvReset': W.rv = null; W.footage = []; break;
-      case 'rvHostage': { const k = arg || 'italian'; g.hold(me).push({ k: 'bag', hostage: true, g: k, id: 'h' + Date.now(), name: { italian: 'Little Sal', delivery: 'Speedy Steve', frozen: 'Chilly Chad' }[k] }); break; }
+      case 'rvHostage': { const k = arg || 'italian'; W.inv = W.inv || {}; (W.inv[me] ||= { smoke: 0 }).polaroid = true; g.hold(me).push({ k: 'bag', hostage: true, g: k, id: 'h' + Date.now(), name: { italian: 'Little Sal', delivery: 'Speedy Steve', frozen: 'Chilly Chad' }[k] }); break; }
     }
     g.dirty();
     this.render();

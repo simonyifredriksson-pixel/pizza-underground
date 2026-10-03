@@ -216,6 +216,22 @@ export function makeCuff() {
   return g;
 }
 
+/** the instant camera: a chunky body, a big lens, a flash, a photo sliding out of the bottom */
+export function makePolaroid() {
+  const g = new THREE.Group();
+  g.add(part(geo.box(), '#f6f1e6', 0, 0.22, 0, 0.5, 0.36, 0.34, { rough: 0.5 }));
+  g.add(part(geo.box(), '#2b2b33', 0, 0.42, -0.02, 0.5, 0.06, 0.3));
+  g.add(part(geo.box(), '#d6232a', 0, 0.12, 0.172, 0.5, 0.04, 0.01));
+  for (const [i, c] of ['#ffd23f', '#43e07a', '#3a7bd5'].entries()) g.add(part(geo.box(), c, -0.12 + i * 0.12, 0.08, 0.172, 0.1, 0.03, 0.01));
+  g.add(rot(part(geo.cyl(14), '#2b2b33', 0.02, 0.24, 0.2, 0.24, 0.1, 0.24), 'x', Math.PI / 2));
+  g.add(rot(part(geo.cyl(14), '#3a5a8a', 0.02, 0.24, 0.255, 0.16, 0.02, 0.16, { rough: 0.1, metal: 0.4 }), 'x', Math.PI / 2));
+  g.add(part(geo.box(), '#fffbe0', -0.15, 0.36, 0.172, 0.12, 0.07, 0.02, { emissive: 0xfff6c0, ei: 0.5 }));
+  g.add(part(geo.box(), '#d6232a', 0.18, 0.43, 0.05, 0.07, 0.03, 0.07));
+  g.add(part(geo.box(), '#ffffff', 0, 0.02, 0.1, 0.36, 0.01, 0.3));   // a photo coming out
+  g.add(part(geo.box(), '#2a2a38', 0, 0.025, 0.08, 0.28, 0.01, 0.2));
+  return g;
+}
+
 /* ---------------- security cameras ----------------
    A wall bracket and a camera body on a swivel. userData: head (turns),
    led (red: recording), lens, tape (the "blocked" sticky note), sparks. */

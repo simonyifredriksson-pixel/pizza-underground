@@ -34,14 +34,14 @@ SPEAKERS.frank = { name: 'Frank', color: '#c8c8d8' };
 const HOSTAGE_NAMES = { italian: ['Little Sal', 'Cousin Vito', 'Tony Two-Slices', 'Nephew Gino'], delivery: ['Speedy Steve', 'Zoom Zach', 'Fast Freddie', 'Lil Turbo'], frozen: ['Chilly Chad', 'Frosty Phil', 'Ice Cube Eddie', 'Brain Freeze Bob'] };
 /* the ransom haggle: what the boss says */
 const RANSOM = {
-  open: (h) => [['boss', 'You have ' + h + '.'], ['boss', '...in a trash bag.'], ['hostage', '(muffled) HI BOSS!'], ['boss', 'Hi, ' + h.split(' ').pop() + '.'], ['boss', 'Okay. What do you want for him?']],
+  open: (h) => [['narr', 'You slide the photo across. ' + h + ', in a hood, handcuffed to a comfy red chair, giving a thumbs up.'], ['boss', '...'], ['boss', 'Is that ' + h + '?'], ['boss', 'Is he giving a THUMBS UP?'], ['boss', '...He looks comfortable. Okay. What do you want for him?']],
   accept: ['Fine. FINE. Here. Give him back.', 'Deal. Don\'t tell anyone about this. Ever.', 'Take it. We\'ll pretend this never happened.'],
   counter: ['Pfff. How about {O}. That\'s my final offer.', '{O}. And that\'s already too much for HIM.', 'I can do {O}. He\'s not THAT good at his job.', '...{O}. Last offer. (It\'s not the last offer.)'],
   insult: ['WHAT? For HIM? He can\'t even sneak into a shoe shop!', 'That\'s more than his whole family is worth. Combined.', 'Are you out of your MIND? Try again.'],
   scaredYes: ['Okay, okay, no need for that. {O}.', 'Alright! {O}! Calm down!', '(sweating) {O}. And put the bat AWAY.'],
   scaredNo: ['You don\'t scare me.', 'Is that supposed to be scary? Okay, it\'s a little scary. Still no.', 'Nice try.'],
   walk: ['You know what? Keep him. We got plenty of cousins.', 'I\'m done. Come back when you\'re reasonable.', 'Keep him. He eats too much anyway.'],
-  hostage: ['(the bag) BOSS! PAY THEM! IT SMELLS LIKE ONIONS IN HERE!', '(the bag) Don\'t haggle! Don\'t you DARE haggle!', '(the bag) Am I worth that much? Aww.', '(the bag) Boss, I can hear you being cheap!'],
+  hostage: ['Frank (from the back): Boss, just pay them. We miss him. He makes the good coffee.', 'Frank (from the back): Is that Sal? Aww, he looks so relaxed.', 'Frank (from the back): Boss, he\'s got the van keys in his pocket. We NEED him.'],
 };
 SPEAKERS.hostage = { name: 'The Bag', color: '#9a9aaa' };
 
@@ -640,12 +640,35 @@ export class Rivals {
         inv.sack--;
         H.push({ k: 'bag', hostage: true, g: r.g, id: 'h' + (++R.hseq || (R.hseq = 1)), name: r.name });
         g.addHeat(2); g.debts.addRep(2);
-        g.broadcastEvent({ k: 'rvNews', text: '*FWUMP.* ' + r.name + ' is in the bag. Bring him to ' + GANGS[r.g].place + ' and demand a ransom.', alarm: 'GOT HIM!' });
+        g.broadcastEvent({ k: 'rvNews', text: '*FWUMP.* ' + r.name + ' is in the bag. Take him down to the Time-Out Chair in your storage room, snap a photo, and show it to ' + GANGS[r.g].boss + '.', alarm: 'GOT HIM!' });
         g.sfx('whoosh', p);
         R.raid = null;
         break;
       }
       case 'ransom': return this._ransom(pid, a, H);
+      case 'seatHostage': {   // into the Time-Out Chair: hood, cuffs
+        const bi = H.findIndex(i => i.k === 'bag' && i.hostage); if (bi < 0) return;
+        if (g.debts.chairTaken()) return g.tell(pid, 'The Time-Out Chair is taken. One guest at a time.');
+        const b = H.splice(bi, 1)[0];
+        R.captive = { g: b.g, name: b.name, id: b.id };
+        g.broadcastEvent({ k: 'dlg', pid, lines: [['narr', 'You sit ' + b.name + ' in the Time-Out Chair, pull the hood down and click the cuffs shut.'], ['hostage', 'Is this the part where you take my picture? Get my good side. It\'s the left.'], ['narr', 'Take his photo (instant camera, E at the chair), then show it to ' + GANGS[b.g].boss + ' at ' + GANGS[b.g].place + '.']], who: { hostage: { name: b.name, color: '#9a9aaa' } } });
+        break;
+      }
+      case 'photo': {
+        const c = R.captive, inv = W.inv?.[pid];
+        if (!c) return;
+        if (!inv?.polaroid) return g.tell(pid, 'You need an instant camera (General store at the mall).');
+        inv.photo = { g: c.g, name: c.name, id: c.id };
+        g.broadcastEvent({ k: 'photo', pid, g: c.g, name: c.name });
+        break;
+      }
+      case 'letGoCaptive': {
+        const c = R.captive; if (!c) return;
+        R.captive = null; this.gang(c.g).rel = Math.min(100, this.gang(c.g).rel + 5);
+        for (const v of Object.values(W.inv || {})) if (v.photo?.id === c.id) delete v.photo;
+        g.broadcastEvent({ k: 'rvNews', text: 'You let ' + c.name + ' go. He ran all the way home to ' + GANGS[c.g].place + '. (They like you a tiny bit more.)' });
+        break;
+      }
       case 'askMeet': { const G = this.gang(a.g); if (G.meetCool > 0) return g.tell(pid, GANGS[a.g].boss + ' is "busy". (Try again in ' + Math.ceil(G.meetCool) + 's.)'); G.invite = 300; G.meetCool = 300; g.tell(null, GANGS[a.g].boss + ' will see you at ' + GANGS[a.g].place + '. (5 minutes)'); break; }
     }
     g.dirty();
@@ -750,13 +773,14 @@ export class Rivals {
      he might go up. Out of patience: he walks away (try again later). */
   _ransom(pid, a, H) {
     const g = this.g, W = this.W, R = this.R;
-    const bi = H.findIndex(i => i.k === 'bag' && i.hostage);
-    const bag = H[bi];
+    // the proof: a photo of their guy, who is (still) in your Time-Out Chair
+    const inv = W.inv?.[pid], ph = inv?.photo;
+    const bag = ph && R.captive && R.captive.id === ph.id ? ph : null;
     R.ransom = R.ransom || {};
     let n = R.ransom[pid];
     const send = (lines, done, paid) => g.broadcastEvent({ k: 'ransom', pid, g: n?.g || bag?.g, lines, offer: n?.offer, patience: n?.patience, name: n?.name, done: !!done, paid: paid || 0 });
     if (a.step === 'start') {
-      if (!bag) return g.tell(pid, 'You need their guy, in a bag, in your hands.');
+      if (!bag) return g.tell(pid, 'You need a photo of their guy in your Time-Out Chair.');
       const G = this.gang(bag.g);
       if (G.ransomCool > this.time) return g.tell(pid, GANGS[bag.g].boss + ' won\'t talk to you yet. (' + Math.ceil(G.ransomCool - this.time) + 's)');
       const value = Math.round((3000 + G.lvl * 2500 + rand(0, 1500)) / 50) * 50;
@@ -766,15 +790,15 @@ export class Rivals {
     if (!n || !bag || bag.id !== n.id) { delete R.ransom[pid]; return; }
     const N = GANGS[n.g], G = this.gang(n.g), fmt = (s) => s.replace('{O}', money(n.offer));
     const end = (amt, line) => {
-      H.splice(bi, 1);
+      delete inv.photo; R.captive = null;
       W.money += amt; W.stats.earned += amt; G.cash = Math.max(0, G.cash - amt);
       this._xp(n.g, -0.2); G.rel = Math.max(-100, G.rel - 8); g.debts.addRep(3);
       delete R.ransom[pid];
-      g.broadcastEvent({ k: 'ransom', pid, g: n.g, lines: [['boss', line], ['narr', 'You hand over the bag. ' + n.name + ' tumbles out, blinks, and gets a very long hug from ' + N.boss + '.']], done: true, paid: amt, name: n.name });
+      g.broadcastEvent({ k: 'ransom', pid, g: n.g, lines: [['boss', line], ['narr', 'You call the hideout: "Let him go." Ten minutes later ' + n.name + ' comes running down the street, still wearing the hood, and gets a very long hug from ' + N.boss + '.']], done: true, paid: amt, name: n.name });
       g.broadcastEvent({ k: 'rvNews', text: N.name + ' paid ' + money(amt) + ' to get ' + n.name + ' back.', alarm: 'RANSOM PAID!' });
       g.sfx('cash', null);
     };
-    const walk = () => { G.ransomCool = this.time + 60; delete R.ransom[pid]; send([['boss', pick(RANSOM.walk)], ['narr', 'He slams the door. Try again in a minute - or keep ' + n.name + '. (Drop the bag and he runs home.)']], true); };
+    const walk = () => { G.ransomCool = this.time + 60; delete R.ransom[pid]; send([['boss', pick(RANSOM.walk)], ['narr', 'He slams the door. Try again in a minute. ' + n.name + ' stays in your chair until then.']], true); };
     switch (a.step) {
       case 'take': return end(n.offer, pick(RANSOM.accept));
       case 'demand': {
@@ -783,18 +807,37 @@ export class Rivals {
         if (amt <= n.value * 1.15) { n.offer = Math.round(Math.min(n.value, n.offer + (amt - n.offer) * rand(0.4, 0.65)) / 50) * 50; n.patience--; }
         else n.patience -= 2;
         if (n.patience <= 0) return walk();
-        return send([['you', 'I want ' + money(amt) + '.'], ['boss', amt <= n.value * 1.15 ? fmt(pick(RANSOM.counter)) : pick(RANSOM.insult)], ...(Math.random() < 0.5 ? [['hostage', pick(RANSOM.hostage)]] : [])]);
+        return send([['you', 'I want ' + money(amt) + '.'], ['boss', amt <= n.value * 1.15 ? fmt(pick(RANSOM.counter)) : pick(RANSOM.insult)], ...(Math.random() < 0.5 ? [['narr', pick(RANSOM.hostage)]] : [])]);
       }
       case 'threat': {
         if (n.threatened) { n.patience--; if (n.patience <= 0) return walk(); return send([['you', 'Do you want him back or NOT?'], ['boss', 'You already said that. It worked less the second time.']]); }
         n.threatened = true;
         const armed = ['foambat', 'mallet'].includes(W.eq?.[pid]);
-        if (Math.random() < (armed ? 0.8 : 0.5)) { n.offer = Math.round(Math.min(n.value, n.offer * 1.35) / 50) * 50; return send([['you', armed ? '(you tap the bag with your bat) Do you want him back or not?' : 'Do you want him back or not?'], ['hostage', 'OW! (it didn\'t hurt) BOSS!'], ['boss', fmt(pick(RANSOM.scaredYes))]]); }
+        if (Math.random() < (armed ? 0.8 : 0.5)) { n.offer = Math.round(Math.min(n.value, n.offer * 1.35) / 50) * 50; return send([['you', armed ? '(you tap the photo with your bat) Do you want him back or not?' : 'Do you want him back or not?'], ['boss', fmt(pick(RANSOM.scaredYes))]]); }
         n.patience--; if (n.patience <= 0) return walk();
         return send([['you', 'Do you want him back or not?'], ['boss', pick(RANSOM.scaredNo)]]);
       }
       case 'leave': delete R.ransom[pid]; return send([['you', 'I\'ll think about it.'], ['boss', 'You do that.']], true);
     }
+  }
+  /** the photo: a white flash, a click, and a real picture of what you're looking at, in a white frame */
+  onPhoto(e) {
+    const g = this.g;
+    g.fx.sparkle(g.town.poi.storageChair.x, 1.6, g.town.poi.storageChair.z, '#ffffff');
+    if (e.pid !== g.me) return;
+    g.audio.tone(2400, 0.04, 'square', 0.1); g.audio.noise?.(0.25, 0.08, 'highpass', 2000, 1);
+    const fl = document.createElement('div'); fl.className = 'flash'; document.body.appendChild(fl); setTimeout(() => fl.remove(), 600);
+    // print it: render the view into a canvas
+    if (!this.photoRT) { this.photoRT = new THREE.WebGLRenderTarget(320, 320, { samples: 4 }); this.photoRT.texture.colorSpace = THREE.SRGBColorSpace; }
+    const cam = g.camera.clone(); cam.aspect = 1; cam.updateProjectionMatrix();
+    const cv = document.createElement('canvas');
+    g.inv.icons.draw(g.scene, cam, this.photoRT, cv);
+    const card = document.createElement('div'); card.className = 'polaroid';
+    card.appendChild(cv);
+    const cap = document.createElement('div'); cap.textContent = e.name + ', alive and well. Pay up.'; card.appendChild(cap);
+    document.body.appendChild(card);
+    if (!this.keepPhoto) { setTimeout(() => card.classList.add('out'), 4200); setTimeout(() => card.remove(), 5000); }   // (screenshots keep it)
+    g.ui.toast('Got the photo! Show it to ' + GANGS[e.g].boss + ' at ' + GANGS[e.g].place + ' (E at the door).');
   }
   /** everyone: the boss answered */
   onRansom(e) {
@@ -936,10 +979,11 @@ export class Rivals {
       if (dd < 2.4) out.push({ x: Pl.out.door.x, z: Pl.out.door.z, d: dd, label: (friendly ? 'Go into ' : 'Sneak into ') + N.place + ' (' + N.name + ', ' + N.levels[G.lvl - 1] + ')', fn: enter(Pl.spawn, friendly ? null : 'You\'re inside ' + N.place + '. Guards, cameras. Be quick.') });
       const db = d(Pl.out.back.x, Pl.out.back.z);
       if (db < 2.2) out.push({ x: Pl.out.back.x, z: Pl.out.back.z, d: db, label: 'Sneak in through the back door (straight into the back room)', fn: enter(Pl.backSpawn, 'In through the back. Nobody saw that. Probably.') });
-      // their guy in a bag: knock and demand a ransom (front door, or the boss's desk)
-      if (top && top.k === 'bag' && top.hostage && top.g === k) {
+      // a photo of their guy in your chair: knock and demand a ransom (front door, or the boss's desk)
+      const ph = W.inv?.[g.me]?.photo;
+      if (ph && ph.g === k && R.captive?.id === ph.id) {
         const dr = Math.min(dd, d(Pl.desk.x, Pl.desk.z));
-        if (dr < 2.6) out.push({ x: Pl.out.door.x, z: Pl.out.door.z, d: dr - 1, label: 'Demand a ransom for ' + top.name + ' from ' + N.boss, act: { k: 'rv', op: 'ransom', step: 'start' } });
+        if (dr < 2.6) out.push({ x: Pl.out.door.x, z: Pl.out.door.z, d: dr - 1, label: 'Show ' + N.boss + ' the photo of ' + ph.name + ' and demand a ransom', act: { k: 'rv', op: 'ransom', step: 'start' } });
       }
       const inside = this.insideOf(P.pos.x, P.pos.z) === k;
       if (!inside) continue;
@@ -981,6 +1025,18 @@ export class Rivals {
     if (R.raid && R.raid.st === 'caught') {
       const r = R.raid, dr = d(r.x, r.z), sacks = W.inv?.[g.me]?.sack || 0;
       if (dr < 2.8) out.push({ x: r.x, z: r.z, d: dr - 1, label: sacks ? (H.length ? 'Bag ' + r.name + '! (free your hands first)' : 'BAG ' + r.name.toUpperCase() + '! (' + Math.ceil(r.t) + 's before he runs)') : r.name + ' is frozen in shock (no trash bag! General store, next time)', act: sacks && !H.length ? { k: 'rv', op: 'bagRaid' } : null, info: !sacks || H.length > 0 });
+    }
+    // the Time-Out Chair: a rival's guy goes in it, you take his picture
+    const ch = T.storageChair;
+    if (ch && d(ch.x, ch.z) < 2.6) {
+      const dc = d(ch.x, ch.z), c = R.captive;
+      if (top && top.k === 'bag' && top.hostage) {
+        const taken = g.debts.chairTaken();
+        out.push({ x: ch.x, z: ch.z, d: dc - 0.6, label: taken ? 'The Time-Out Chair is taken' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: taken ? null : { k: 'rv', op: 'seatHostage' }, warn: taken });
+      } else if (c) {
+        const cam = W.inv?.[g.me]?.polaroid, has = W.inv?.[g.me]?.photo?.id === c.id;
+        out.push({ x: ch.x, z: ch.z, d: dc, label: cam ? (has ? 'Take another photo of ' + c.name + ' (you have one: show it to ' + GANGS[c.g].boss + ')' : 'Take a photo of ' + c.name + ' (ransom proof)') : c.name + ' (' + GANGS[c.g].short + ') is in your chair. Get an instant camera (General store) for a ransom photo', act: cam ? { k: 'rv', op: 'photo' } : null, info: !cam, alt: { label: 'Let him go', act: { k: 'rv', op: 'letGoCaptive' } } });
+      }
     }
     // your hideout: cameras to fix, mess to clean, the monitor, trophies to display
     for (const c of this.hqCams()) { if (!R.hqOff[c.id]) continue; const dc = d(c.x, c.z); if (dc < 2.6) out.push({ x: c.x, z: c.z, d: dc, label: 'Fix the ' + c.name, hold: 2.0, act: { k: 'rv', op: 'fixCam', id: c.id } }); }
@@ -1060,7 +1116,8 @@ export class Rivals {
     if (R.raid && R.raid.st === 'caught') out.unshift({ t: 'CAUGHT ' + R.raid.name.toUpperCase() + '! Bag him (E) - ' + Math.ceil(R.raid.t) + 's', c: 'red' });
     else if (R.raid && R.raid.st !== 'gone' && R.raid.st !== 'flee') out.unshift({ t: 'INTRUDER at the hideout! (' + GANGS[R.raid.g].short + ') Catch him!', c: 'red' });
     const hb = this.g.hold(this.g.me).find(i => i.k === 'bag' && i.hostage) || (W.cars || []).flatMap(c => c.cargo || []).find(i => i.k === 'bag' && i.hostage);
-    if (hb) out.unshift({ t: hb.name + ' is in a bag: take him to ' + GANGS[hb.g].place + ' for a ransom', c: 'yellow' });
+    if (hb) out.unshift({ t: hb.name + ' is in a bag: sit him in your Time-Out Chair (storage room)', c: 'yellow' });
+    if (R.captive) { const ph = W.inv?.[this.g.me]?.photo?.id === R.captive.id; out.unshift({ t: R.captive.name + ' is in your chair: ' + (ph ? 'show the photo to ' + GANGS[R.captive.g].boss + ' at ' + GANGS[R.captive.g].place : 'take his photo (instant camera)'), c: 'yellow' }); }
     if (M) {
       const D = MISSIONS[M.k], t = Math.max(0, Math.ceil(M.t));
       let s = D.name + ': ';

@@ -10,7 +10,7 @@
 import * as THREE from '../../lib/three.module.js';
 import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
 import { DISGUISES, VEHICLES } from '../data/Data.js';
-import { makeGear, makeTrashBag } from '../art/Gear.js';
+import { makeGear, makeTrashBag, makePolaroid } from '../art/Gear.js';
 import { makeChar } from '../art/Chars.js';
 import { makeCar } from '../art/Props.js';
 import { part, geo, rot } from '../art/Mesher.js';
@@ -104,6 +104,7 @@ export class Inventory {
     if (tab === 'supplies') {
       if (sup.smoke > 0) out.push({ id: 'smoke', kind: 'supply', key: 'smoke', name: 'Smoke Bomb', count: sup.smoke, desc: 'Throw it (G, or its hotbar number) and vanish: every cop chasing you loses you.', stars: 2, chips: [['box', 'Throw'], ['box', sup.smoke + ' left']], icon: smokeBomb, act: 'Throw one' });
       if (sup.sack > 0) out.push({ id: 'sack', kind: 'supply', key: 'sack', name: 'Comically Large Trash Bag', count: sup.sack, desc: 'For "giving debtors a ride". At a debtor\'s door press R to bag them, then trunk, then the Time-Out Chair.', stars: 1, chips: [['eye', 'Debtors'], ['box', sup.sack + ' left']], icon: () => { const b = makeTrashBag(); b.userData.wiggle = false; return b; }, act: null });
+      if (sup.polaroid) out.push({ id: 'polaroid', kind: 'supply', key: 'polaroid', name: 'Instant Camera "FLASHY"', count: null, desc: sup.photo ? 'You have a photo of ' + sup.photo.name + ' in your Time-Out Chair. Show it to his boss (E at their door) and demand a ransom.' : 'Snap a rival gang\'s guy in your Time-Out Chair (E at the chair) and show his boss the photo: proof for the ransom.', stars: 2, chips: [['eye', sup.photo ? 'Photo: ' + sup.photo.name : 'No photo yet']], icon: makePolaroid, act: null });
       if (W.license) out.push({ id: 'license', kind: 'supply', key: 'license', name: 'Fake Business License', count: null, desc: 'Laminated! The next inspection finds 3 less evidence. Then the inspector notices the spelling.', stars: 2, chips: [['shield', 'Inspections -3']], icon: licenseCard, act: null });
     }
     if (tab === 'outfits') for (const k of W.owned?.disg || []) {
@@ -118,7 +119,7 @@ export class Inventory {
     return out;
   }
   /** the things that can live on the hotbar */
-  hotbarIds() { return [...this.entries('gear'), ...this.entries('supplies').filter(e => e.key !== 'license')].map(e => e.id); }
+  hotbarIds() { return [...this.entries('gear'), ...this.entries('supplies').filter(e => e.key !== 'license' && e.key !== 'polaroid')].map(e => e.id); }
   entryById(id) { for (const t of ['gear', 'supplies']) { const e = this.entries(t).find(x => x.id === id); if (e) return e; } return null; }
   icon(e) { return this.icons.get(e.id, e.icon, e.iconOpt); }
 

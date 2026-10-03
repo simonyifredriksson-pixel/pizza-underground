@@ -41,6 +41,7 @@ export const GENERAL = [
   { key: 'fresh', label: 'Air Freshener (Pine)', price: 800, desc: 'The hideout smells like a forest for 3 minutes: no smell heat, no smell evidence.' },
   { key: 'license', label: 'Fake Business License', price: 5000, desc: 'Laminated! The next inspection finds 3 less evidence. Then the inspector notices the spelling.' },
   { key: 'sack', label: 'Comically Large Trash Bag', price: 500, desc: 'For "giving debtors a ride". Bag one at their door (R), put them in a trunk, sit them in the Time-Out Chair in the hidden basement until they pay.' },
+  { key: 'polaroid', label: 'Instant Camera "FLASHY"', price: 600, desc: 'Prints the photo right away. Snap a rival gang\'s guy in your Time-Out Chair and show his boss: proof for the ransom.' },
   { key: 'mustache', label: 'Fake Mustache (costume aisle)', price: 1500, disg: true },
   { key: 'coat', label: 'Trench Coat & Shades (costume aisle)', price: 6000, disg: true },
   { key: 'suit', label: 'Suspicious Suit (costume aisle)', price: 12000, disg: true, tier: 2 },

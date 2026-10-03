@@ -13,7 +13,7 @@ import { makeChar } from '../art/Chars.js';
 import { makeCar, makeDumpster, MAFIA, bake, makeValuable, VALUABLES, OUTDOOR_VALUABLES, makeStation, makeItem } from '../art/Props.js';
 import { GROCERY, EQUIPMENT, GENERAL, VEHICLES } from '../data/Data.js';
 import { GEAR_ORDER } from '../data/BlackMarket.js';
-import { makeHood, makeCuff, makeTrophy } from '../art/Gear.js';
+import { makeHood, makeCuff, makeTrophy, makePolaroid } from '../art/Gear.js';
 import { GANGS as RIVAL_LOOKS } from '../data/Rivals.js';
 import { furnish } from './Interiors.js';
 import { Colliders } from './Colliders.js';
@@ -1420,6 +1420,7 @@ export class Town {
       coat: () => { const g = new THREE.Group(); g.add(part(geo.frust(0.8, 7), '#8a6a4a', 0, 0.45, 0, 0.6, 0.9, 0.45)); g.add(part(geo.cyl(10), '#4a3b30', 0, 1.0, 0, 0.6, 0.05, 0.6)); return g; },
       suit: () => { const g = new THREE.Group(); g.add(part(geo.frust(0.8, 7), '#1b1b24', 0, 0.45, 0, 0.6, 0.9, 0.45)); g.add(part(geo.box(), '#d6232a', 0, 0.6, 0.22, 0.08, 0.4, 0.02)); g.add(part(geo.box(), '#111018', 0, 1.0, 0.1, 0.4, 0.08, 0.05)); return g; },
       cop: () => { const g = new THREE.Group(); g.add(part(geo.cyl(8), '#1e2a5a', 0, 0.15, 0, 0.6, 0.25, 0.6)); g.add(part(geo.ico(0), '#ffd23f', 0, 0.2, 0.3, 0.14, 0.14, 0.05)); return g; },
+      polaroid: () => { const p = makePolaroid(); p.scale.setScalar(1.4); return p; },
       sack: () => { const g = new THREE.Group(); g.add(part(geo.ico(1), '#b8945a', 0, 0.4, 0, 0.7, 0.8, 0.6)); g.add(part(geo.cyl(6), '#8a6a3a', 0, 0.85, 0, 0.2, 0.15, 0.2)); return g; },
     };
     const misc = GENERAL.map(e => ({ ...e, model: genModel[e.key] }));
