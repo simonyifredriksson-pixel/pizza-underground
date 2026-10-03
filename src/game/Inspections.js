@@ -80,7 +80,8 @@ export class Inspections {
   start(why) {
     const g = this.g, W = this.W;
     if (W.insp) return;
-    let warn = WARN + (W.owned.up.lookout ? 15 : 0) + (W.owned.up.camera ? 5 : 0);
+    let warn = WARN + (W.owned.up.lookout ? 15 : 0) + (W.owned.up.camera ? 5 : 0) + (g.rivals?.inspectionWarn() || 0);
+    if (g.rivals?.inspectionWarn()) g.tell(null, 'Don Vincenzo called: "Inspectors. Coming your way. You owe me." (+15s warning)');
     W.insp = { ph: 'warn', t: warn, total: warn, found: [], score: 0, why: why || pick(['An anonymous tip: "it smells cheesy on Anchovy Road".', 'A neighbor reported "suspicious happiness".', 'Someone saw a man carrying 12 flat boxes into a shoe store.', 'The police dog went crazy outside the shoe store.']) };
     W.tips = (W.tips || 0) * 0.3;
     g.alarm('POLICE INSPECTION INCOMING!');

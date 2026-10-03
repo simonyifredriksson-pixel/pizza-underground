@@ -146,6 +146,7 @@ export class Player {
     let target = (this.running ? RUN : WALK) * slow;
     if (this.g.natural) target *= 0.55;
     if (this.boost > 0) { this.boost -= dt; target *= 1.4; }
+    if ((this.hp ?? 100) < 60) target *= 0.72;   // still seeing stars after the rivals' back room
     if (this.flying) {
       this.vel.y -= 24 * dt;
     } else if (len > 0) {

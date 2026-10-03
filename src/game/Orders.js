@@ -176,6 +176,7 @@ export class Orders {
     const tier = this.g.debts.tier;
     if (tier >= 2 && pay > 0) pay = Math.round(pay * 1.15);              // nervous customers tip more
     if (W.weather?.k === 'storm' && pay > 0) pay = Math.round(pay * 1.5); // soaked customers tip big
+    if (pay > 0 || o.mission) pay = Math.round(pay * this.g.rivals.delivered(pid, o)); // beat a rival to the door
     this.g.inspections.tip(o.big ? 3 : 1);                               // somebody always talks
     // sometimes they can't pay right now: "put it on my tab"
     const owes = this.g.debts.list.some(d => d.kind === 'house' && d.ref === o.h);

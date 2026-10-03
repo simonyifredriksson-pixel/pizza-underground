@@ -8,12 +8,13 @@
 
    Coordinates: x east, z south, y up. Roads run at +-40 and +-120. */
 import * as THREE from '../../lib/three.module.js';
-import { Mesher, signMesh, textTexture, vcMat, vcGlowMat, geo, part, mat } from '../art/Mesher.js';
+import { Mesher, signMesh, textTexture, vcMat, vcGlowMat, geo, part, mat, rot } from '../art/Mesher.js';
 import { makeChar } from '../art/Chars.js';
 import { makeCar, makeDumpster, MAFIA, bake, makeValuable, VALUABLES, OUTDOOR_VALUABLES, makeStation, makeItem } from '../art/Props.js';
 import { GROCERY, EQUIPMENT, GENERAL, VEHICLES } from '../data/Data.js';
 import { GEAR_ORDER } from '../data/BlackMarket.js';
-import { makeHood, makeCuff } from '../art/Gear.js';
+import { makeHood, makeCuff, makeTrophy } from '../art/Gear.js';
+import { GANGS as RIVAL_LOOKS } from '../data/Rivals.js';
 import { furnish } from './Interiors.js';
 import { Colliders } from './Colliders.js';
 import { seeded } from '../core/Util.js';
@@ -97,6 +98,7 @@ export class Town {
     this.storageRoom();
     this.bookshop(-79, -100);
     this.blackMarket();
+    this.rivalPlaces();
     for (const [, me] of this.chunks) this.root.add(me.build({ cast: !me.noCast, material: me.unlit ? vcGlowMat() : undefined }));
     // the edge of the world: invisible walls
     for (const s of [-1, 1]) { this.col.box(-230, s * 228, 230, s * 232, { h: 50 }); this.col.box(s * 228, -230, s * 232, 230, { h: 50 }); }
@@ -1093,6 +1095,184 @@ export class Town {
     this.poi.marketExit = { x: X1 - 5.6, z: Z0 + 1.5 };
     this.poi.market = { x0: X0, x1: X1, z0: Z0, z1: Z1 };
     this.root.add(m.build({ cast: true }));
+  }
+
+  /* ---------------- the rival pizza gangs ----------------
+     Each gang has a building in town (outside: a sign, a door, a back door, a
+     back alley camera) and an inside off the map at x = 900 / 1030 / 1160:
+     a main hall with things to sabotage, an office with the boss, and a back
+     room (where you end up if they catch you). Rivals.js runs it all. */
+  rivalPlaces() {
+    const P = this.poi.rv = {};
+    const spots = {
+      italian: { x: 187, z: -92, w: 15, d: 11, h: 5, front: 'w', color: '#b8a088', X: 900 },
+      delivery: { x: 80, z: 181, w: 20, d: 12, h: 6, front: 'n', color: '#ff9f1a', X: 1030 },
+      frozen: { x: -79, z: 181, w: 17, d: 12, h: 5.5, front: 'n', color: '#9ad8f8', X: 1160 },
+    };
+    for (const [k, s] of Object.entries(spots)) P[k] = { ...this._rivalOutside(k, s), ...this._rivalInside(k, s.X) };
+    // your own cameras (Security Cameras upgrade) and the monitor
+    const cam = (id, name, x, y, z, lx, lz, room) => ({ id, name, x, y, z, yaw: Math.atan2(lx - x, lz - z), pitch: 0.42, fov: 1.35, range: 14, room });
+    this.poi.hqCams = [
+      cam('front', 'FRONT DOOR CAMERA', 134.6, 3.3, 73.6, 139, 80),
+      cam('kitchen', 'KITCHEN CAMERA', 151.4, 3.9, 87.4, 144.5, 79),
+      cam('alley', 'BACK ALLEY CAMERA', 129.5, 3.3, 61.5, 135, 70),
+      cam('back', 'BACK ROOM CAMERA', 163.5, 3.9, 72.6, 156, 82, 2),
+    ];
+    const pole = (x, z) => { const m = this.m(x, z); m.cyl(x, 0, z, 0.09, 3.4, '#5a5a6a', 6); this.col.circle(x, z, 0.15, { h: 3 }); };
+    pole(134.6, 73.6); pole(129.5, 61.5);
+    const mon = { x: 140.62, z: 83.3 }; this.poi.monitor = mon;
+    const mm = this.m(mon.x, mon.z);
+    mm.box(mon.x + 0.05, 1.25, mon.z, 0.1, 0.85, 1.35, '#1b1b24');
+    mm.box(mon.x + 0.35, 0, mon.z, 0.6, 0.75, 1.2, '#4a3a2a'); this.col.boxc(mon.x + 0.35, mon.z, 0.6, 1.2, { h: 0.8 });
+    this.root.add(part(geo.box(), '#23384a', mon.x + 0.11, 1.68, mon.z, 0.02, 0.72, 1.2, { emissive: 0x1a4a3a, ei: 0.9 }));
+    for (let i = 0; i < 4; i++) this.root.add(part(geo.box(), '#3a6a5a', mon.x + 0.125, 1.85 - Math.floor(i / 2) * 0.34, mon.z - 0.29 + (i % 2) * 0.58, 0.01, 0.3, 0.56, { emissive: 0x2a6a4a, ei: 0.6 }));
+    this.sign(['SECURITY'], mon.x + 0.12, 2.25, mon.z, Math.PI / 2, 0.9, 0.22, { bg: '#1b1b24', fg: '#43e07a', border: false });
+    // a pop-up stand spot "two blocks away", and the dead pizzerias (secret kitchens, the takeover)
+    this.poi.popup = { x: 128, z: 52, ry: -Math.PI / 2 };
+    this.poi.deadPizzerias = [{ x: -22, z: 58, name: 'SLICE SLICE BABY' }, { x: 0, z: 58, name: "MAMMA MIA'S" }, { x: 22, z: 58, name: 'CRUST FUND' }];
+    this.poi.takeover = { x: 0, z: 51.2 };
+    this.poi.policeDesk = { x: 80, z: -9.5 };
+  }
+
+  /** a rival's building in town */
+  _rivalOutside(k, s) {
+    const G = RIVAL_LOOKS[k], m = this.m(s.x, s.z), mn = this.mn(s.x, s.z);
+    const [fx, fz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[s.front];
+    const ax = -fz, az = fx;                                // along the front
+    const W2 = (fz ? s.w : s.d) / 2, D2 = (fz ? s.d : s.w) / 2;   // half along front, half depth
+    const P = (u, v) => ({ x: s.x + fx * (D2 - v) + ax * u, z: s.z + fz * (D2 - v) + az * u });   // u along front, v inward from the front wall
+    const ry = Math.atan2(fx, fz);
+    // the shell
+    m.box(s.x, 0, s.z, s.w, s.h, s.d, s.color); this.col.boxc(s.x, s.z, s.w, s.d, { h: s.h + 1 });
+    mn.box(s.x, s.h, s.z, s.w + 0.6, 0.3, s.d + 0.6, '#5a4a5a');
+    m.box(s.x, 0, s.z, s.w + 0.04, 0.5, s.d + 0.04, '#5a4a5a');                     // a dark plinth
+    mn.flat(Math.min(P(-W2 - 3, -9).x, P(W2 + 3, 2).x), Math.min(P(-W2 - 3, -9).z, P(W2 + 3, 2).z), Math.max(P(-W2 - 3, -9).x, P(W2 + 3, 2).x), Math.max(P(-W2 - 3, -9).z, P(W2 + 3, 2).z), 0.05, '#8a84a0', 4, 0.05);
+    const door = P(0, -0.06), dpos = P(0, -1.6);
+    if (k === 'italian') {   // a rolled-up garage door that doesn't roll, and a small door in it
+      const q = P(0, -0.08); m.box(q.x, 0, q.z, fz ? 6 : 0.12, 3.6, fz ? 0.12 : 6, '#8a8478');
+      for (let i = 0; i < 9; i++) m.box(q.x, 0.2 + i * 0.38, q.z, fz ? 6.05 : 0.14, 0.05, fz ? 0.14 : 6.05, '#6a6458');
+      m.box(q.x + ax * 1.2 + fx * 0.02, 0.6, q.z + az * 1.2 + fz * 0.02, fz ? 0.8 : 0.14, 0.4, fz ? 0.14 : 0.8, '#5a5448');   // a dent
+    }
+    m.box(door.x, 0, door.z, fz ? 1.3 : 0.1, 2.3, fz ? 0.1 : 1.3, k === 'frozen' ? '#e8f4ff' : '#3a2a20');
+    m.box(door.x + ax * 0.45 + fx * 0.03, 1.1, door.z + az * 0.45 + fz * 0.03, 0.08, 0.08, 0.08, '#c8a03a');
+    const sg = signMesh(G.sign, Math.min(s.w * 0.7, 7), 1.5, { bg: G.signBg, fg: G.signFg }); const sp = P(0, -0.12); sg.position.set(sp.x, Math.min(s.h - 0.9, 4.0), sp.z); sg.rotation.y = ry; this.root.add(sg);
+    for (const u of [-W2 + 1.6, W2 - 1.6]) { const w = P(u, -0.04); m.box(w.x, 1.1, w.z, fz ? 1.6 : 0.08, 1.4, fz ? 0.08 : 1.6, k === 'frozen' ? '#bfe8ff' : '#2f3a63'); }
+    // gang flavour outside
+    if (k === 'italian') { for (let i = 0; i < 3; i++) { const t = P(-W2 - 1.6, -2 - i * 1.4); m.cyl(t.x, 0, t.z, 0.45, 0.9, '#2b2b33', 10); m.cyl(t.x, 0.9, t.z, 0.45, 0.06, '#d6232a', 10); } const c = P(W2 + 2.2, -3); this.car('civ3', c.x, c.z, ry + 0.4); }
+    if (k === 'delivery') {
+      for (let i = 0; i < 3; i++) {
+        const c = P(-W2 + 3 + i * 6.5, -6), car = this.car('smallvan', c.x, c.z, ry + Math.PI);
+        car.group.traverse(n => { if (n.isMesh && n.material.color && n.material.color.getHexString() === '8fd0c8') n.material = mat('#ff9f1a'); });
+      }
+    }
+    if (k === 'frozen') { for (let i = 0; i < 9; i++) { const a = P(-W2 + 0.6 + i * (2 * W2 - 1.2) / 8, -0.1); m.cone(a.x, s.h - 0.75, a.z, 0.14, 0.7, '#e8f8ff', 5, 0, 0.02); } for (let i = 0; i < 2; i++) { const f = P(W2 + 1.4, -2 - i * 1.6); m.box(f.x, 0, f.z, 1.2, 1.0, 1.2, '#f6f6fa'); this.col.boxc(f.x, f.z, 1.2, 1.2, { h: 1 }); } }
+    // the back: a back door, a dumpster, the back alley camera on the wall
+    const bdoor = P(W2 * 0.4, 2 * D2 + 0.06), bdpos = P(W2 * 0.4, 2 * D2 + 1.6);
+    m.box(bdoor.x, 0, bdoor.z, fz ? 1.1 : 0.1, 2.2, fz ? 0.1 : 1.1, '#4a4a58');
+    this.sign(['STAFF', 'ONLY'], bdoor.x - fx * 0.04, 2.55, bdoor.z - fz * 0.04, ry + Math.PI, 0.9, 0.42, { bg: '#ffffff', fg: '#d6232a' });
+    const dmp = P(-W2 * 0.4, 2 * D2 + 1.6); this.dumpster(dmp.x, dmp.z, fz ? 0 : Math.PI / 2);
+    const cp = P(-W2 * 0.05, 2 * D2 + 0.12), look = P(W2 * 0.25, 2 * D2 + 6);
+    const alley = { id: 'alley', name: 'BACK ALLEY CAMERA', x: cp.x, y: 3.2, z: cp.z, yaw: Math.atan2(look.x - cp.x, look.z - cp.z), pitch: 0.42, fov: 1.4, range: 13, outside: true };
+    // growth: extra pieces appear with the gang's level (Rivals.js switches them on)
+    const grow = [];
+    for (let lv = 2; lv <= 5; lv++) {
+      const gm = new Mesher(0.06), gr = new THREE.Group();
+      if (lv === 2) { const p = P(0, -0.15); const n = signMesh([G.short.toUpperCase() + '!'], 3.4, 0.6, { bg: '#1b1b24', fg: G.color, border: false }); n.position.set(p.x, s.h - 0.25, p.z); n.rotation.y = ry; gr.add(n); for (let i = 0; i < 4; i++) { const b = P(-W2 - 1.2, -0.8 - i * 0.7); gm.box(b.x, 0, b.z, 0.6, 0.12 + i * 0.1, 0.6, '#c79a5b'); } }
+      if (lv === 3) { const a = P(W2 + 4.2, D2); gm.box(a.x, 0, a.z, 6, 3.2, 7, G.color2 === '#ffffff' ? '#d8eef8' : '#a8988a'); gm.box(a.x, 3.2, a.z, 6.4, 0.2, 7.4, '#5a4a5a'); const sgn = signMesh(['ANNEX'], 2, 0.5, { bg: G.color, fg: '#ffffff', border: false }); const q = P(W2 + 4.2, -0.02 + D2 - 3.5); sgn.position.set(q.x, 2.4, q.z); sgn.rotation.y = ry; gr.add(sgn); }
+      if (lv === 4) { const b = P(0, D2); for (const u of [-2.5, 2.5]) { const q = P(u, D2); gm.box(q.x, s.h, q.z, 0.2, 2.2, 0.2, '#5a5a6a'); } const bb = signMesh([G.name.toUpperCase(), 'NOW HIRING (NOT YOU)'], 6, 2, { bg: '#ffffff', fg: G.color }); bb.position.set(b.x, s.h + 2.6, b.z); bb.rotation.y = ry; gr.add(bb); }
+      if (lv === 5) { const c = P(0, D2); gm.cyl(c.x, s.h + 0.2, c.z, 2.4, 0.4, '#e8b05a', 16); gm.cyl(c.x, s.h + 0.6, c.z, 2.1, 0.12, '#d6232a', 16); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; gm.cyl(c.x + Math.sin(a) * 1.2, s.h + 0.72, c.z + Math.cos(a) * 1.2, 0.3, 0.06, '#8a1a1a', 8); } }
+      gr.add(gm.build()); gr.visible = false; this.root.add(gr); grow.push(gr);
+    }
+    return { name: G.place, out: { door: dpos, back: bdpos, x: s.x, z: s.z, ry }, alley, grow };
+  }
+
+  /** a rival's inside, off the map */
+  _rivalInside(k, X) {
+    const G = RIVAL_LOOKS[k], Z = 0, m = new Mesher(0.06), H = 4.6;
+    const X0 = X - 13, X1 = X + 13, Z0 = -9, Z1 = 9;
+    const theme = { italian: { floor: '#8a8478', floor2: '#7a7468', wall: '#c8a888', trim: '#2f8a4a' }, delivery: { floor: '#5a5a6a', floor2: '#4a4a5a', wall: '#e8e2d2', trim: '#ff9f1a' }, frozen: { floor: '#dfe8f0', floor2: '#cfdce8', wall: '#bfe4ff', trim: '#43c0ff' } }[k];
+    for (let x = X0; x < X1; x += 2) for (let z = Z0; z < Z1; z += 2) m.box(x + 1, 0, z + 1, 1.98, 0.06, 1.98, ((x + z) / 2) % 2 ? theme.floor : theme.floor2, 0, 0.04);
+    const wall = (x0, z0, x1, z1, h = H, y0 = 0) => { m.box((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, h, z1 - z0, theme.wall); if (!y0) this.col.box(x0, z0, x1, z1, { h: 6 }); };
+    wall(X0 - 0.3, Z0 - 0.3, X1 + 0.3, Z0); wall(X0 - 0.3, Z1, X1 + 0.3, Z1 + 0.3); wall(X1, Z0, X1 + 0.3, Z1);
+    wall(X0 - 0.3, Z0, X0, -1.2); wall(X0 - 0.3, 1.2, X0, Z1); wall(X0 - 0.3, -1.2, X0, 1.2, 2.2, 2.4);
+    m.box(X, 0, Z0 + 0.04, 26, 0.9, 0.08, theme.trim); m.box(X, 0, Z1 - 0.04, 26, 0.9, 0.08, theme.trim);
+    // office (north-east) and back room (south-east), each with a doorway onto a corridor
+    const OX = X + 4;
+    wall(OX - 0.15, Z0, OX + 0.15, -2); wall(OX - 0.15, 2, OX + 0.15, Z1);
+    wall(OX, -2.15, X + 7.6, -1.85); wall(X + 9.4, -2.15, X1, -1.85); wall(X + 7.6, -2.15, X + 9.4, -1.85, 2.4, 2.2);
+    wall(OX, 1.85, X + 7.6, 2.15); wall(X + 9.4, 1.85, X1, 2.15); wall(X + 7.6, 1.85, X + 9.4, 2.15, 2.4, 2.2);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(27, 19), new THREE.MeshBasicMaterial({ color: { italian: '#5a4a40', delivery: '#4a4a58', frozen: '#7a90a8' }[k] }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(X, H, Z); this.root.add(ceil);
+    for (let x = X0 + 2; x < X1; x += 4) m.box(x, H - 0.25, 0, 0.25, 0.25, 18, '#3a3442');   // ceiling beams
+    const bulb =(x, z, y = 3.7) => { m.box(x, y + 0.2, z, 0.03, H - y - 0.2, 0.03, '#1b1b24'); this.root.add(part(geo.ico(0), '#fff1c0', x, y, z, 0.24, 0.26, 0.24, { emissive: 0xffd890, ei: 1.4 })); };
+    for (const [x, z] of [[X - 8, -4], [X - 8, 4], [X - 1, 0], [X + 9, -5.5], [X + 9, 5.5], [X + 8, 0]]) bulb(x, z);
+    const put = (g, x, y, z, ry = 0, s = 1) => { g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(s); bake(m, g); };
+    const sign = (lines, x, y, z, ry, w, h, o) => this.sign(lines, x, y, z, ry, w, h, o);
+    // ---- the main hall ----
+    // register counter (north wall)
+    m.box(X - 6, 0, -6.6, 3.2, 1.0, 0.9, '#4a3020'); m.box(X - 6, 1.0, -6.6, 3.3, 0.06, 1.0, '#7a5236'); this.col.boxc(X - 6, -6.6, 3.2, 0.9, { h: 1.1 });
+    // oven (north-west corner)
+    m.box(X - 11, 0, -8.1, 2.2, 1.0, 1.4, k === 'frozen' ? '#f6f6fa' : '#5a5a6a'); this.col.boxc(X - 11, -8.1, 2.2, 1.4, { h: 2 });
+    if (k === 'italian') { m.box(X - 11, 1.0, -8.1, 1.6, 0.9, 1.1, '#a8542a'); m.cyl(X - 11, 1.9, -8.4, 0.25, 1.4, '#7a3a1a', 6); }
+    if (k === 'delivery') { m.box(X - 11, 1.0, -8.1, 2.2, 0.5, 1.2, '#c8ccd8'); m.box(X - 11, 1.18, -7.4, 2.4, 0.1, 0.3, '#2b2b33'); }
+    if (k === 'frozen') { m.box(X - 11, 1.0, -8.1, 1.4, 0.8, 1.0, '#e8e8f0'); m.box(X - 10.7, 1.1, -7.58, 0.7, 0.55, 0.02, '#2a2a38'); for (let i = 0; i < 3; i++) m.box(X - 10.1, 1.2 + i * 0.15, -7.58, 0.12, 0.08, 0.02, '#43e07a'); }
+    sign([{ italian: 'NONNA\'S OVEN', delivery: 'SPEED OVEN 9000', frozen: 'MICROWAVE (ARTISAN)' }[k]], X - 11, 2.4, Z0 + 0.06, 0, 2.2, 0.4, { bg: '#ffffff', fg: '#1b1b24' });
+    // a shelf you can knock over (north wall, middle) - dynamic
+    const shelf = new THREE.Group(); shelf.position.set(X - 2, 0, -8.5); this.root.add(shelf);
+    { const sm = new Mesher(0.05); sm.box(0, 0, 0, 2.6, 2.2, 0.06, '#5a3a22'); for (let i = 0; i < 4; i++) { sm.box(0, 0.1 + i * 0.6, 0.3, 2.6, 0.05, 0.6, '#7a5236'); for (let j = 0; j < 6; j++) sm.box(-1.05 + j * 0.42, 0.15 + i * 0.6, 0.32, 0.3, 0.25 + (j % 3) * 0.05, 0.4, k === 'frozen' ? ['#43c0ff', '#ffffff', '#d6232a'][(i + j) % 3] : ['#c79a5b', '#d6232a', '#f6f1e6', '#2f8a4a'][(i + j) % 4]); } shelf.add(sm.build()); }
+    this.col.boxc(X - 2, -8.2, 2.6, 0.7, { h: 2.2 });
+    // three crates of supplies (south-west) - dynamic
+    const crates = [];
+    for (let i = 0; i < 3; i++) { const c = MAFIA.crate(['CHEESE', 'PEPPERONI', 'SAUCE'][i] + (k === 'frozen' ? ' (FROZEN)' : '')); c.position.set(X - 11 + i * 1.25, 0, 8.1); c.rotation.y = Math.PI; this.root.add(c); crates.push(c); }
+    this.col.box(X - 11.7, 7.4, X - 7.7, 9, { h: 1.2 });
+    // the special thing (south wall)
+    const special = new THREE.Group(); special.position.set(X - 4, 0, 8.2); this.root.add(special);
+    if (k === 'italian') { special.add(part(geo.box(), '#5a5a6a', 0, 0.45, 0, 1.4, 0.9, 0.8)); special.add(part(geo.cyl(12), '#a8a8b8', 0, 1.15, 0, 0.8, 0.5, 0.8, { metal: 0.5, rough: 0.3 })); special.add(part(geo.cyl(12), '#c83a2a', 0, 1.36, 0, 0.7, 0.06, 0.7)); special.add(rot(part(geo.box(), '#8a6a4a', 0.2, 1.6, 0, 0.06, 0.8, 0.06), 'z', -0.4)); }
+    if (k === 'delivery') { special.add(part(geo.box(), '#2b2b33', 0, 1.6, -0.3, 1.6, 1.0, 0.06)); for (let i = 0; i < 6; i++) { special.add(part(geo.box(), '#c8c8d8', -0.6 + (i % 3) * 0.6, 1.85 - Math.floor(i / 3) * 0.45, -0.24, 0.05, 0.1, 0.06)); const key = part(geo.box(), '#ffd23f', -0.6 + (i % 3) * 0.6, 1.72 - Math.floor(i / 3) * 0.45, -0.22, 0.08, 0.16, 0.02); key.name = 'key'; special.add(key); } }
+    if (k === 'frozen') { special.add(part(geo.box(), '#f6f6fa', 0, 0.5, 0, 2.0, 1.0, 1.0)); special.add(part(geo.box(), '#bfe8ff', 0, 1.02, 0, 1.9, 0.04, 0.9, { opacity: 0.6 })); special.add(part(geo.box(), '#2b2b33', 1.1, 0.3, -0.35, 0.3, 0.06, 0.06)); const plug = part(geo.box(), '#ffd23f', 1.3, 0.28, -0.4, 0.12, 0.12, 0.08); plug.name = 'plug'; special.add(plug); }
+    this.col.boxc(X - 4, 8.2, 2.0, 1.0, { h: 1.2 });
+    sign([{ italian: 'NONNA\'S SAUCE', delivery: 'VAN KEYS', frozen: 'THE BIG FREEZER' }[k], '(DO NOT TOUCH)'], X - 4, 2.6, Z1 - 0.06, Math.PI, 1.8, 0.6, { bg: '#ffe14a', fg: '#1b1b24' });
+    // the trophy on its pedestal
+    m.cyl(X + 1.5, 0, 7.4, 0.5, 1.0, '#2b2b33', 10); m.cyl(X + 1.5, 1.0, 7.4, 0.56, 0.06, '#c8a03a', 10); this.col.circle(X + 1.5, 7.4, 0.55, { h: 1.1 });
+    const trophy = makeTrophy(k); trophy.position.set(X + 1.5, 1.06, 7.4); this.root.add(trophy);
+    sign(['OUR PRIDE'], X + 1.5, 2.4, Z1 - 0.06, Math.PI, 1.1, 0.35, { bg: '#1b1b24', fg: '#ffd23f' });
+    // furniture and flavour in the middle
+    if (k === 'italian') { for (const [x, z] of [[X - 6, 1], [X - 1, 2.5]]) { m.box(x, 0, z, 1.6, 0.76, 1.2, '#7a5236'); for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) m.box(x - 0.6 + i * 0.4, 0.77, z - 0.4 + j * 0.4, 0.4, 0.01, 0.4, (i + j) % 2 ? '#d6232a' : '#ffffff'); m.cyl(x, 0.78, z, 0.06, 0.35, '#2f8a4a', 6); this.col.boxc(x, z, 1.6, 1.2, { h: 0.8 }); } sign(['LA FAMIGLIA', '(est. last Tuesday)'], X - 8, 2.8, Z0 + 0.06, 0, 2.2, 0.7, { bg: '#2f8a4a', fg: '#ffffff' }); }
+    if (k === 'delivery') { for (let i = 0; i < 4; i++) m.cyl(X - 7 + (i % 2) * 0.9, Math.floor(i / 2) * 0.32, 4, 0.4, 0.3, '#1b1b24', 10); this.col.circle(X - 6.5, 4, 1.0, { h: 0.7 }); sign(['DEPOT RECORD', '0:38'], X - 8, 2.8, Z0 + 0.06, 0, 2.2, 0.8, { bg: '#1b1b24', fg: '#ff9f1a' }); m.box(X - 1, 0, 2, 3, 0.8, 1.2, '#5a5a6a'); this.col.boxc(X - 1, 2, 3, 1.2, { h: 0.8 }); for (let i = 0; i < 5; i++) m.box(X - 2 + i * 0.5, 0.8, 2, 0.4, 0.1 + i * 0.03, 0.4, '#c79a5b'); }
+    if (k === 'frozen') { for (let i = 0; i < 3; i++) { m.box(X - 7 + i * 2.6, 0, 1.5, 2.0, 0.95, 1.0, '#f6f6fa'); m.box(X - 7 + i * 2.6, 0.95, 1.5, 1.9, 0.04, 0.9, '#bfe8ff'); } this.col.box(X - 8.1, 0.9, X - 0.7, 2.1, { h: 1 }); sign(['FRESH*', '*frozen'], X - 8, 2.8, Z0 + 0.06, 0, 1.8, 0.7, { bg: '#ffffff', fg: '#43c0ff' }); }
+    // ---- the office ----
+    m.box(X + 9, 0, -6.6, 3.4, 0.8, 1.3, '#3a2418'); m.box(X + 9, 0.8, -6.6, 3.6, 0.08, 1.5, '#6a4a2a'); this.col.boxc(X + 9, -6.6, 3.6, 1.5, { h: 0.9 });
+    m.box(X + 9, 0, -8.2, 1.0, 0.5, 0.9, '#5a1a2a'); m.box(X + 9, 0.5, -8.6, 1.0, 1.4, 0.2, '#5a1a2a');
+    m.box(X + 9, 0, -4.5, 0.6, 0.45, 0.6, '#3a3a48');
+    for (let i = 0; i < 3; i++) m.box(X + 8.2 + i * 0.5, 0.88, -6.4, 0.4, 0.05 + i * 0.06, 0.5, '#f6f1e6');
+    sign([G.boss.toUpperCase()], X + 9, 3.2, Z0 + 0.06, 0, 2.8, 0.5, { bg: '#1b1b24', fg: G.color });
+    sign(['THE BOSS', '(KNOCK)'], X + 8.5, 2.75, -1.98, Math.PI, 0.9, 0.36, { bg: '#ffffff', fg: '#1b1b24' });
+    // ---- the back room: one chair, one bulb ----
+    m.box(X + 9, 0, 6.6, 0.8, 0.45, 0.8, '#5a5a6a'); m.box(X + 9, 0.45, 7.0, 0.8, 0.9, 0.1, '#5a5a6a');
+    for (let i = 0; i < 3; i++) put(MAFIA.crate('MISC'), X + 12, i * 0.9, 7.8, 0);
+    sign(['THE BACK ROOM', '(we don\'t talk about it)'], X + 9, 3.0, Z1 - 0.06, Math.PI, 2.2, 0.6, { bg: '#1b1b24', fg: '#ffffff' });
+    this.root.add(m.build({ cast: true }));
+    // ---- cameras: data (Rivals.js makes the models) ----
+    const cam = (id, name, x, y, z, lx, lz, lvl = 1) => ({ id, name, x, y, z, yaw: Math.atan2(lx - x, lz - z), pitch: 0.45, fov: 1.35, range: 13, lvl });
+    const cams = [cam('door', 'FRONT DOOR CAMERA', X0 + 0.35, 3.6, -3.4, X0 + 5, 1.5), cam('register', 'REGISTER CAMERA', X + 3.6, 3.6, -8.6, X - 6, -3), cam('kitchen', 'KITCHEN CAMERA', X0 + 0.35, 3.6, 8.6, X - 4, 3.5, 2), cam('office', 'OFFICE CAMERA', X + 12.6, 3.6, -1.5, X + 6, 0, 3)];
+    const st = [
+      { id: 'register', kind: 'register', x: X - 6, z: -5.4, label: 'the cash register' },
+      { id: 'oven', kind: 'oven', x: X - 11, z: -6.6, label: 'the oven' },
+      { id: 'shelf', kind: 'shelf', x: X - 2, z: -7.0, label: 'the shelf' },
+      { id: 'crate0', kind: 'crate', i: 0, x: X - 11, z: 7.0 }, { id: 'crate1', kind: 'crate', i: 1, x: X - 9.75, z: 7.0 }, { id: 'crate2', kind: 'crate', i: 2, x: X - 8.5, z: 7.0 },
+      { id: 'special', kind: 'special', x: X - 4, z: 7.0 },
+      { id: 'trophy', kind: 'trophy', x: X + 1.5, z: 6.2 },
+    ];
+    return {
+      X, inside: { x0: X0, x1: X1, z0: Z0, z1: Z1 }, spawn: { x: X0 + 1.6, z: 0, ry: Math.PI / 2 }, exit: { x: X0 + 0.6, z: 0 },
+      backSpawn: { x: X + 11.5, z: 5.0, ry: -Math.PI / 2 },
+      st, cams, dyn: { shelf, crates, special, trophy },
+      desk: { x: X + 9, z: -5.0 }, boss: { x: X + 9, z: -8.0 }, guards: [{ x: X + 7.2, z: -8.4 }, { x: X + 10.8, z: -8.4 }], frank: { x: X + 12, z: -3.4 },
+      meetCam: { x: X + 9, y: 2.0, z: -3.1, lx: X + 9, ly: 1.5, lz: -8 },
+      chair: { x: X + 9, z: 6.5 }, caughtCam: { x: X + 9, y: 2.4, z: 2.9, lx: X + 9, ly: 1.0, lz: 6.8 },
+      route: [[X - 9, -3.5], [X - 3, -4.5], [X + 1.5, -0.5], [X - 2, 4.5], [X - 8, 4.0], [X - 11.5, 0]],
+      route2: [[X + 6, 0], [X + 11.5, 0], [X + 11.5, -4.5], [X + 6, -4.5]],
+    };
   }
 
   junkyard(cx, cz) {

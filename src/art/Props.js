@@ -3,7 +3,7 @@
    small groups of flat-shaded parts; static things go through Mesher. */
 import * as THREE from '../../lib/three.module.js';
 import { geo, part, mat, Mesher, signMesh, rot } from './Mesher.js';
-import { makeTrashBag } from './Gear.js';
+import { makeTrashBag, makeTrophy } from './Gear.js';
 
 export const TOP_COLORS = {
   pepperoni: '#b8322c', mushroom: '#e9dcc4', pineapple: '#f6cf3a', olive: '#2a2a22', pepper: '#3fa34d', ham: '#f0a0a0', sausage: '#a8553a',
@@ -32,6 +32,7 @@ export function makeItem(item) {
   }
   if (item.k === 'trash') { g.add(part(geo.ico(0), '#2b2b33', 0, 0.3, 0, 0.6, 0.6, 0.6)); return g; }
   if (item.k === 'bag') return makeTrashBag(); // a big black trash bag, with a very unhappy debtor in it
+  if (item.k === 'trophy') { const t = makeTrophy(item.g); t.scale.setScalar(0.7); return t; } // a rival gang's pride and joy
   if (item.k === 'crate') { // a crate of supplies, with a sample of what's inside on top
     g.add(part(geo.box(), '#b8894c', 0, 0.22, 0, 0.62, 0.44, 0.5));
     for (const s of [-1, 1]) g.add(part(geo.box(), '#8a6234', 0, 0.22, s * 0.26, 0.64, 0.08, 0.02));

@@ -4,6 +4,7 @@
 import { ROADS, RW, EXT, HQ, STREET_EW, STREET_NS } from '../world/Town.js';
 import { SUPPLIERS } from '../data/Data.js';
 import { Q } from '../data/Story.js';
+import { GANGS } from '../data/Rivals.js';
 
 const SIZE = 640, R = 232;
 const px = v => (v + R) / (2 * R) * SIZE;
@@ -32,7 +33,7 @@ export class MapView {
     const T = this.g.town.poi;
     lbl('CITY HALL', 0, -84); lbl('HOSPITAL', -80, 2); lbl('POLICE', 80, -2); lbl('TOWN SQUARE', 0, -14); lbl('GAS', 98, -64); lbl("HANK'S CARS", 100, -102);
     lbl("OLEG'S", -103, -56); lbl('MUSTACHE', -80, -56); lbl('DEAD PIZZERIAS', 0, 58); lbl('PARK', 0, 172); lbl('JUNKYARD', 160, 148); lbl('MAYOR', -160, -86);
-    lbl('FACTORY', 162, -2); lbl('RADIO TOWER', 100, -178); lbl('FOREST', -120, -170); lbl('HIDEOUT', 152, 66);
+    lbl('FACTORY', 162, -2); lbl("NONNA'S GARAGE", 187, -100); lbl('SPEEDY DEPOT', 80, 190); lbl('COLD CUTS', -79, 190); lbl('RADIO TOWER', 100, -178); lbl('FOREST', -120, -170); lbl('HIDEOUT', 152, 66);
     x.save(); x.font = '9px Nunito, sans-serif'; x.fillStyle = '#ffffff';
     for (const r of ROADS) { x.fillText(STREET_EW[r], px(-170), px(r) + 3); x.save(); x.translate(px(r) + 3, px(-150)); x.rotate(-Math.PI / 2); x.fillText(STREET_NS[r], 0, 0); x.restore(); }
     x.restore();
@@ -57,6 +58,17 @@ export class MapView {
     if (W.quest >= Q.TOWN) { dot(T.oleg.x, T.oleg.z, '#8fc1e3', 4, 'Oleg (ovens)'); dot(T.mustache.x, T.mustache.z, '#f7a8c8', 4, 'Disguises'); dot(T.hank.x, T.hank.z, '#ffcf33', 4, 'Cars'); }
     for (const d of W.debts || []) { const a = g.debts.at(d); dot(a.x, a.z, d.state === 'seized' ? '#8a8aa0' : ['late', 'overdue'].includes(d.state) ? '#ff3a3a' : '#ffd23f', 6, '$ ' + d.name); }
     if (W.rival) dot(W.rival.x, W.rival.z, '#ff6b6b', 7, 'Calzone Cartel');
+    // the rival gangs, their stand, the mission spots
+    if (W.quest >= Q.BIZ && g.rivals) {
+      const R = g.rivals.R;
+      for (const [k, G] of Object.entries(R.g)) { const o = g.rivals.place(k).out; dot(o.x, o.z, GANGS[k].color, 7, GANGS[k].short + ' (lv ' + G.lvl + (G.ally ? ', ally' : '') + ')'); }
+      if (R.popup) dot(T.popup.x, T.popup.z, GANGS[R.popup.g].color, 6, 'Rival stand');
+      const M = R.mission;
+      if (M?.k === 'shipment') for (const d of M.drops) if (!d.got) dot(d.x, d.z, '#43c0ff', 4);
+      if (M?.k === 'takeover') dot(T.takeover.x, T.takeover.z, '#ffd23f', 6, "MAMMA MIA'S");
+      if (M?.k === 'inspection') dot(g.rivals.place(M.g).out.door.x, g.rivals.place(M.g).out.door.z, '#ffd23f', 8, 'Help them!');
+      if (R.raid && R.raid.st !== 'gone') dot(R.raid.x, R.raid.z, '#ff3a3a', 6, 'INTRUDER');
+    }
     if (W.kn) dot(W.kn.x, W.kn.z, '#ff9f1a', 5, 'Knuckles');
     for (const o of W.orders) if (o.state === 'open') { const a = g.orders.at(o); dot(a.x, a.z, o === this.focus ? '#ffffff' : '#43e07a', o === this.focus ? 8 : 6, o.name); }
     for (const m of g.story.markers()) { x.fillStyle = '#ffffff'; x.font = 'bold 22px "Luckiest Guy", sans-serif'; x.textAlign = 'center'; x.strokeStyle = '#2a1640'; x.lineWidth = 4; x.strokeText('★', px(m.x), px(m.z) + 8); x.fillText('★', px(m.x), px(m.z) + 8); x.font = 'bold 11px Nunito'; x.lineWidth = 3; x.strokeText(m.label, px(m.x), px(m.z) - 12); x.fillText(m.label, px(m.x), px(m.z) - 12); }

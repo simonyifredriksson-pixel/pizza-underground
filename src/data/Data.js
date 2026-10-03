@@ -118,7 +118,7 @@ export const HQ_LEVELS = [
   { name: 'Pizza Empire', price: 1000000, desc: 'Gold everything. Ovens cook faster and never catch fire on their own. Heat cools off twice as fast.' },
 ];
 export const UPGRADES = {
-  camera: { name: 'Security Cameras', price: 15000, desc: 'See every cop on the map (M) and get warned when they come near the hideout.' },
+  camera: { name: 'Security Cameras', price: 15000, desc: 'Four working cameras round the hideout: MOTION DETECTED when a rival sneaks in, recordings on the monitor (K), evidence for the police. Also: see every cop on the map.' },
   hidden: { name: 'Hidden Entrance', price: 30000, desc: 'Inspectors only look in the front room. The basement and back room are "the shoe storage".' },
   sprinkler: { name: 'Sprinklers', price: 25000, desc: 'Fires in the hideout get put out after a few seconds. Mostly.' },
   fastoven: { name: 'Oven Mods', price: 20000, desc: 'Every oven cooks 40% faster.' },

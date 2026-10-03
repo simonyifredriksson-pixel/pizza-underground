@@ -130,11 +130,13 @@ export class BlackMarket {
         // the guest in the Time-Out Chair comes first
         const ch = g.town.poi.storageChair;
         if (ch && g.debts.chairTaken() && Math.hypot(a.x - ch.x, a.z - ch.z) < 2.8) { g.debts.bonk(pid, key); break; }
+        if (g.rivals.gearUse(pid, key, a)) { out.hit = null; break; }
         const c = cops(key === 'mallet' ? 2.9 : 2.5, true)[0];
         if (c) { c.st = 'stun'; c.stun = key === 'mallet' ? 7 : 4; c.flat = key === 'mallet'; calm(c); g.addHeat(1); out.hit = { x: c.x, z: c.z }; bark(c, pick(key === 'mallet' ? MALLET_BARKS : BAT_BARKS)); }
         break;
       }
       case 'toolbox': {
+        if (g.rivals.gearUse(pid, key, a)) { g.tell(pid, 'Snip. One fictional power cable, cut. The camera goes dark.'); break; }
         const s = STATIONS.filter(s => (s.floor || 0) === (a.f || 0) && Math.hypot(s.x - a.x, s.z - a.z) < 2.8).map(s => ({ s, st: W.st[s.id] })).find(o => o.st && (o.st.burnt || o.st.grease > 0.05) && !(o.st.fire > 0));
         if (s) { s.st.burnt = false; s.st.grease = 0; out.fixed = { x: s.s.x, z: s.s.z }; g.tell(pid, 'CLANG BONK RATTLE. Fixed and scrubbed. You still don\'t know what was in the toolbox.'); }
         else g.tell(pid, 'Nothing here needs fixing. You bang the toolbox anyway. Satisfying.');

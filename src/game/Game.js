@@ -23,6 +23,8 @@ import { Weather } from './Weather.js';
 import { Admin } from '../ui/Admin.js';
 import { BlackMarket } from './BlackMarket.js';
 import { Inventory } from '../ui/Inventory.js';
+import { Rivals } from './Rivals.js';
+import { Monitor } from '../ui/Monitor.js';
 import { GROCERY, EQUIPMENT, GENERAL } from '../data/Data.js';
 import { makeCar, makeItem } from '../art/Props.js';
 import { makeChar } from '../art/Chars.js';
@@ -78,6 +80,8 @@ export class Game {
     this.admin = new Admin(this);
     this.bm = new BlackMarket(this);
     this.inv = new Inventory(this);
+    this.rivals = new Rivals(this);
+    this.monitor = new Monitor(this);
     this._netHooks();
   }
 
@@ -134,7 +138,7 @@ export class Game {
   }
   setHold(pid, arr) { this.W.hold[pid] = arr; this.dirty(); }
   dirty() { this._dirty = true; }
-  frozen() { return this.ui.inDialog || !!this.ui.menuOpen || this.phase !== 'play' || !!this.cam.override || this.chatOpen || this.admin?.open || !!this.inv?.open; }
+  frozen() { return this.ui.inDialog || !!this.ui.menuOpen || this.phase !== 'play' || !!this.cam.override || this.chatOpen || this.admin?.open || !!this.inv?.open || !!this.monitor?.isOpen || !!this.rivals?.cine; }
   allPlayers() {
     const P = this.player;
     const me = { id: this.me, x: P.pos.x, z: P.pos.z, floor: P.floor, hidden: !!P.hidden, car: P.car, carSeat: P.seat, run: P.running && P.speed > 6, nat: this.natural };
@@ -176,9 +180,11 @@ export class Game {
         case 'clue': this.story.onClue(pid, a.id); break;
         case 'debt': case 'rival': case 'safe': this.debts.exec(pid, a); break;
         case 'bm': this.bm.exec(pid, a); break;
+        case 'rv': this.rivals.exec(pid, a); break;
         case 'toss': {
           const it = H.pop(); if (!it) break;
           if (it.k === 'ext') { const st = this.kitchen.st(it.from || 'ext1'); st.ext = true; this.tell(pid, 'The extinguisher magically returns to the wall. (Physics.)'); }
+          else if (this.rivals.thrown(pid, a)) { this.fxAt('poof', a.x, 1.2, a.z); }
           else if (it.k === 'bag') { this.fxAt('poof', a.x, 0.6, a.z); const d = this.debts.list.find(x => x.id === it.id); if (d && d.state === 'bagged') this.debts.release(d, ' hit the ground, wriggled out of the trash bag and ran home yelling "I\'M TELLING!"'); }
           else this.fxAt('splat', a.x, 1.2, a.z);
           this.sfx('splat', a); this.dirty(); break;
@@ -376,6 +382,7 @@ export class Game {
       case 'alarm': ui.alarm(e.text); a.fail(); break;
       case 'bmReveal': case 'gear': this.bm.onEvent(e); break;
       case 'guestBonk': this.debts.onBonk(e); break;
+      case 'rvNews': case 'rvBark': case 'rvSpotted': case 'rvSab': case 'camOff': case 'motion': case 'raidDone': case 'raidFoiled': case 'caught': this.rivals.onEvent(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;
       case 'fx': {
@@ -521,7 +528,7 @@ export class Game {
 
     if (this.intro.active) this.intro.active.update(dt);
     const frozen = this.frozen();
-    I.blocked = !!ui.menuOpen || this.chatOpen || this.admin.open || !!this.inv?.open;
+    I.blocked = !!ui.menuOpen || this.chatOpen || this.admin.open || !!this.inv?.open || !!this.monitor?.isOpen;
 
     if (this.phase === 'play' && !frozen) this._keys(dt);
     this.natural = !frozen && I.held('KeyX') && !P.car;
@@ -542,6 +549,7 @@ export class Game {
       this.debts.hostUpdate(dt, players);
       this.inspections.hostUpdate(dt, players);
       this.bm.hostUpdate(dt);
+      this.rivals.hostUpdate(dt, players);
       for (const c of W.cars) if (c.drv) this.police.carHit(c);
       this._saveT -= dt;
       if (this._saveT <= 0 && (this._dirty || this._saveT < -30)) { this._saveT = 8; if (this._dirty) saveWorld(W); }
@@ -556,6 +564,8 @@ export class Game {
     this.debts.sync(dt);
     this.bm.update(dt);
     this.inv.update(dt);
+    this.rivals.update(dt);
+    this.monitor.update(dt);
     this.traffic.setVisible(this.phase !== 'intro');
     if (this.phase === 'play') { this.traffic.update(dt); this.citizens.update(dt); this.story.localUpdate(dt); }
     for (const r of this.remotes.values()) r.update(dt);
@@ -631,7 +641,8 @@ export class Game {
     const late = (W.debts || []).filter(d => ['late', 'overdue'].includes(d.state)).length;
     if (late) out.push({ t: late + ' debt' + (late > 1 ? 's' : '') + ' late - go collect', c: '' });
     if (W.weather) out.push({ t: 'STORM: cars slide, tips +50%', c: '' });
-    return out.slice(0, 8);
+    if (W.quest >= Q.BIZ) this.rivals.tasks(out);
+    return out.slice(0, 9);
   }
 
   /** the supplier van parked in the yard during its event */
@@ -696,6 +707,7 @@ export class Game {
         this.npcs.targets(P, T);
         this.debts.targets(P, T);
         this.bm.targets(P, T);
+        this.rivals.targets(P, T);
         this.vehicles.targets(P, T);
         if (P.floor === 0) for (const s of this.town.shopItems || []) {
           const d = Math.hypot(P.pos.x - s.x, P.pos.z - s.z);
@@ -785,6 +797,8 @@ export class Game {
     if (!items.length) items.push({ label: 'No orders right now. They will come. DING DING.', disabled: true });
     if (W.quest >= Q.BIZ) {
       const late = (W.debts || []).filter(d => ['late', 'overdue'].includes(d.state)).length;
+      items.unshift({ label: 'RIVALS: ' + ['italian', 'delivery', 'frozen'].map(k => this.rivals.R.g[k].lvl).join(' / ') + (this.rivals.R.offer ? ' - a DEAL is waiting!' : ''), sub: 'The other pizza gangs: their levels, deals, meetings, missions.', price: this.rivals.R.offer ? 'DEAL' : 'GANGS', on: () => this.rivals.phoneMenu() });
+      if (W.owned.up.camera) items.unshift({ label: 'SECURITY CAMERAS', sub: 'Live feeds and recordings (or press K).', price: (W.footage || []).length + ' REC', on: () => { ui.closeMenu(); this.monitor.open(); } });
       items.unshift({ label: 'DEBTS: ' + (W.debts || []).length + ' people owe you money' + (late ? ' (' + late + ' late!)' : ''), sub: 'Mafia Rep: ' + TIERS[tierOf(W.mrep || 0)].name, price: money((W.debts || []).reduce((s, d) => s + d.amount, 0)), on: () => this.debts.phoneMenu() });
     }
     ui.menu({ title: 'Phone', sub: 'Pick a new order to accept or decline. Accepted orders get a pin over the door.', items, cls: 'phone' });

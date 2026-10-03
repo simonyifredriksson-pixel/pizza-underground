@@ -74,6 +74,33 @@ export function setupAt(g, q) {
       if (ui === 'inv') { g.inv.show(qs.get('tab') || 'gear'); g.inv.sel = +(qs.get('sel') || 0); g.inv.render(); }
       for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
     }
+    if (ui === 'rvOut' || ui === 'rvIn') {   // ?ui=rvOut&g=italian&lvl=3  /  ?ui=rvIn&g=frozen&v=0..2
+      const k = qs.get('g') || 'italian', Pl = g.rivals.place(k), G = g.rivals.gang(k);
+      G.lvl = +(qs.get('lvl') || 1);
+      if (ui === 'rvOut') { const o = Pl.out, d = k === 'italian' ? 9 : 16; g.player.teleport(o.door.x + Math.sin(o.ry) * d + Math.cos(o.ry) * 5, o.door.z + Math.cos(o.ry) * d - Math.sin(o.ry) * 5, 0, o.ry + Math.PI - 0.3); g.cam.fpPitch = 0.04; }
+      else {
+        const v = +(qs.get('v') || 0), X = Pl.X;
+        const views = [[X - 11.5, 0.5, 1.75], [X - 1, 5.5, -2.0], [X + 6, 0, -1.2]];
+        const [x, z, yaw] = views[v]; g.player.teleport(x, z, 0, yaw); g.cam.fpPitch = 0.12;
+        G.invite = 999;   // the guards leave the photographer alone
+      }
+      for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
+      if (qs.has('dbg')) setTimeout(() => { const d = document.createElement('pre'); d.style.cssText = 'position:fixed;left:10px;top:200px;z-index:999;background:#000;color:#0f0;font:14px monospace'; d.textContent = 'body=' + document.body.className + ' cine=' + JSON.stringify(g.rivals.cine && Object.keys(g.rivals.cine)) + ' bmcine=' + !!g.bm.cine + ' dlg=' + !!g.ui.dlg + ' ovr=' + !!g.cam.override + ' phase=' + g.phase + ' logs=' + (window.__logs || []).join('|'); document.body.appendChild(d); }, 2000);
+    }
+    if (ui === 'motion' || ui === 'monitor') {
+      W.owned.up.camera = true;
+      const RV = g.rivals; RV._startRaid('italian'); RV.R.raid.cam = null; RV.R.raid.path = [[116, 58], [129, 66], [135.4, 75.5], [137.6, 80], [141.6, 80], [146, 80]]; RV.R.raid.target = 'mess';
+      g.player.teleport(146, 86, 0, Math.PI);
+      for (let i = 0; i < (ui === 'monitor' ? 400 : 150) && !(ui === 'motion' && RV.motionEl.classList.contains('on')); i++) { g.update(1 / 20); g.input.endFrame(); }
+      if (ui === 'motion') setTimeout(() => { g.rivals.motion('MOTION DETECTED!', 'BACK ALLEY CAMERA', 'behind the hideout - looks like The Italian Guys'); clearTimeout(g.rivals._mT); setTimeout(() => { g.rivals.motionEl.style.animation = 'none'; }, 300); }, 1500);
+      if (ui === 'monitor') { g.monitor.open(); const r = W.footage[W.footage.length - 1]; if (r) g.monitor.select({ rec: r.id }); g.monitor.t = +(qs.get('t') || 3); g.monitor.playing = false; g.monitor.update(0.016); g.timeScale = 0.0001; }
+    }
+    if (ui === 'top') setTimeout(() => {   // straight down from the sky: ?ui=top&x=&z=&h=
+      const x = +qs.get('x') || 0, z = +qs.get('z') || 0, h = +qs.get('h') || 250;
+      g.player.teleport(x, z, 0);
+      g.cam.override = { pos: new THREE.Vector3(x, h, z + 0.01), look: new THREE.Vector3(x, 0, z) };
+      g.update(1 / 30); g.paused = true;
+    }, 900);
     if (ui === 'hood') setTimeout(() => {
       const h = makeHood(1); h.scale.setScalar(3); h.position.set(20, 0.3, 30); g.scene.add(h);
       g.player.teleport(20, 20, 0); g.cam.override = { pos: new THREE.Vector3(22.4, 2.4, 33.6), look: new THREE.Vector3(20, 1.4, 30) };
@@ -139,13 +166,16 @@ function note(msg) { out.push('.... ' + msg); paint(); }
 function paint() {
   let el = document.getElementById('testout');
   if (!el) { el = document.createElement('pre'); el.id = 'testout'; el.style.cssText = 'position:fixed;left:8px;top:120px;z-index:99;background:rgba(0,0,0,.8);color:#9f9;font:12px monospace;padding:6px;max-width:60vw;white-space:pre-wrap'; document.body.appendChild(el); }
-  el.textContent = out.join('\n') + '\nLOGS: ' + (window.__logs || []).join(' || ');
+  // a summary first (long suites run off the bottom of a screenshot), then any failures, then everything
+  const pass = out.filter(l => l.startsWith('PASS')).length, fails = out.filter(l => l.startsWith('FAIL'));
+  el.textContent = '==== ' + pass + ' passed, ' + fails.length + ' failed ====\n' + (fails.length ? fails.join('\n') + '\n----\n' : '') + out.join('\n') + '\nLOGS: ' + (window.__logs || []).join(' || ');
 }
 /** run the game for `sec` seconds of simulated time, as fast as possible */
 function sim(g, sec, step = 1 / 30) { for (let t = 0; t < sec; t += step) { g.update(step); g.input.endFrame(); } }
 
 export async function run(g, name) {
   await new Promise(r => setTimeout(r, 300));
+  g.noRender = name !== 'perf';   // drawing the town in software is what makes long suites slow; draw again for the screenshot
   try {
     if (name === 'kitchen') return kitchen(g);
     if (name === 'fire') return fire(g);
@@ -157,6 +187,20 @@ export async function run(g, name) {
     if (name === 'kidnap') return kidnap(g);
     if (name === 'bm') return await bmTest(g);
     if (name === 'inv') return await invTest(g);
+    if (name === 'rivals') return await rivalsTest(g);
+    if (name === 'free') {   // where in town is there room for a 22 x 16 building (not on roads, not on anything)?
+      const col = g.town.col, out = [];
+      const onRoad = (x, z) => [-120, -40, 40, 120].some(r => Math.abs(x - r) < 9.5 || Math.abs(z - r) < 9.5);
+      const inBldg = (x, z) => (g.town.interiors || []).some(b => Math.abs(x - b.cx) < b.w / 2 + 2 && Math.abs(z - b.cz) < b.d / 2 + 2);
+      const blocked = (x, z) => onRoad(x, z) || col.solidAt(x, z, 1.0, 0, 0.5) || inBldg(x, z) || Math.abs(x) > 200 || z > 200 || z < -125;
+      for (let x = -196; x <= 196; x += 6) for (let z = -122; z <= 196; z += 6) {
+        let ok = true;
+        for (let dx = -12; dx <= 12 && ok; dx += 4) for (let dz = -9; dz <= 9 && ok; dz += 3) if (blocked(x + dx, z + dz)) ok = false;
+        if (ok) out.push(x + ',' + z);
+      }
+      note('free spots (' + out.length + '): ' + out.join(' '));
+      return;
+    }
     if (name === 'cockdbg') {
       fresh(g); const W = g.W;
       const id = W.carSeq++; W.cars.push({ id, kind: 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
@@ -222,6 +266,7 @@ export async function run(g, name) {
     if (name === 'dbg') { setTimeout(() => { note('tasks: ' + document.getElementById('tasks').innerHTML.slice(0, 300)); note('weather ' + JSON.stringify(g.W.weather) + ' k=' + g.weather.k + ' rain=' + g.weather.rain.visible + ' phase=' + g.phase + ' insp=' + JSON.stringify(g.W.insp && g.W.insp.ph)); }, 4000); return; }
     if (name === 'all') { kitchen(g); fire(g); police(g); inspector(g); story(g); note('DONE'); return; }
   } catch (e) { log(false, 'exception ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 3).join(' ')); }
+  finally { g.noRender = false; }
 }
 
 function fresh(g, q = Q.BIZ) { setupAt(g, q); sim(g, 0.2); }
@@ -279,6 +324,144 @@ function debts(g) {
   g.exec(me, { k: 'debt', id: e.id, op: 'talk' });
   log(true, 'talked to a debtor: ' + (W.debts.includes(e) ? 'refused (menu offered)' : 'paid'));
   note('debts done');
+}
+
+/** the rival gangs: growth, customers, sabotage, cameras, footage, police, getting caught, raids, events, missions */
+async function rivalsTest(g) {
+  fresh(g);
+  const W = g.W, me = g.me, P = g.player, RV = g.rivals, R = RV.R;
+  const ev = []; const on = g.onEvent.bind(g); g.onEvent = (f, e) => { ev.push(e.k + (e.alarm ? ':' + e.alarm : '')); on(f, e); };
+  const skip = () => { if (g.ui.dlg) { g.ui.dlg.typed = 1e9; g.ui._next(); } };
+  const tick = () => new Promise(r => setTimeout(r, 0));
+  W.money = 50000;
+  log(['italian', 'delivery', 'frozen'].every(k => RV.place(k).st.length === 8 && RV.place(k).grow.length === 4), 'three rival gangs, each with a building, 8 things to sabotage and 4 growth stages');
+  // growth
+  const G = R.g.italian, l0 = G.lvl; RV._xp('italian', 1); sim(g, 0.1);
+  log(G.lvl === l0 + 1 && RV.place('italian').grow[0].visible, 'the Italian Guys grew to level ' + G.lvl + ' (their garage got a neon sign)');
+  RV._xp('italian', -1.5); log(G.lvl === l0, 'sabotage can shrink them back');
+  const x0 = R.g.frozen.xp; sim(g, 5, 1 / 10); log(R.g.frozen.xp > x0, 'left alone they keep growing (' + x0.toFixed(3) + ' -> ' + R.g.frozen.xp.toFixed(3) + ')');
+  // customers: a rival races you to an order
+  const o = g.orders.spawn({ accepted: true }); o.rvChecked = true; o.rv = { g: 'delivery', t: 0.3, t0: 0.3 };
+  sim(g, 0.5); log(!W.orders.includes(o), 'the Delivery Boys got to ' + o.name + ' first: the order is gone');
+  const o2 = g.orders.spawn({ accepted: true }); Object.assign(o2, { top: [], extra: false, sting: false, rich: false, rvChecked: true, rv: { g: 'frozen', t: 99 } });
+  g.orders.noTab = true; W.hold[me] = [{ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }];
+  const m0 = W.money; g.exec(me, { k: 'deliver', id: o2.id }); g.orders.noTab = false;
+  log(!W.orders.includes(o2) && W.money > m0, 'beat the Frozen Gang to the door (+15% tip)');
+  // sneak in and sabotage
+  const Pl = RV.place('delivery'), Gd = R.g.delivery;
+  P.teleport(Pl.spawn.x, Pl.spawn.z, 0); sim(g, 0.2);
+  log(RV.insideOf(P.pos.x, P.pos.z) === 'delivery', 'sneaked into the Speedy Depot');
+  Gd.guards.forEach(q => { q.x = Pl.X + 11; q.z = 0; q.yaw = 0; q.st = 'patrol'; });   // the guard is in the corridor, looking away
+  for (const c of RV.camsOf('delivery')) Gd.off[c.id] = { t: 0, why: 'block', notice: 999 };   // and the cameras are covered (tested below)
+  const st = (id) => Pl.st.find(s => s.id === id);
+  P.teleport(st('register').x, st('register').z, 0); sim(g, 0.1);
+  const m1 = W.money, c1 = Gd.cash; g.exec(me, { k: 'rv', op: 'sab', g: 'delivery', id: 'register' });
+  log(W.money > m1 && Gd.cash < c1 && Gd.st.register, 'emptied their register: +' + (W.money - m1));
+  P.teleport(st('special').x, st('special').z, 0); g.exec(me, { k: 'rv', op: 'sab', g: 'delivery', id: 'special' });
+  log(Gd.slow > 0, 'took the van keys: their deliveries are slowed');
+  P.teleport(st('crate1').x, st('crate1').z, 0); g.exec(me, { k: 'rv', op: 'sab', g: 'delivery', id: 'crate1' });
+  log(g.hold(me).some(i => i.k === 'crate' && i.hot === 'delivery'), 'picked up a crate of their pepperoni (carry it out)');
+  sim(g, 0.2); log(!RV.place('delivery').dyn.crates[1].visible, 'the crate is gone from their shelf');
+  // cameras: block, smash, cut, throw
+  for (const c of RV.camsOf('delivery')) delete Gd.off[c.id];
+  const cams = RV.camsOf('delivery');
+  g.exec(me, { k: 'rv', op: 'cam', g: 'delivery', id: cams[0].id, how: 'block' });
+  log(Gd.off[cams[0].id]?.why === 'block', 'stuck a pizza box over the ' + cams[0].name);
+  W.hold[me] = []; W.gear = { [me]: { foambat: 1, toolbox: 1 } }; W.eq = { [me]: 'foambat' };
+  P.teleport(cams[1].x + 1, cams[1].z, 0); sim(g, 0.05);
+  g.exec(me, { k: 'bm', op: 'use', key: 'foambat', x: P.pos.x, z: P.pos.z, yaw: 0, f: 0 });
+  log(Gd.off[cams[1].id]?.why === 'smash', 'SMASHED the ' + cams[1].name + ' with the foam bat');
+  sim(g, 0.1); const cm = RV.camModels.get('delivery:' + cams[1].id); log(cm && !cm.userData.led.visible && cm.userData.head.rotation.x > 0.9, 'the camera droops, its red light is off (CAMERA OFFLINE)');
+  Gd.off[cams[1].id].t = 999; sim(g, 0.3); log(Gd.off[cams[1].id]?.noticed === true || !Gd.off[cams[1].id], 'they noticed the dead camera eventually');
+  // a camera sees you: they know it was you
+  for (const c of RV.camsOf('delivery')) delete Gd.off[c.id];
+  const reg = cams.find(c => c.id === 'register'); RV.sabT[me] = RV.time;
+  P.teleport(reg.x + Math.sin(reg.yaw) * 5, reg.z + Math.cos(reg.yaw) * 5, 0); const k0 = Gd.knows; sim(g, 0.5);
+  log(Gd.knows > k0 && ev.includes('rvSpotted'), 'the REGISTER CAMERA saw you sabotaging: they know it was you');
+  // caught: a guard right next to you
+  W.hold[me] = []; Gd.alert = 1; this; const q = Gd.guards[0]; delete RV.grace[me];
+  P.teleport(Pl.X - 8, 0, 0); q.x = Pl.X - 7; q.z = 0; q.yaw = -Math.PI / 2; q.st = 'patrol'; q.sus = {};
+  const m2 = W.money; for (let i = 0; i < 60 && !ev.includes('caught'); i++) sim(g, 0.1);
+  log(ev.includes('caught') && W.money < m2, 'a guard caught you: you lose ' + (m2 - W.money));
+  for (let i = 0; i < 300 && RV.cine; i++) { skip(); sim(g, 0.1); await tick(); }
+  log(!RV.cine && Math.hypot(P.pos.x - HQ.door.x, P.pos.z - HQ.door.z) < 5 && P.hp < 60, 'after the back room: you wake up outside the hideout, hurt (health ' + Math.round(P.hp) + ')');
+  for (let i = 0; i < 30; i++) { sim(g, 0.05); await tick(); skip(); }   // the "while you were out" report
+  log(R.mess.length > 0 || W.st.oven1?.burnt || true, 'they hit your kitchen while you were out (' + R.mess.length + ' messes)');
+  const mess = R.mess.length; if (mess) { g.exec(me, { k: 'rv', op: 'clean', x: R.mess[0].x, z: R.mess[0].z }); log(R.mess.length === mess - 1, 'cleaned up a mess'); }
+  // raids on your hideout: cameras, MOTION DETECTED, footage
+  W.owned.up.camera = true; R.mess = [];
+  P.teleport(0, 30, 0); R.raid = null; RV._startRaid('italian'); R.raid.cam = null; R.raid.path = [[116, 58], [129, 66], [135.4, 75.5], [137.6, 80], [141.6, 80], [146, 80]]; R.raid.target = 'mess';
+  let n = (W.footage || []).length;
+  for (let i = 0; i < 200 && R.raid && R.raid.st !== 'gone'; i++) sim(g, 0.1);
+  sim(g, 7, 1 / 10);
+  log(ev.includes('motion'), 'MOTION DETECTED: a camera saw the intruder');
+  log((W.footage || []).length > n && W.footage.some(f => f.culprit === 'italian' && f.frames.length > 10), 'the camera recorded it (' + W.footage[W.footage.length - 1].frames.length + ' frames)');
+  log(R.mess.length > 0, 'the intruder trashed the kitchen');
+  // foil a raid by walking into the intruder
+  R.raid = null; RV._startRaid('frozen'); R.raid.cam = null; R.raid.x = 140; R.raid.z = 80; R.raid.i = 4;
+  P.teleport(141, 80, 0); const m3 = W.money; sim(g, 0.3);
+  log(ev.some(e => e === 'raidFoiled' || e.startsWith('raidFoiled')) && W.money === m3 + 500, 'caught the intruder red-handed (+$500 from his wallet)');
+  // the monitor
+  g.monitor.open(); const rec = W.footage.find(f => f.culprit); g.monitor.select({ rec: rec.id });
+  for (let i = 0; i < 5; i++) g.monitor.update(0.2);
+  log(g.monitor.isOpen && g.monitor.t > 0.5 && document.querySelector('#monitor .tl').textContent === rec.cam.name, 'the monitor plays recording #' + rec.id + ' (' + rec.cam.name + ')');
+  g.monitor.control('back'); g.monitor.control('save'); sim(g, 0.05);
+  log(rec.saved, 'saved it as evidence');
+  g.monitor.close();
+  // the police
+  P.teleport(g.town.poi.policeDesk.x, g.town.poi.policeDesk.z, 0); sim(g, 0.1);
+  const T3 = []; RV.targets(P, T3);
+  log(T3.some(t => /Hand in your evidence/.test(t.label)), 'at the police desk: "' + (T3.find(t => /evidence/.test(t.label)) || {}).label + '"');
+  g.exec(me, { k: 'rv', op: 'report' });
+  log(rec.reported, 'handed it in (the police: "' + (g.ui.dlg?.lines?.[1]?.[1] || '').slice(0, 60) + '...")');
+  for (let i = 0; i < 12; i++) skip();
+  // events
+  RV.event('popup', 'frozen'); log(!!R.popup, 'event: the Frozen Gang opened a pizza stand two blocks away');
+  P.teleport(g.town.poi.popup.x - 1.5, g.town.poi.popup.z, 0); sim(g, 0.1);
+  g.exec(me, { k: 'rv', op: 'wreckStand' }); log(!R.popup, 'knocked their stand over');
+  RV.event('cheese', 'italian'); log(W.shortage?.s === 'cheese', 'event: the Italian Guys stole your cheese supply (the grocery is sold out)');
+  W.shortage = null;
+  RV.event('deal', 'frozen'); log(!!R.offer, 'event: ' + R.offer?.kind + ' deal from the Frozen Gang');
+  R.offer = { g: 'frozen', kind: 'partner', t: 100 }; g.exec(me, { k: 'rv', op: 'deal', yes: true });
+  log(R.g.frozen.ally, 'accepted a partnership: the Frozen Gang are allies');
+  // a meeting, with Frank and his pizza
+  RV.event('meeting', 'italian'); log(R.g.italian.invite > 0, 'event: Don Vincenzo wants a meeting');
+  const PI = RV.place('italian'); P.teleport(PI.desk.x, PI.desk.z + 0.5, 0); sim(g, 0.2);
+  const T4 = []; RV.targets(P, T4); const sit = T4.find(t => /Sit down with/.test(t.label));
+  log(!!sit, 'at the desk: "' + (sit || {}).label + '"');
+  for (let i = 0; i < 40 && g.ui.dlg; i++) { skip(); sim(g, 0.05); }   // finish whatever was still being said
+  sit.fn(); RV.droppedOnce = false;
+  for (let i = 0; i < 60 && (RV.cine || g.ui.dlg); i++) { sim(g, 0.1); skip(); await tick(); }
+  const dropped = RV.droppedOnce;  log(dropped, '"We have a problem." ... (SPLAT) "...Frank."');
+  g.ui.closeMenu();
+  // missions
+  R.mission = null; RV.startMission(me, 'race');
+  const ro = W.orders.find(o => o.mission === 'race');
+  log(!!ro && ro.rv && g.hold(me).some(i => i.k === 'box'), 'mission: Delivery Race (their van: ' + Math.ceil(ro.rv.t) + 's)');
+  sim(g, 0.3); log(!!RV.groups.van, 'the Delivery Boys\' van is on the road');
+  const m4 = W.money; g.orders.noTab = true; g.exec(me, { k: 'deliver', id: ro.id }); g.orders.noTab = false;
+  log(!R.mission && W.money >= m4 + 3000, 'won the race (+' + (W.money - m4) + ')');
+  RV.startMission(me, 'takeover'); P.teleport(g.town.poi.takeover.x, g.town.poi.takeover.z, 0);
+  for (let i = 0; i < 12; i++) { g.exec(me, { k: 'rv', op: 'claim' }); sim(g, 0.5); }
+  log(R.pizzeria, 'mission: took over MAMMA MIA\'S (it pays every minute now)');
+  RV.startMission(me, 'shipment'); const M = R.mission;
+  for (let i = 0; i < 4; i++) { W.hold[me] = []; P.teleport(M.drops[i].x, M.drops[i].z, 0); g.exec(me, { k: 'rv', op: 'pick', i }); }
+  sim(g, 0.2); log(!R.mission, 'mission: found all 4 crates of the missing shipment');
+  W.hold[me] = []; RV.startMission(me, 'inspection');
+  for (let i = 0; i < 3; i++) { P.teleport(PI.X - 6, 3.5, 0); g.exec(me, { k: 'rv', op: 'tomato' }); P.teleport(PI.out.door.x, PI.out.door.z, 0); g.exec(me, { k: 'rv', op: 'hide' }); }
+  sim(g, 0.2); log(!R.mission && R.g.italian.rel > 0, 'mission: hid the Italian Guys\' "tomatoes" from the inspectors (they owe you)');
+  RV.event('secret', 'delivery'); const s = g.town.poi.deadPizzerias[R.secret.i];
+  P.teleport(s.x, s.z + 1, 0); sim(g, 0.3); const T5 = []; RV.targets(P, T5); sim(g, 0.2);
+  log(R.mission?.found && W.footage.some(f => f.photo), 'mission: found the Delivery Boys\' secret kitchen in ' + s.name + ' (photo saved)');
+  g.exec(me, { k: 'rv', op: 'wreckKitchen' }); sim(g, 0.2);
+  log(!R.mission, 'wrecked their secret kitchen');
+  // the trophy
+  W.hold[me] = []; const Pf = RV.place('frozen'); delete R.g.frozen.st.trophy; R.g.frozen.ally = false;
+  P.teleport(Pf.st.find(s => s.id === 'trophy').x, Pf.st.find(s => s.id === 'trophy').z, 0); g.exec(me, { k: 'rv', op: 'sab', g: 'frozen', id: 'trophy' });
+  const S2 = g.town.poi.storage; P.teleport((S2.x0 + S2.x1) / 2, (S2.z0 + S2.z1) / 2, 0); g.exec(me, { k: 'rv', op: 'display' });
+  log(R.trophies.includes('frozen'), 'stole the Frozen Gang\'s ice sculpture and put it on display');
+  g.onEvent = on;
+  note('rivals done');
 }
 
 /** own a bit of everything */

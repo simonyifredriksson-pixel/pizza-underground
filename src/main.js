@@ -10,7 +10,12 @@ import { Q } from './data/Story.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-window.__log = (m) => { (window.__logs ||= []).push(m); console.log(m); };
+window.__log = (m) => {
+  (window.__logs ||= []).push(m); console.log(m);
+  // stuck on the loading screen? say why
+  const L = document.getElementById('loading');
+  if (L && !L.classList.contains('gone') && /^(ERR|REJ)/.test(m)) { L.style.cssText += ';flex-direction:column;font-size:1rem;text-align:center;padding:20px'; L.insertAdjacentHTML('beforeend', '<div style="font:700 0.9rem monospace;color:#fff;-webkit-text-stroke:0;max-width:90vw;margin-top:12px;white-space:pre-wrap">' + String(m).replace(/</g, '&lt;').slice(0, 600) + '</div>'); }
+};
 addEventListener('error', e => window.__log('ERR ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
 addEventListener('unhandledrejection', e => window.__log('REJ ' + (e.reason?.stack || e.reason)));
 
@@ -118,7 +123,8 @@ async function boot() {
   const frame = (now) => {
     const dt = (now - last) / 1000; last = now;
     try { if (!game.paused) game.update(dt * (game.timeScale ?? 1)); } catch (e) { if (!game._errN || game._errN < 5) { game._errN = (game._errN || 0) + 1; window.__log('UPDATE ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 4).join(' | ')); } }
-    renderer.render(scene, camera);
+    // (test scripts draw at most once a second while they run: drawing the town in software is slow)
+    if (!game.noRender || now - (game._lastDraw || 0) > 1000) { renderer.render(scene, camera); game._lastDraw = now; }
     input.endFrame();
     requestAnimationFrame(frame);
   };

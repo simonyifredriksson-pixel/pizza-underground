@@ -3,7 +3,7 @@
 import * as THREE from '../../lib/three.module.js';
 import { esc, money, clamp } from '../core/Util.js';
 import { SPEAKERS } from '../data/Story.js';
-import { filter } from '../data/Data.js';
+import { filter, STOCK_NAME } from '../data/Data.js';
 import { TIERS, tierOf } from '../data/Mafia.js';
 
 const $ = id => document.getElementById(id);
@@ -118,7 +118,9 @@ export class UI {
     el.style.display = '';
     const { pizzaName } = this.g.kitchenNames;
     const top = items[items.length - 1];
-    const name = top.k === 'bag' ? 'Trash bag (' + top.name + ', wriggling)' : pizzaName(top);
+    const name = top.k === 'bag' ? 'Trash bag (' + top.name + ', wriggling)'
+      : top.k === 'crate' ? 'Crate of ' + (STOCK_NAME[top.s] || top.s || 'supplies').toLowerCase() + (top.hot ? ' (STOLEN)' : top.tom ? ' ("tomatoes")' : '')
+      : top.k === 'trophy' ? 'A stolen trophy' : pizzaName(top);
     el.innerHTML = `<div class="h-top">${esc(name)}</div>` + (items.length > 1 ? `<div class="h-n">+ ${items.length - 1} more under it</div>` : '') + `<div class="h-help"><b class="key">Q</b> throw away top</div>` + (top.k === 'ext' ? `<div class="h-help"><b class="key">LMB</b> spray</div>` : '');
   }
 

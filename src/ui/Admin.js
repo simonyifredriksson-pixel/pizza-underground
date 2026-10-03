@@ -83,6 +83,15 @@ export class Admin {
       case 'level': W.level = Math.min(5, W.level + 1); break;
       case 'quest': W.quest = Math.min(13, W.quest + 1); break;
       case 'rep': g.debts.addRep(arg); break;
+      // rivals
+      case 'rvEvent': g.rivals.event(arg); break;
+      case 'rvRaid': { const k = arg || 'italian'; g.rivals.R.raid = null; g.rivals._startRaid(k); break; }
+      case 'rvLevel': g.rivals._xp(arg, 1); break;
+      case 'rvMission': g.rivals.R.mission = null; g.rivals.startMission(me, arg); break;
+      case 'rvCaught': g.rivals.caught(me, arg || 'italian'); break;
+      case 'rvAlly': { const G = g.rivals.gang(arg); G.ally = !G.ally; G.rel = G.ally ? 60 : 0; break; }
+      case 'rvCams': W.owned.up.camera = true; break;
+      case 'rvReset': W.rv = null; W.footage = []; break;
     }
     g.dirty();
     this.render();
@@ -92,7 +101,7 @@ export class Admin {
     const g = this.g, W = g.W;
     let el = document.getElementById('admin');
     if (!el) { el = document.createElement('div'); el.id = 'admin'; document.body.appendChild(el); }
-    const tabs = { economy: 'Economy', police: 'Police', customers: 'Customers', world: 'World', testing: 'Testing' };
+    const tabs = { economy: 'Economy', police: 'Police', customers: 'Customers', world: 'World', rivals: 'Rivals', testing: 'Testing' };
     const btn = (label, op, arg, cls = '') => `<button class="ab ${cls}" data-op="${op}" data-arg='${esc(JSON.stringify(arg ?? null))}'>${esc(label)}</button>`;
     const T = g.town.poi;
     let body = '';
@@ -114,6 +123,15 @@ export class Admin {
       <div class="arow"><b>Players</b></div><div class="agrid">${[...g.remotes.values()].map(r => btn('Bring ' + r.name + ' to me', 'tpPlayer', r.id) + btn('Go to ' + r.name, 'goto', r.id)).join('') || '<span class="adim">Nobody else is here.</span>'}</div>
       <div class="arow"><b>Spawn a vehicle in front of me</b></div><div class="agrid">${Object.entries(VEHICLES).map(([k, v]) => btn(v.name, 'car', k)).join('')}</div>
       <div class="arow"><b>Give me</b></div><div class="agrid">${btn('A boxed pizza', 'item', 'box')}${btn('A crate of cheese', 'item', 'crate')}${btn('An extinguisher', 'item', 'ext')}${btn('3 smoke bombs', 'item', 'smoke')}${btn('3 trash bags', 'item', 'sack')}${btn('All black-market gear', 'item', 'gear')}${btn(W.bm ? 'Black market: open' : 'Unlock the black market', 'item', 'bm')}</div>`;
+    }
+    if (this.tab === 'rivals') {
+      const R = g.rivals.R, names = { italian: 'Italian Guys', delivery: 'Delivery Boys', frozen: 'Frozen Gang' };
+      body = `<div class="arow"><b>Gangs</b> ${Object.entries(R.g).map(([k, G]) => names[k] + ' lv' + G.lvl + (G.ally ? ' (ally)' : '') + ' rel ' + Math.round(G.rel)).join(' · ')}</div>
+      <div class="agrid">${Object.entries(names).map(([k, n]) => btn(n + ': level up', 'rvLevel', k) + btn(n + ': ' + (R.g[k].ally ? 'end alliance' : 'make ally'), 'rvAlly', k) + btn(n + ': raid my hideout', 'rvRaid', k, 'red') + btn('Caught by ' + n, 'rvCaught', k, 'red')).join('')}</div>
+      <div class="arow"><b>Events</b></div><div class="agrid">${['popup', 'cheese', 'deal', 'secret', 'meeting'].map(k => btn(k, 'rvEvent', k)).join('')}</div>
+      <div class="arow"><b>Missions</b> ${R.mission ? esc(R.mission.k) : 'none'}</div><div class="agrid">${['race', 'record', 'shipment', 'takeover', 'bigorder', 'inspection'].map(k => btn(k, 'rvMission', k)).join('')}</div>
+      <div class="arow"><b>Teleport</b></div><div class="agrid">${Object.entries(names).map(([k, n]) => btn(n + ' (outside)', 'tp', g.rivals.place(k).out.door) + btn(n + ' (inside)', 'tp', g.rivals.place(k).spawn)).join('')}${btn('Police front desk', 'tp', T.policeDesk)}</div>
+      <div class="agrid">${btn('Install hideout cameras', 'rvCams', null, 'green')}${btn('Reset all rivals', 'rvReset', null, 'red')}</div>`;
     }
     if (this.tab === 'testing') body = `
       <div class="arow"><b>Current event</b> ${W.event ? esc(W.event.k) : 'none'} · <b>Weather</b> ${W.weather ? 'storm' : 'clear'}</div>

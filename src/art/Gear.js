@@ -216,6 +216,59 @@ export function makeCuff() {
   return g;
 }
 
+/* ---------------- security cameras ----------------
+   A wall bracket and a camera body on a swivel. userData: head (turns),
+   led (red: recording), lens, tape (the "blocked" sticky note), sparks. */
+export function makeSecurityCam(color = '#e8e8f0') {
+  const g = new THREE.Group(), steel = { rough: 0.35, metal: 0.5 };
+  g.add(part(geo.box(), '#5a5a6a', 0, 0, -0.06, 0.16, 0.22, 0.04, steel));          // wall plate
+  g.add(rot(part(geo.cyl(6), '#5a5a6a', 0, -0.02, 0.08, 0.05, 0.26, 0.05, steel), 'x', Math.PI / 2)); // arm
+  const head = new THREE.Group(); head.position.set(0, -0.06, 0.24); g.add(head); g.userData.head = head;
+  head.add(part(geo.box(), color, 0, 0, 0.12, 0.2, 0.18, 0.42, { rough: 0.4 }));
+  head.add(part(geo.box(), color, 0, 0.1, 0.16, 0.24, 0.03, 0.48));                   // sun hood
+  head.add(rot(part(geo.cyl(10), '#1b1b24', 0, 0, 0.34, 0.15, 0.04, 0.15), 'x', Math.PI / 2));
+  const lens = rot(part(geo.cyl(10), '#3a5a8a', 0, 0, 0.36, 0.1, 0.02, 0.1, { rough: 0.1, metal: 0.4, emissive: 0x203a6a, ei: 0.6 }), 'x', Math.PI / 2);
+  head.add(lens); g.userData.lens = lens;
+  const led = part(geo.ico(0), '#ff2020', 0.07, 0.05, 0.34, 0.04, 0.04, 0.03, { emissive: 0xff2020, ei: 1.6 }); head.add(led); g.userData.led = led;
+  const tape = part(geo.box(), '#ffe14a', 0, 0, 0.37, 0.18, 0.16, 0.01); tape.visible = false; head.add(tape); g.userData.tape = tape;
+  return g;
+}
+
+/** a pizza stand on wheels: umbrella in the gang's colours, a cooler, a sign */
+export function makeStand(c1, c2, lines) {
+  const g = new THREE.Group();
+  g.add(part(geo.box(), c1, 0, 0.6, 0, 1.8, 0.9, 0.9));
+  g.add(part(geo.box(), c2, 0, 1.08, 0, 1.9, 0.06, 1.0));
+  for (const x of [-0.7, 0.7]) g.add(rot(part(geo.cyl(10), '#1b1b24', x, 0.2, 0.46, 0.4, 0.1, 0.4), 'x', Math.PI / 2));
+  g.add(part(geo.cyl(5), '#c8c8d8', 0, 1.1, 0, 0.06, 1.7, 0.06));
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; g.add(rot(rot(part(geo.cone(3), i % 2 ? c1 : c2, Math.sin(a) * 0.55, 2.55, Math.cos(a) * 0.55, 1.2, 0.5, 0.35), 'y', a), 'x', 0)); }
+  g.add(part(geo.cone(8), c1, 0, 2.5, 0, 2.6, 0.45, 2.6));
+  for (let i = 0; i < 3; i++) g.add(part(geo.box(), '#c79a5b', -0.5 + i * 0.32, 1.14, 0.1, 0.3, 0.06 + i * 0.03, 0.3));
+  const s = signMesh(lines, 1.6, 0.5, { bg: c2, fg: c1, border: false }); s.position.set(0, 0.62, 0.46); g.add(s);
+  return g;
+}
+
+/** each gang's prized possession, on a little stand you can steal */
+export function makeTrophy(gang) {
+  const g = new THREE.Group(), gold = { rough: 0.25, metal: 0.8 };
+  if (gang === 'italian') {        // the golden pizza cutter
+    g.add(rot(part(geo.cyl(16), '#e8b83a', 0, 0.42, 0, 0.6, 0.05, 0.6, gold), 'x', Math.PI / 2));
+    g.add(rot(part(geo.cyl(8), '#c89a2a', 0, 0.42, 0, 0.12, 0.08, 0.12, gold), 'x', Math.PI / 2));
+    g.add(rot(part(geo.box(), '#7a1a1a', 0.32, 0.18, 0, 0.1, 0.5, 0.08), 'z', 0.7));
+  } else if (gang === 'delivery') { // the golden stopwatch
+    g.add(rot(part(geo.cyl(16), '#e8b83a', 0, 0.42, 0, 0.56, 0.14, 0.56, gold), 'x', Math.PI / 2));
+    g.add(rot(part(geo.cyl(16), '#f6f1e6', 0, 0.42, 0.075, 0.46, 0.01, 0.46), 'x', Math.PI / 2));
+    g.add(part(geo.box(), '#1b1b24', 0, 0.5, 0.085, 0.03, 0.16, 0.01)); g.add(rot(part(geo.box(), '#d6232a', 0.05, 0.45, 0.086, 0.02, 0.12, 0.01), 'z', -1));
+    g.add(part(geo.cyl(8), '#e8b83a', 0, 0.75, 0, 0.1, 0.1, 0.1, gold)); g.add(part(geo.tor(10), '#e8b83a', 0, 0.84, 0, 0.14, 0.14, 0.2, gold));
+  } else {                          // an ice sculpture of a pizza slice
+    const ice = { rough: 0.05, opacity: 0.75, emissive: 0x6ac8ff, ei: 0.3 };
+    g.add(part(geo.cone(3), '#bfe8ff', 0, 0.45, 0, 0.7, 0.75, 0.16, ice));
+    for (const [x, y] of [[-0.12, 0.35], [0.1, 0.48], [0, 0.25]]) g.add(part(geo.cyl(8), '#8ad0ff', x, y, 0.07, 0.12, 0.02, 0.12, ice));
+  }
+  g.add(part(geo.cyl(8), '#2b2b33', 0, 0.04, 0, 0.5, 0.08, 0.5));
+  return g;
+}
+
 /* ---------------- the big black trash bag ----------------
    A lumpy icosphere: every corner pushed in or out a little (the same amount
    wherever the same corner appears, so the plastic stays in one piece),

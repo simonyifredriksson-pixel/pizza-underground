@@ -38,6 +38,7 @@ export function newWorld() {
     safe: 0,                 // cash in the secret safe: can't be fined
     kn: null, rival: null,   // Knuckles on a job; the Calzone Cartel in the park
     bm: false,               // found the Underground Market (see BlackMarket.js)
+    rv: null, footage: [], footSeq: 0, // the rival gangs (Rivals.js) and camera recordings (Monitor.js)
     gear: {}, eq: {}, incog: {}, // gear owned / in hand / disguised, per player
   };
 }
