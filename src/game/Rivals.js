@@ -109,7 +109,7 @@ export class Rivals {
     }
     this._cameras(dt, players);
     this._record(dt, players);
-    if (!live) return;
+    if (!live) { if (R.raid) this._raids(dt, players); return; }   // (an admin raid works at any point in the story)
     this._competition(dt);
     this._raids(dt, players);
     this._events(dt);

@@ -188,6 +188,17 @@ export async function run(g, name) {
     if (name === 'bm') return await bmTest(g);
     if (name === 'inv') return await invTest(g);
     if (name === 'rivals') return await rivalsTest(g);
+    if (name === 'camtest') {   // the admin button "a rival sneaks in NOW", early in the story
+      setupAt(g, 3); sim(g, 0.2);
+      const W = g.W, ev = [], on = g.onEvent.bind(g); g.onEvent = (f, e) => { ev.push(e.k); on(f, e); };
+      g.admin.run('rvCamTest', 'italian');
+      log(W.owned.up.camera && g.rivals.R.raid && !g.admin.open, 'admin: cameras installed, an intruder is on his way');
+      let t = 0; for (; t < 60 && !ev.includes('motion'); t += 0.5) sim(g, 0.5, 1 / 20);
+      log(ev.includes('motion'), 'MOTION DETECTED after ' + t + 's');
+      for (let i = 0; i < 40 && !(W.footage || []).length; i++) sim(g, 0.5, 1 / 20);
+      log((W.footage || []).some(f => f.culprit === 'italian'), 'the footage is on the monitor (' + (W.footage || []).length + ' recordings)');
+      g.onEvent = on; return;
+    }
     if (name === 'free') {   // where in town is there room for a 22 x 16 building (not on roads, not on anything)?
       const col = g.town.col, out = [];
       const onRoad = (x, z) => [-120, -40, 40, 120].some(r => Math.abs(x - r) < 9.5 || Math.abs(z - r) < 9.5);
