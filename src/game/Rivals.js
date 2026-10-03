@@ -38,8 +38,9 @@ const RANSOM = {
   accept: ['Fine. FINE. Here. Give him back.', 'Deal. Don\'t tell anyone about this. Ever.', 'Take it. We\'ll pretend this never happened.'],
   counter: ['Pfff. How about {O}. That\'s my final offer.', '{O}. And that\'s already too much for HIM.', 'I can do {O}. He\'s not THAT good at his job.', '...{O}. Last offer. (It\'s not the last offer.)'],
   insult: ['WHAT? For HIM? He can\'t even sneak into a shoe shop!', 'That\'s more than his whole family is worth. Combined.', 'Are you out of your MIND? Try again.'],
-  scaredYes: ['Okay, okay, no need for that. {O}.', 'Alright! {O}! Calm down!', '(sweating) {O}. And put the bat AWAY.'],
-  scaredNo: ['You don\'t scare me.', 'Is that supposed to be scary? Okay, it\'s a little scary. Still no.', 'Nice try.'],
+  threat: ['Pay up. Or he sleeps with the anchovies.', 'Nice little gang you got here. Shame if your guy ended up in a dumpster.', 'I\'m gonna make you an offer you can\'t refuse. Pay, or he goes in the dumpster. The SMELLY one.', 'Pay, or he swims with the olives.'],
+  scaredYes: ['...Not the anchovies. Anything but the anchovies. {O}.', 'Alright! {O}! Not the dumpster, he just got that suit cleaned!', '(sweating) {O}. And put the bat AWAY.'],
+  scaredNo: ['You don\'t scare me. He\'s been in worse dumpsters.', 'The dumpster? Please. He grew up in one.', 'Nice try. We ALL sleep with the anchovies. It\'s called a pizza.'],
   walk: ['You know what? Keep him. We got plenty of cousins.', 'I\'m done. Come back when you\'re reasonable.', 'Keep him. He eats too much anyway.'],
   hostage: ['Frank (from the back): Boss, just pay them. We miss him. He makes the good coffee.', 'Frank (from the back): Is that Sal? Aww, he looks so relaxed.', 'Frank (from the back): Boss, he\'s got the van keys in his pocket. We NEED him.'],
 };
@@ -798,7 +799,7 @@ export class Rivals {
       g.broadcastEvent({ k: 'rvNews', text: N.name + ' paid ' + money(amt) + ' to get ' + n.name + ' back.', alarm: 'RANSOM PAID!' });
       g.sfx('cash', null);
     };
-    const walk = () => { G.ransomCool = this.time + 60; delete R.ransom[pid]; send([['boss', pick(RANSOM.walk)], ['narr', 'He slams the door. Try again in a minute. ' + n.name + ' stays in your chair until then.']], true); };
+    const walk = () => { G.ransomCool = this.time + 60; delete R.ransom[pid]; send([['boss', pick(RANSOM.walk)], ['narr', 'He slams the door. Try again in a minute... or bag ' + n.name + ' back up and show them what happens to people who don\'t pay. (The dumpster behind the hideout looks roomy.)']], true); };
     switch (a.step) {
       case 'take': return end(n.offer, pick(RANSOM.accept));
       case 'demand': {
@@ -813,9 +814,9 @@ export class Rivals {
         if (n.threatened) { n.patience--; if (n.patience <= 0) return walk(); return send([['you', 'Do you want him back or NOT?'], ['boss', 'You already said that. It worked less the second time.']]); }
         n.threatened = true;
         const armed = ['foambat', 'mallet'].includes(W.eq?.[pid]);
-        if (Math.random() < (armed ? 0.8 : 0.5)) { n.offer = Math.round(Math.min(n.value, n.offer * 1.35) / 50) * 50; return send([['you', armed ? '(you tap the photo with your bat) Do you want him back or not?' : 'Do you want him back or not?'], ['boss', fmt(pick(RANSOM.scaredYes))]]); }
+        if (Math.random() < (armed ? 0.8 : 0.5)) { n.offer = Math.round(Math.min(n.value, n.offer * 1.35) / 50) * 50; return send([['you', (armed ? '(you tap the photo with your bat) ' : '') + pick(RANSOM.threat)], ['boss', fmt(pick(RANSOM.scaredYes))]]); }
         n.patience--; if (n.patience <= 0) return walk();
-        return send([['you', 'Do you want him back or not?'], ['boss', pick(RANSOM.scaredNo)]]);
+        return send([['you', pick(RANSOM.threat)], ['boss', pick(RANSOM.scaredNo)]]);
       }
       case 'leave': delete R.ransom[pid]; return send([['you', 'I\'ll think about it.'], ['boss', 'You do that.']], true);
     }
@@ -855,7 +856,7 @@ export class Rivals {
       items: [
         { label: 'Take the ' + money(o), sub: 'Hand him over. Done.', on: () => g.act({ k: 'rv', op: 'ransom', step: 'take' }) },
         ...tiers.map(([m, l]) => { const amt = Math.round(o * m / 50) * 50; return { label: l + ': ' + money(amt), sub: m < 2 ? 'He\'ll probably meet you halfway.' : m < 3 ? 'Risky. He might get insulted.' : 'He will DEFINITELY get insulted. But what if?', on: () => g.act({ k: 'rv', op: 'ransom', step: 'demand', amt }) }; }),
-        { label: 'Do you want him back or not?', sub: 'Lean on him. Works better with a bat in your hand. Only works once.', on: () => g.act({ k: 'rv', op: 'ransom', step: 'threat' }) },
+        { label: 'Pay up. Or he sleeps with the anchovies.', sub: 'Make him an offer he can\'t refuse. Works better with a bat in your hand. Only works once.', on: () => g.act({ k: 'rv', op: 'ransom', step: 'threat' }) },
         { label: 'Walk away (keep him for now)', on: () => g.act({ k: 'rv', op: 'ransom', step: 'leave' }) },
       ],
     });

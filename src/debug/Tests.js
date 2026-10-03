@@ -195,6 +195,43 @@ export async function run(g, name) {
     if (name === 'bm') return await bmTest(g);
     if (name === 'inv') return await invTest(g);
     if (name === 'rivals') return await rivalsTest(g);
+    if (name === 'hostui') {   // host a co-op room the real way: what is under the lobby buttons?
+      g.noRender = false;
+      const net = g.net, profile = g.profile;
+      try { await net.host({ name: profile.name, look: profile.look, key: profile.key }); } catch (e) { note('host failed: ' + e.message); }
+      document.getElementById('title').classList.add('gone'); g.phase = 'lobby'; g.lobbyMenu();
+      await new Promise(r => setTimeout(r, 1500));
+      const btns = [...document.querySelectorAll('#panel .mi')];
+      log(btns.length >= 2, 'lobby menu has ' + btns.length + ' buttons, room ' + net.room);
+      for (const b of btns) {
+        const r = b.getBoundingClientRect(), top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        log(b.contains(top), 'button "' + b.textContent.slice(0, 30) + '" is on top (under the mouse: ' + (top ? top.tagName + '#' + top.id + '.' + top.className : 'nothing') + ')');
+      }
+      const st = getComputedStyle(document.getElementById('panel'));
+      note('panel: display=' + st.display + ' z=' + st.zIndex + ' pe=' + st.pointerEvents);
+      // friends join: the lobby redraws once each, and then holds still (it used to redraw forever)
+      let redraws = 0; const mo = new MutationObserver(() => redraws++); mo.observe(document.getElementById('panel'), { childList: true });
+      net.on.join('f1', { name: 'Friend', look: 1 }); net.on.join('f2', { name: 'Friend 2', look: 2 });
+      await new Promise(r => setTimeout(r, 300)); const r1 = redraws;
+      await new Promise(r => setTimeout(r, 1000)); mo.disconnect();
+      log(redraws === r1, 'two friends joined: the lobby redrew ' + r1 + ' times, then held still (' + (redraws - r1) + ' more in the next second)');
+      btns.length = 0; btns.push(...document.querySelectorAll('#panel .mi'));
+      // press "Start a new story" like a person would
+      btns[0]?.click();
+      await new Promise(r => setTimeout(r, 300));
+      log(g.phase !== 'lobby', 'pressed Start: phase is now ' + g.phase + (window.__logs?.length ? ' LOGS: ' + window.__logs.join(' | ') : ''));
+      // skip the intro and play a little as the host
+      if (g.intro.active?.skip) g.intro.active.skip();
+      for (let i = 0; i < 200 && g.phase !== 'play'; i++) { await new Promise(r => setTimeout(r, 50)); if (g.intro.active?.skip) g.intro.active.skip(); if (g.ui.dlg) { g.ui.dlg.typed = 1e9; g.ui._next(); } }
+      note('after the intro: phase=' + g.phase + ' menu=' + !!g.ui.menuOpen + ' dlg=' + !!g.ui.dlg + ' frozen=' + g.frozen() + ' blocked=' + g.input.blocked + ' override=' + !!g.cam.override + ' cine=' + JSON.stringify(document.body.className));
+      const tops = [[0.5, 0.5], [0.5, 0.92], [0.1, 0.1], [0.9, 0.5]].map(([fx, fy]) => { const e = document.elementFromPoint(innerWidth * fx, innerHeight * fy); return fx + ',' + fy + ':' + (e ? e.tagName + '#' + e.id + '.' + String(e.className).slice(0, 20) : '-'); });
+      note('on top: ' + tops.join(' | '));
+      g.phone(); await new Promise(r => setTimeout(r, 100));
+      const pb = document.querySelector('#panel .mi'); const pr = pb?.getBoundingClientRect(); const pt = pr && document.elementFromPoint(pr.x + pr.width / 2, pr.y + pr.height / 2);
+      log(pb && pb.contains(pt), 'in-game phone button is clickable (under it: ' + (pt ? pt.tagName + '#' + pt.id + '.' + pt.className : '-') + ')');
+      note('logs: ' + (window.__logs || []).join(' | '));
+      return;
+    }
     if (name === 'camtest') {   // the admin button "a rival sneaks in NOW", early in the story
       setupAt(g, 3); sim(g, 0.2);
       const W = g.W, ev = [], on = g.onEvent.bind(g); g.onEvent = (f, e) => { ev.push(e.k); on(f, e); };

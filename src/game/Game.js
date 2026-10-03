@@ -94,6 +94,8 @@ export class Game {
     const W = this.W;
     if (this.isHost && this.me !== 'me' && W.hold.me) { W.hold[this.me] = W.hold.me; delete W.hold.me; if (W.wear.me) { W.wear[this.me] = W.wear.me; delete W.wear.me; } }
     this.phase = 'play';
+    // the room-code menu goes away for good once the game starts
+    if (this.ui.menuOpen?.lobby) { this.ui.menuOpen.onClose = null; this.ui.closeMenu(); }
     this.ui.hudVisible(true);
     if (this.W.quest <= Q.HOSPITAL) this.runIntro();
     else this.spawnInTown();
@@ -501,7 +503,11 @@ export class Game {
   lobbyMenu() {
     const N = this.net, ui = this.ui;
     const names = N.lobbyList.map(p => p.name + (p.you ? ' (you)' : '') + (p.host ? ' - host' : '')).join('<br>');
+    // redrawing the lobby (someone joined) must not trigger the "reopen when closed" below:
+    // that started an endless redraw loop and the host's buttons could never be clicked
+    if (ui.menuOpen && ui.menuOpen.lobby) ui.menuOpen.onClose = null;
     ui.menu({
+      lobby: true,
       title: N.isHost ? 'ROOM CODE: ' + N.room : 'Waiting for the host...',
       sub: N.isHost ? 'Your friends click "Join co-op" and type this code. Up to 4 players.' : 'The host will start the game.',
       html: `<div class="card">${names}</div>`,
@@ -509,7 +515,7 @@ export class Game {
         { label: 'Start a new story (everyone plays the intro)', on: () => { this.net.sendEvent({ k: 'begin', intro: true }); this.begin(true); } },
         { label: 'Continue the saved game', disabled: !loadWorld(), on: () => { this.begin(false); this.net.sendEvent({ k: 'begin', intro: this.W.quest <= Q.HOSPITAL }); } },
       ] : [{ label: 'Waiting...', disabled: true, keep: true }],
-      onClose: () => { if (this.phase === 'lobby' && N.isHost) setTimeout(() => this.phase === 'lobby' && this.lobbyMenu(), 50); },
+      onClose: () => { if (this.phase === 'lobby' && N.isHost) setTimeout(() => { if (this.phase === 'lobby' && !this.ui.menuOpen) this.lobbyMenu(); }, 50); },
     });
   }
 
