@@ -13,7 +13,7 @@ import { ADD_KEYS, STOCK_NAME, UPGRADES } from '../data/Data.js';
 import { HQ } from '../world/Town.js';
 import { pick, money } from '../core/Util.js';
 
-const COOK_RATE = 1 / 14;     // per second: cooked at 0.85, burnt past 1.35, fire at 1.9
+const COOK_RATE = 1 / 11;     // per second: cooked at 0.85, burnt past 1.35, fire at 1.9
 export const COOKED = 0.85, BURNT = 1.35, FIRE_AT = 1.9;
 
 export function cookWord(c) {
@@ -105,11 +105,11 @@ export class Kitchen {
       const cooking = (s.type === 'oven' || s.type === 'bigoven') && (st.item || st.items.length);
       if (v.S.glow) {
         if (s.type === 'fuse') v.S.glow.material = this._glow(W.power ? 0x20ff60 : 0xff2020);
-        else if (s.type === 'oven') v.S.glow.material = W.power && st.fire <= 0 && !st.burnt ? this._glow(cooking ? 0xff7a20 : 0xc8501a) : this._dark;
+        else if (s.type === 'oven') v.S.glow.material = this.lit(s.id) ? this._glow(cooking ? 0xff7a20 : 0xc8501a) : this._dark;
         else v.S.glow.material = cooking ? this._glow(0xff7a20) : this._dark;
       }
       // the wood fire inside a dome oven: always flickering when the power (gas) is on, roaring while it bakes
-      if (v.S.mouth && W.power && st.fire <= 0 && !st.burnt && Math.random() < dt * (cooking ? 14 : 4)) {
+      if (v.S.mouth && this.lit(s.id) && Math.random() < dt * (cooking ? 14 : 4)) {
         v.S.group.updateMatrixWorld();
         const p = v.S.mouth.clone(); p.z -= 0.25; p.applyMatrix4(v.S.group.matrixWorld);
         fx.flame(p.x, p.y - 0.15, p.z, cooking ? 0.45 : 0.28);
@@ -129,6 +129,10 @@ export class Kitchen {
     const T = this.g.town;
     T.boarded.visible = W.level < 2; T.boardCol.on = W.level < 2;
     T.hqSign.material.map = this._signTex(W.sign);
+    // the specials board, police tape over the door, the fridge disguise
+    if (T.specialsBoard) T.specialsBoard.material.map = this._boardTex(!!W.boardFlipped);
+    if (T.hqTape) T.hqTape.visible = W.shutdown > 0;
+    if (T.fridgeCover) T.fridgeCover.visible = !!W.stockHidden;
     // staff
     this._staff('cook', W.owned.up.cook && W.level >= 2, { hat: 'chef', shirt: '#ffffff', pants: '#22222c', mustache: true, hair: '#3a2418', apron: true }, 156.2, 74.2, Math.PI);
     this._staff('driver', W.owned.up.driver && W.level >= 2, { hat: 'cap', hatColor: '#2a2a38', shirt: '#2a2a38', pants: '#2b2b38', skin: '#c98a5e', glasses: 'sun' }, 134, 91, 0.5);
@@ -154,6 +158,12 @@ export class Kitchen {
           : textTexture(['OLD SHOE REPAIR', '(CLOSED)'], { w: 1180, h: 256, bg: '#5a4a3a', fg: '#ffd65a' });
     }
     return this._st[kind];
+  }
+  _boardTex(flipped) {
+    this._bt = this._bt || {};
+    const k = flipped ? 'f' : 'n';
+    if (!this._bt[k]) this._bt[k] = this.g.mesher.textTexture(flipped ? ['SHOE PRICES', 'Sneakers... $40', 'Boots... $60', 'Sandals... $25'] : ["TODAY'S SPECIALS", '(ALL ILLEGAL)', 'Margherita... $1,500', 'Pepperoni... $1,800'], { w: 560, h: 258, bg: flipped ? '#f6f1e6' : '#1b1b24', fg: flipped ? '#2a1640' : '#ffffff', borderColor: '#c8a070' });
+    return this._bt[k];
   }
   _staff(k, on, look, x, z, ry) {
     if (on && !this.staff[k]) { const r = makeChar(look); r.root.position.set(x, 0.05, z); r.root.rotation.y = ry; this.root.add(r.root); this.staff[k] = r; }
@@ -194,9 +204,13 @@ export class Kitchen {
           const cap = s.slots || 1;
           const canPut = top && (top.k === 'base' || (top.k === 'pizza' && top.cook < BURNT));
           if (!W.power) { T('No power.', { warn: true }); break; }
-          if (canPut && items.length < cap) { T((top.sauce ? 'Put it in the oven' : 'Put it in the oven (no sauce?!)'), { act: { k: 'use', id: s.id, op: 'place' } }); break; }
+          if (W.shutdown > 0) { T('POLICE TAPE: shut down for ' + Math.ceil(W.shutdown) + 's', { warn: true }); break; }
+          const fire = { label: st.off ? 'Light the oven' : 'Put out the fire (inspectors notice hot ovens)', act: { k: 'use', id: s.id, op: 'toggle' } };
+          if (st.off && !items.length) { T('The oven is cold', { info: true, alt: fire }); break; }
+          if (canPut && items.length < cap) { T((top.sauce ? 'Put it in the oven' : 'Put it in the oven (no sauce?!)'), { act: { k: 'use', id: s.id, op: 'place' }, alt: fire }); break; }
           if (items.length && (!top || top.k === 'box')) { const best = items.reduce((a, b) => (b.cook > a.cook ? b : a)); T('Take out (' + cookWord(best.cook) + ')', { act: { k: 'use', id: s.id, op: 'take' }, oven: true }); break; }
-          if (!items.length && !top && st.grease > 0.3) T('Scrub the oven (greasy: ' + Math.round(st.grease * 100) + '%)', { hold: 2, act: { k: 'use', id: s.id, op: 'clean' } });
+          if (!items.length && !top && st.grease > 0.3) T('Scrub the oven (greasy: ' + Math.round(st.grease * 100) + '%)', { hold: 2, act: { k: 'use', id: s.id, op: 'clean' }, alt: fire });
+          else if (!items.length) T('Oven ready (bring a raw pizza)', { info: true, alt: fire });
           break;
         }
         case 'box':
@@ -211,15 +225,31 @@ export class Kitchen {
           if (top && top.k !== 'ext') T('Hide it in the "shoe" fridge (' + st.items.length + ' hidden)', { act: { k: 'use', id: s.id, op: 'put' }, alt: st.items.length ? { label: 'Take one out', act: { k: 'use', id: s.id, op: 'take' } } : null });
           else if (st.items.length && !top) T('Take something out (' + st.items.length + ' hidden)', { act: { k: 'use', id: s.id, op: 'take' } });
           break;
-        case 'fridge': T('Check the stock', { local: 'stock' }); break;
+        case 'fridge': {
+          const hide = { label: W.stockHidden ? 'Un-disguise the fridge (use the ingredients again)' : 'Disguise the fridge: ONLY SHOES (hides the ingredients from inspectors)', act: { k: 'use', id: s.id, op: 'hideStock' } };
+          if (top && top.k === 'crate') T('Unload the crate into the fridge (' + top.n + ' ' + STOCK_NAME[top.s].toLowerCase() + ')', { act: { k: 'use', id: s.id, op: 'unload' }, alt: hide });
+          else T(W.stockHidden ? 'The fridge says ONLY SHOES (ingredients hidden)' : 'Check the stock', { local: 'stock', alt: hide });
+          break;
+        }
         case 'ext':
           if (!top && st.ext) T('Grab the fire extinguisher', { act: { k: 'use', id: s.id, op: 'take' } });
           else if (top && top.k === 'ext' && !st.ext) T('Hang the extinguisher back up', { act: { k: 'use', id: s.id, op: 'put' } });
           break;
         case 'trashcan': if (top) T('Throw away the ' + pizzaName(top), { act: { k: 'use', id: s.id, op: 'trash' } }); break;
         case 'laptop': T('Use the laptop (upgrades)', { local: 'laptop' }); break;
-        case 'trapdoor': T(s.to === 1 ? 'Climb down to the basement' : 'Climb back up', { local: 'hatch', to: s.to }); break;
+        case 'trapdoor': {
+          const open = W.hatchOpen !== false;
+          const tog = { label: open ? 'Close the secret hatch (inspectors won\'t find the basement)' : 'Open the secret hatch', act: { k: 'use', id: s.id, op: 'hatch' } };
+          if (s.to === 1 && !open) T('The hatch is closed (it looks like floor)', { info: true, alt: tog });
+          else T(s.to === 1 ? 'Climb down to the basement' : 'Climb back up', { local: 'hatch', to: s.to, alt: s.to === 1 ? tog : null });
+          break;
+        }
       }
+    }
+    // the specials board on the wall: flip it before an inspector reads it
+    if (P.floor === 0) {
+      const d = Math.hypot(146.2 - P.pos.x, 72.9 - P.pos.z);
+      if (d < 2.2) out.push({ x: 146.2, z: 72.9, d: d + 0.6, label: W.boardFlipped ? 'Flip the board back to TODAY\'S SPECIALS' : 'Flip the specials board (to: SHOE PRICES)', act: { k: 'board' } });
     }
     // junk piles
     if (P.floor === 0) W.trash.forEach((t, i) => {
@@ -243,12 +273,20 @@ export class Kitchen {
         if (!cost) say('Oleg fixed it for free. "Oleg respects the family."');
         break;
       }
+      case 'toggle': st.off = !st.off; g.sfx(st.off ? 'whoosh' : 'boom', s); break;
+      case 'unload':
+        if (!top || top.k !== 'crate') return;
+        H.pop(); W.stock[top.s] = (W.stock[top.s] || 0) + top.n; g.sfx('drop', s);
+        g.story.onStock(); break;
+      case 'hideStock': W.stockHidden = !W.stockHidden; g.sfx('whoosh', s); say(W.stockHidden ? 'The fridge now says ONLY SHOES. The ingredients are hidden (and can\'t be used).' : 'The fridge is a fridge again.'); break;
+      case 'hatch': W.hatchOpen = W.hatchOpen === false; g.sfx('ovenDoor', s); break;
       case 'fuse':
         if (W.power) return;
         W.power = true; g.sfx('ding', s); g.fxAt('sparkle', s.x, 1.8, s.z);
         g.story.onPower(); break;
       case 'take':
         if (s.type === 'dough') {
+          if (W.stockHidden) return say('The ingredients are hidden in the "shoe" fridge. Un-disguise it first (R at the fridge).');
           if (W.stock.dough <= 0 || (top && top.k !== 'box')) return;
           W.stock.dough--; H.push({ k: 'dough' }); g.sfx('squish', s);
         } else if (s.type === 'prep') {
@@ -289,6 +327,7 @@ export class Kitchen {
       case 'add': {
         const it = st.item, what = a.what;
         if (!it || it.k !== 'base' || !ADD_KEYS.includes(what)) return;
+        if (W.stockHidden) return say('The ingredients are hidden in the "shoe" fridge. Un-disguise it first.');
         if (W.stock[what] <= 0) return say('Out of ' + STOCK_NAME[what].toLowerCase() + '!');
         if (what === 'sauce') { if (it.sauce) return say('It already has sauce.'); it.sauce = 1; }
         else if (what === 'cheese') { it.cheese = (it.cheese || 0) + 1; if (it.cheese === 3) say('That is a LOT of cheese...'); if (it.cheese >= 4) say('This is a cheese bomb. Literally.'); }
@@ -350,6 +389,7 @@ export class Kitchen {
     if (st.item) st.item.cook = 3;
     for (const it of st.items) it.cook = 3;
     this.g.W.stats.fires++;
+    this.g.inspections.tip(3);
     this.g.alarm(why || 'FIRE IN THE KITCHEN!');
     this.g.sfx('boom', s);
     this.g.dirty();
@@ -363,14 +403,14 @@ export class Kitchen {
     for (const s of STATIONS) {
       if (!this.available(s)) continue;
       const st = this.st(s.id);
-      if ((s.type === 'oven' || s.type === 'bigoven') && W.power) {
+      if ((s.type === 'oven' || s.type === 'bigoven') && this.lit(s.id)) {
         const items = s.slots ? st.items : st.item ? [st.item] : [];
         const r = rate * (s.type === 'bigoven' ? 2.2 : 1);
         for (const it of items) {
           if (st.fire > 0) continue;
           const before = it.cook;
           it.cook += r * dt;
-          if (before < COOKED && it.cook >= COOKED) { g.sfx('timerDing', s); W.stats.baked = (W.stats.baked || 0) + 1; st.grease += 0.12; g.addHeat(W.level >= 3 && s.floor ? 0.5 : 1); }
+          if (before < COOKED && it.cook >= COOKED) { g.sfx('timerDing', s); W.stats.baked = (W.stats.baked || 0) + 1; st.grease += 0.12; g.addHeat((W.level >= 3 && s.floor ? 0.5 : 1) * (W.owned.up.purifier ? 0.6 : 1) * (W.fresh > 0 ? 0.3 : 1)); }
           if (before < BURNT && it.cook >= BURNT) { g.sfx('sizzle', s); W.stats.burnt++; g.tell(null, 'Something is burning!'); }
           // too much cheese: it blows
           if ((it.cheese || 0) >= 3 && it.cook > 0.45) {
@@ -468,11 +508,16 @@ export class Kitchen {
     }
     return n;
   }
+  /** is this oven burning (and so able to cook) */
+  lit(id) {
+    const W = this.g.W, st = this.st(id);
+    return W.power && !(W.shutdown > 0) && !st.off && !st.burnt && st.fire <= 0;
+  }
   confiscate() {
-    const W = this.g.W, hidden = W.owned.up.hidden;
+    const W = this.g.W, hidden = W.owned.up.hidden || W.hatchOpen === false;
     for (const s of STATIONS) {
       if (!this.available(s) || s.type === 'stash') continue;
-      if (hidden && (s.floor === 1 || s.x > HQ.split)) continue;
+      if (hidden && s.floor === 1) continue;
       const st = this.st(s.id);
       st.item = null; st.items = [];
     }

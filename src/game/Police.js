@@ -11,7 +11,7 @@ import * as THREE from '../../lib/three.module.js';
 import { makeChar } from '../art/Chars.js';
 import { makeCar } from '../art/Props.js';
 import { ROADS, HQ } from '../world/Town.js';
-import { BARK, DISGUISES } from '../data/Data.js';
+import { BARK, DISGUISES, VEHICLES } from '../data/Data.js';
 import { isContraband } from './State.js';
 import { roomAt } from '../data/Hideout.js';
 import { drive } from './Vehicles.js';
@@ -63,7 +63,7 @@ export class Police {
   /** host: who's out there - fed by Game from local + remote states */
   hostUpdate(dt, players) {
     const g = this.g, W = g.W;
-    if (W.quest < 3) return;
+    if (W.quest < 4) return; // no police around until you know pizza is illegal
     // headcount follows the heat
     const footWanted = clamp(3 + Math.floor(W.heat / 12), 3, 10) - (W.ending ? 1 : 0);
     const carWanted = clamp(1 + Math.floor(W.heat / 30), 1, 4);
@@ -84,6 +84,7 @@ export class Police {
     for (const c of [...this.cops]) {
       if (c.stun > 0) { c.stun -= dt; c.spd = 0; if (c.stun <= 0 && c.st === 'stun') c.st = c.fixed ? 'guard' : 'patrol'; continue; }
       if (c.kind === 'insp') { this._inspector(c, dt, players); continue; }
+      if (c.kind === 'officer') continue; // the inspection moves these
       // look for crime
       if (c.st !== 'chase') for (const p of players) this._watch(c, p, dt);
       let tx = c.tx, tz = c.tz, speed = 3.0;
@@ -175,6 +176,7 @@ export class Police {
 
   _car(c, dt, players) {
     const g = this.g, W = g.W, col = g.town.col;
+    if (c.st === 'parked') { c.spd = 0; return; }
     c.siren = c.st === 'chase' ? 1 : 0;
     if (c.st === 'patrol') {
       const dx = c.to.x - c.from.x, dz = c.to.z - c.from.z, L = Math.hypot(dx, dz) || 1;
@@ -187,12 +189,13 @@ export class Police {
       for (const p of players) {
         if (!p.car || p.carSeat !== 0) continue;
         const veh = W.cars.find(v => v.id === p.car); if (!veh) continue;
-        if (veh.kind === 'icecream' && W.heat < 80) continue;
+        const sus = (VEHICLES[veh.kind]?.sus ?? 1);
+        if (sus === 0 && W.heat < 80) continue;
         const crew = [veh.drv, ...veh.pas].filter(Boolean);
-        const contra = crew.some(id => g.hold(id).some(isContraband));
+        const contra = crew.some(id => g.hold(id).some(isContraband)) || (veh.cargo || []).length > 0;
         if (!contra) continue;
         const d = Math.hypot(veh.x - c.x, veh.z - c.z);
-        if (d < 26 * (W.ending ? 0.7 : 1) && !col.blocked(c.x, c.z, veh.x, veh.z, 0)) {
+        if (d < 26 * Math.max(0.3, sus) * (W.ending ? 0.7 : 1) * (W.weather?.k === 'storm' ? 0.75 : 1) && !col.blocked(c.x, c.z, veh.x, veh.z, 0)) {
           c.st = 'chase'; c.tgt = veh.id; c.lost = 0;
           g.broadcastEvent({ k: 'spotted', pid: p.id, car: true });
         }
@@ -204,7 +207,7 @@ export class Police {
       const want = Math.atan2(dx, dz);
       const steer = clamp(wrapAngle(want - c.yaw) * 2, -1, 1);
       drive(c, { thr: 1, steer, brake: Math.abs(wrapAngle(want - c.yaw)) > 1.6 && c.spd > 10 }, dt, col, { speed: 27, accel: 18 }, 3.9, 1.9);
-      if (d > 85 || col.blocked(c.x, c.z, veh.x, veh.z, 0)) c.lost += dt; else c.lost = 0;
+      if (d > 85 || col.blocked(c.x, c.z, veh.x, veh.z, 0)) c.lost += dt * (VEHICLES[veh.kind]?.getaway ? 2 : 1); else c.lost = 0;
       if (c.lost > 7) { c.st = 'return'; g.broadcastEvent({ k: 'lostcar' }); }
       if (d < 3.6) {
         const vs = Math.abs(veh.spd || 0);

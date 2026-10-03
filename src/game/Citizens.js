@@ -6,6 +6,8 @@ import { makeChar, SKINS } from '../art/Chars.js';
 import { ROADS } from '../world/Town.js';
 import { BARK } from '../data/Data.js';
 import { NERVOUS } from '../data/Mafia.js';
+
+const INNOCENT = ['Nice weather today.', 'Have you been to the new mall?', 'My cat is judging me again.', 'Is it Tuesday? It feels like a Tuesday.', 'I had bread for dinner. Again. Just bread.', 'Don\'t... don\'t say the word. Never mind.', 'Mmm. Round things. ...Sorry, what?', 'The mayor\'s been weird lately.', 'Crumbville! What a town.'];
 import { isContraband } from './State.js';
 import { pick, rand, dampAngle } from '../core/Util.js';
 
@@ -79,7 +81,9 @@ export class Citizens {
       } else if (d < 5 && c.barkT <= 0) {
         c.barkT = rand(18, 35);
         const nervous = g.debts.tier >= 2 && Math.random() < 0.3 + g.debts.tier * 0.1;
-        g.bubble(() => ({ x: c.x, z: c.z }), pick(nervous ? NERVOUS : BARK.citizenIdle));
+        // before you know about the ban, people talk about anything else (and are a bit weird about food)
+        const pre = g.W.quest < 4;
+        g.bubble(() => ({ x: c.x, z: c.z }), pick(pre ? INNOCENT : nervous ? NERVOUS : BARK.citizenIdle));
         if (nervous) c.panic = 0.8;
       }
       if (d < 6 && !moving) { c.yaw = dampAngle(c.yaw, Math.atan2(P.pos.x - c.x, P.pos.z - c.z), 4, dt); look = true; }

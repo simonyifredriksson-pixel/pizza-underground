@@ -6,6 +6,8 @@ import { Q } from '../data/Story.js';
 import { STOCK } from '../data/Data.js';
 import { HQ } from '../world/Town.js';
 import { STATION } from '../data/Hideout.js';
+import { drive as driveFn } from '../game/Vehicles.js';
+import { VEHICLES as VEH } from '../data/Data.js';
 
 export function setupAt(g, q) {
   const W = newWorld();
@@ -19,6 +21,7 @@ export function setupAt(g, q) {
   g.W = W;
   g.phase = 'play';
   document.getElementById('title').classList.add('gone');
+  setTimeout(() => { g.ui.cinema(false); g.ui.fade(false); g.intro.active = null; g.cam.override = null; }, 600);
   g.ui.hudVisible(true); g.ui.cinema(false); g.ui.fade(false); g.ui.sub(null);
   g.intro.active = null; g.cam.override = null;
   if (q >= Q.CLEAN) g.player.teleport(146, 80, 0, Math.PI / 2);
@@ -31,6 +34,9 @@ export function setupAt(g, q) {
   const ui = qs.get('ui');
   if (ui) setTimeout(() => {
     if (ui === 'map') g.map.show();
+    if (ui === 'storm') { W.weather = { k: 'storm', t: 300 }; g.weather.k = 0.99; }
+    if (ui === 'insp') { g.inspections.start('A neighbor reported "suspicious happiness".'); W.insp.t = 31; }
+    if (ui === 'admin') g.admin.toggle();
     if (ui === 'phone') { g.orders.spawn(); g.orders.spawn().state = 'open'; g.orders.spawn().sting = true; g.phone(); }
     if (ui === 'laptop') g.npcs.laptop();
     if (ui === 'shop') g.npcs.supplierMenuOnly('larry');
@@ -50,6 +56,12 @@ function frame(g, s) {
     street: () => { P.teleport(-80, -30, 0, 3.1); g.cam.pitch = 0.2; g.cam.dist = 6.5; P.camYaw = 0.2; },
     man: () => { P.teleport(-89, -50, 0, -2.6); g.cam.pitch = 0.25; g.cam.dist = 5; P.camYaw = 0.9; },
     cityhall: () => { P.teleport(0, -60, 0, 3.1); g.cam.pitch = 0.2; g.cam.dist = 8; P.camYaw = 0.0; },
+    mallOut: () => { P.teleport(-116, 72, 0, Math.PI / 2); g.cam.fpPitch = 0.05; },
+    courtyard: () => { P.teleport(-90, 72, 0, 0.6); g.cam.fpPitch = 0.08; },
+    grocery: () => { P.teleport(-80, 66, 0, Math.PI); g.cam.fpPitch = 0.1; },
+    showroom: () => { P.teleport(-94, 88, 0, -Math.PI / 2); g.cam.fpPitch = 0.15; },
+    equip: () => { P.teleport(-66, 88, 0, Math.PI / 2); g.cam.fpPitch = 0.15; },
+    houses: () => { P.teleport(70, 50.5, 0, 0.35); g.cam.fpPitch = 0.05; },
     kitchen: () => { P.teleport(146.5, 78.5, 0, Math.PI); g.cam.pitch = 0.5; g.cam.dist = 5; P.camYaw = 0; },
     oven: () => { P.teleport(149.5, 75.6, 0, Math.PI); g.cam.fpPitch = 0.45; },
     prep: () => { P.teleport(145.7, 75, 0, Math.PI); g.cam.fpPitch = 0.5; },
@@ -88,6 +100,15 @@ export async function run(g, name) {
     if (name === 'inspector') return inspector(g);
     if (name === 'input') return inputTest(g);
     if (name === 'debts') return debts(g);
+    if (name === 'mall') return mall(g);
+    if (name === 'perf') {
+      const R = g.renderer; let tris = 0, meshes = 0; g.scene.traverse(o => { if (o.isMesh && o.visible) { meshes++; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1); } });
+      const t0 = performance.now(); for (let i = 0; i < 5; i++) R.render(g.scene, g.camera); const tr = (performance.now() - t0) / 5;
+      const t1 = performance.now(); for (let i = 0; i < 20; i++) g.update(1 / 60); const tu = (performance.now() - t1) / 20;
+      note('scene: ' + meshes + ' meshes, ' + Math.round(tris / 1000) + 'k tris; render ' + tr.toFixed(0) + 'ms; update ' + tu.toFixed(1) + 'ms; calls ' + R.info.render.calls);
+      return;
+    }
+    if (name === 'dbg') { setTimeout(() => { note('tasks: ' + document.getElementById('tasks').innerHTML.slice(0, 300)); note('weather ' + JSON.stringify(g.W.weather) + ' k=' + g.weather.k + ' rain=' + g.weather.rain.visible + ' phase=' + g.phase + ' insp=' + JSON.stringify(g.W.insp && g.W.insp.ph)); }, 4000); return; }
     if (name === 'all') { kitchen(g); fire(g); police(g); inspector(g); story(g); note('DONE'); return; }
   } catch (e) { log(false, 'exception ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 3).join(' ')); }
 }
@@ -298,17 +319,58 @@ function inspector(g) {
   const W = g.W;
   W.heat = 50;
   W.st.prep1 = { item: { k: 'base', sauce: 1, cheese: 1, top: [], cook: 0 }, items: [], grease: 0, fire: 0, burnt: false, ext: true };
-  g.events.start('inspector');
-  log(W.event?.k === 'inspector' && W.event.t > 20, 'the inspector is coming, eta ' + Math.round(W.event?.t));
+  g.inspections.start('test');
+  log(W.insp?.ph === 'warn' && W.insp.t >= 45, 'POLICE INSPECTION INCOMING, countdown ' + Math.round(W.insp?.t));
   const m0 = W.money;
-  sim(g, 200, 1 / 15);
-  log(W.money < m0 && !W.st.prep1.item, 'evidence found: fined ' + (m0 - W.money));
-  // clean run
-  W.event = null; W.heat = 60;
-  g.events.start('inspector');
-  sim(g, 200, 1 / 15);
-  log(W.heat < 40, 'clean kitchen: heat dropped to ' + Math.round(W.heat));
+  for (let i = 0; i < 160 && W.insp; i++) sim(g, 1, 1 / 15);
+  log(!W.insp && W.money < m0 && !W.st.prep1.item, 'messy kitchen: busted, fined ' + (m0 - W.money) + ', evidence confiscated');
+  // a clean run: everything hidden
+  W.inspCool = 0; W.heat = 60; W.money = 30000; W.boardFlipped = true; W.stockHidden = true;
+  for (const id of ['oven1']) g.kitchen.st(id).off = true;
+  g.inspections.start('test');
+  for (let i = 0; i < 160 && W.insp; i++) sim(g, 1, 1 / 15);
+  log(!W.insp && W.heat < 40, 'hid everything: passed, heat ' + Math.round(W.heat));
+  // a disaster: shutdown
+  W.inspCool = 0; W.boardFlipped = false; W.stockHidden = false; g.kitchen.st('oven1').off = false; W.money = 300000; W.sign = 'closed';
+  W.st.prep1.item = { k: 'base', sauce: 1, cheese: 1, top: [], cook: 0 }; W.st.box1 = { item: null, items: [], grease: 1, fire: 0 }; g.kitchen.st('oven1').grease = 1;
+  g.inspections.start('test');
+  for (let i = 0; i < 160 && W.insp; i++) sim(g, 1, 1 / 15);
+  log(W.shutdown > 0, 'evidence everywhere: SHUT DOWN for ' + Math.round(W.shutdown) + 's');
   note('inspector done');
+}
+
+function mall(g) {
+  fresh(g);
+  const W = g.W, me = g.me, items = g.town.shopItems;
+  log(items.length >= 30, 'the mall has ' + items.length + ' products on its shelves');
+  W.money = 500000; W.hold[me] = [];
+  const cheese = items.find(s => s.cat === 'grocery' && s.key === 'cheese');
+  g.exec(me, { k: 'shop', cat: 'grocery', key: 'cheese' });
+  log(g.hold(me)[0]?.k === 'crate' && g.hold(me)[0].s === 'cheese', 'bought a crate of cheese off the shelf');
+  g.exec(me, { k: 'shop', cat: 'vehicle', key: 'pickup' });
+  const car = W.cars.find(c => c.kind === 'pickup');
+  log(!!car, 'bought a pickup truck: it waits at the mall');
+  g.exec(me, { k: 'cargo', id: car.id, op: 'load' });
+  log(car.cargo.length === 1 && !g.hold(me).length, 'loaded the crate into the pickup');
+  car.x = 135; car.z = 80;
+  const c0 = W.stock.cheese;
+  g.exec(me, { k: 'cargo', id: car.id, op: 'unloadAll' });
+  log(W.stock.cheese > c0 && !car.cargo.length, 'unloaded it into the hideout fridge (cheese ' + c0 + ' -> ' + W.stock.cheese + ')');
+  g.exec(me, { k: 'shop', cat: 'equipment', key: 'purifier' });
+  log(W.owned.up.purifier, 'bought an Air Purifier at EQUIP-O-RAMA');
+  g.exec(me, { k: 'shop', cat: 'general', key: 'smoke' });
+  log(W.inv[me].smoke === 1, 'bought a smoke bomb');
+  // load pizza boxes and deliver straight from the car
+  const o = g.orders.spawn({ accepted: true }); o.top = []; o.extra = false; o.sting = false;
+  car.cargo.push({ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 });
+  const at = g.orders.at(o); car.x = at.x + 3; car.z = at.z;
+  const m0 = W.money;
+  g.exec(me, { k: 'deliver', id: o.id, car: car.id });
+  log(W.money > m0 && !car.cargo.length, 'delivered straight out of the truck bed');
+  // the getaway car is faster than the cargo truck
+  const drive = (kind) => { const c = { x: 0, z: 0, yaw: 0, spd: 0 }; for (let i = 0; i < 120; i++) driveFn(c, { thr: 1, steer: 0, brake: 0 }, 1 / 30, { resolve: (x, z) => ({ x, z, hit: false }) }, { ...VEH[kind] }); return c.z; };
+  log(drive('getaway') > drive('cargo') * 1.5, 'the getaway car leaves the cargo truck behind');
+  note('mall done');
 }
 
 function story(g) {

@@ -5,7 +5,7 @@ import * as THREE from '../../lib/three.module.js';
 import { geo, part, mat, Mesher, signMesh, rot } from './Mesher.js';
 
 export const TOP_COLORS = {
-  pepperoni: '#b8322c', mushroom: '#e9dcc4', pineapple: '#f6cf3a', olive: '#2a2a22', pepper: '#3fa34d', ham: '#f0a0a0',
+  pepperoni: '#b8322c', mushroom: '#e9dcc4', pineapple: '#f6cf3a', olive: '#2a2a22', pepper: '#3fa34d', ham: '#f0a0a0', sausage: '#a8553a',
 };
 
 /* ---------------- pizza ---------------- */
@@ -30,6 +30,13 @@ export function makeItem(item) {
     return g;
   }
   if (item.k === 'trash') { g.add(part(geo.ico(0), '#2b2b33', 0, 0.3, 0, 0.6, 0.6, 0.6)); return g; }
+  if (item.k === 'crate') { // a crate of supplies, with a sample of what's inside on top
+    g.add(part(geo.box(), '#b8894c', 0, 0.22, 0, 0.62, 0.44, 0.5));
+    for (const s of [-1, 1]) g.add(part(geo.box(), '#8a6234', 0, 0.22, s * 0.26, 0.64, 0.08, 0.02));
+    const c = { dough: '#f1e6cf', sauce: '#d6232a', cheese: '#ffe14a', ...TOP_COLORS }[item.s] || '#ffffff';
+    for (let i = 0; i < 3; i++) g.add(part(item.s === 'sauce' ? geo.cyl(8) : geo.ico(0), c, -0.18 + i * 0.18, 0.5, 0, 0.16, 0.16, 0.16));
+    return g;
+  }
   if (item.k === 'fuse') { g.add(part(geo.cyl(6), '#e8e0c8', 0, 0.1, 0, 0.1, 0.2, 0.1)); return g; }
   // base or pizza
   const c = item.cook || 0;
@@ -257,6 +264,10 @@ export const CAR_STYLES = {
   civ4: { body: '#c98aff', roof: '#f6f1e6', len: 3.4, wid: 1.7, h: 1.0, cab: 0.9 },
   fire: { body: '#d6232a', roof: '#f6f1e6', len: 6, wid: 2.3, h: 2.2, cab: 0.5, van: true },
   family: { body: '#141418', roof: '#1b1b24', len: 4.9, wid: 1.95, h: 1.05, cab: 0.9 },
+  smallvan: { body: '#8fd0c8', roof: '#f6f1e6', len: 3.8, wid: 1.85, h: 1.8, cab: 0.6, van: true },
+  pickup: { body: '#c8643a', roof: '#c8643a', len: 4.6, wid: 1.95, h: 1.0, cab: 0.9, pickup: true },
+  getaway: { body: '#d6232a', roof: '#1b1b24', len: 4.3, wid: 1.95, h: 0.72, cab: 0.62, stripes: '#ffffff', spoiler: true },
+  cargo: { body: '#e8e8f0', roof: '#d6232a', len: 7.2, wid: 2.5, h: 2.8, cab: 1.0, cargo: true },
 };
 
 export function makeCar(style) {
@@ -273,9 +284,40 @@ export function makeCar(style) {
     body.add(part(geo.box(), '#c79a5b', 0, 0.95, -0.55, 0.6, 0.4, 0.5)); // pizza box on the back
     for (const z of [-0.6, 0.62]) { const w = part(geo.cyl(10), '#1d1a24', 0, 0.25, z, 0.5, 0.18, 0.5); w.rotation.z = Math.PI / 2; g.add(w); C.wheels.push(w); }
     C.seats = [{ x: 0, y: 0.75, z: -0.1 }, { x: 0, y: 0.8, z: -0.5 }];
+    C.bed = { x: 0, y: 1.15, z: -0.55, w: 0.6, l: 0.5, cols: 1 };
+    return C;
+  }
+  const wheelsAt = (wr, zs) => { for (const z of zs) for (const sx of [-1, 1]) { const w = part(geo.cyl(10), '#1d1a24', sx * (W / 2), wr, z, wr * 2, 0.32, wr * 2); w.rotation.z = Math.PI / 2; w.add(part(geo.cyl(6), '#c8c8d8', 0, 0.17, 0, 0.5, 0.05, 0.5)); g.add(w); C.wheels.push(w); } };
+  const glassM = mat('#2a3550', { rough: 0.15, metal: 0.4 });
+  if (S.pickup || S.cargo) {
+    // a cab up front, and behind it either an open bed (pickup) or a big box (cargo truck)
+    const cabL = S.cargo ? 2.2 : L * 0.42, cabZ = L / 2 - cabL / 2 - 0.1, cabH = S.cargo ? 1.9 : 1.55;
+    body.add(part(geo.box(), S.cargo ? '#d6232a' : S.body, 0, 0.35 + cabH / 2, cabZ, W, cabH, cabL));
+    body.add(part(geo.box(), glassM, 0, 0.35 + cabH * 0.68, cabZ + cabL / 2 + 0.01, W * 0.82, cabH * 0.38, 0.04));
+    for (const s of [-1, 1]) body.add(part(geo.box(), glassM, s * (W / 2 + 0.01), 0.35 + cabH * 0.68, cabZ + 0.1, 0.04, cabH * 0.36, cabL * 0.6));
+    for (const s of [-1, 1]) body.add(part(geo.box(), '#fff6c8', s * W * 0.34, 0.75, L / 2 + 0.02, 0.32, 0.18, 0.04, { emissive: 0xfff2b0, ei: 0.4 }));
+    body.add(part(geo.box(), '#2b2b33', 0, 0.45, L / 2, W * 0.98, 0.22, 0.14));
+    const bedL = L - cabL - 0.3, bedZ = -L / 2 + bedL / 2;
+    if (S.pickup) {
+      body.add(part(geo.box(), S.body, 0, 0.62, bedZ, W, 0.12, bedL));
+      for (const s of [-1, 1]) body.add(part(geo.box(), S.body, s * (W / 2 - 0.05), 0.9, bedZ, 0.1, 0.5, bedL));
+      body.add(part(geo.box(), S.body, 0, 0.9, -L / 2 + 0.05, W, 0.5, 0.1));
+      body.add(part(geo.box(), '#c8c8d8', 0, 1.95, cabZ - cabL / 2 - 0.05, W * 0.9, 0.08, 0.08, { metal: 0.5 }));
+      C.bed = { x: 0, y: 0.68, z: bedZ, w: W - 0.3, l: bedL - 0.2, cols: 3 };
+    } else {
+      body.add(part(geo.box(), S.body, 0, 0.45 + 1.4, bedZ, W + 0.1, 2.8, bedL));
+      body.add(part(geo.box(), '#d6232a', 0, 2.1, bedZ, W + 0.12, 0.5, bedL - 0.4));
+      body.add(part(geo.box(), '#2b2b33', 0, 0.45, -L / 2, W, 0.22, 0.14));
+    }
+    for (const s of [-1, 1]) body.add(part(geo.box(), '#c41a1a', s * W * 0.4, 0.75, -L / 2 - 0.02, 0.24, 0.14, 0.04, { emissive: 0xff2020, ei: 0.3 }));
+    wheelsAt(S.cargo ? 0.5 : 0.42, S.cargo ? [L * 0.36, -L * 0.2, -L * 0.36] : [L * 0.32, -L * 0.3]);
+    const sy = 0.55;
+    C.seats = [{ x: -W * 0.22, y: sy, z: cabZ }, { x: W * 0.22, y: sy, z: cabZ }, ...(S.pickup ? [{ x: -W * 0.25, y: 0.75, z: bedZ }, { x: W * 0.25, y: 0.75, z: bedZ }] : [])];
     return C;
   }
   const bodyH = S.van ? S.h * 0.55 : S.h * 0.55;
+  if (S.stripes) for (const s of [-0.18, 0.18]) body.add(part(geo.box(), S.stripes, s, 0.36 + bodyH, 0, 0.16, 0.02, L + 0.02));
+  if (S.spoiler) { body.add(part(geo.box(), '#1b1b24', 0, 0.36 + bodyH + 0.32, -L / 2 + 0.2, W * 0.9, 0.06, 0.4)); for (const s of [-1, 1]) body.add(part(geo.box(), '#1b1b24', s * W * 0.35, 0.36 + bodyH + 0.15, -L / 2 + 0.2, 0.06, 0.3, 0.1)); }
   body.add(part(geo.box(), S.body, 0, 0.35 + bodyH / 2, 0, W, bodyH, L));
   // bumpers
   body.add(part(geo.box(), '#2b2b33', 0, 0.42, L / 2, W * 0.96, 0.18, 0.12));

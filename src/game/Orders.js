@@ -6,7 +6,7 @@
    The pay depends on the recipe, how well it's cooked and how fast you were.
    The host owns the list; everyone sees it. */
 import * as THREE from '../../lib/three.module.js';
-import { CUSTOMERS, ORDER_MSG, STING_MSG, RICH, TOPPINGS, BARK } from '../data/Data.js';
+import { CUSTOMERS, ORDER_MSG, STING_MSG, RICH, TOPPINGS, BARK, VEHICLES } from '../data/Data.js';
 import { COOKED, BURNT, pizzaName } from './Kitchen.js';
 import { pick, rand, randi, money } from '../core/Util.js';
 import { signMesh, geo, part } from '../art/Mesher.js';
@@ -50,7 +50,7 @@ export class Orders {
       W.orderT -= dt;
       const busy = W.orders.filter(o => !o.story).length;
       if (W.orderT <= 0) {
-        W.orderT = Math.max(20, 62 - W.rep * 1.2 - W.heat * 0.2) * rand(0.7, 1.3);
+        W.orderT = Math.max(12, 40 - W.rep * 0.8 - W.heat * 0.15) * rand(0.6, 1.2);
         if (busy < 3 + W.level) { this.spawn(); changed = true; }
       }
     }
@@ -78,8 +78,8 @@ export class Orders {
     if (opts.big) pay *= 1.3;
     const name = opts.big ? 'The Cheese Lord' : rich ? pick(RICH) : pick(CUSTOMERS);
     const msg = opts.big ? 'I need ONE HUNDRED PIZZAS. ...okay the van only fits twelve. TWELVE PIZZAS. Cheese. Now. Money is no object. Money is several objects.' : sting ? pick(STING_MSG) : rich ? 'I require one (1) pizza of the finest quality. Money is not a concern. Money is never a concern.' : pick(ORDER_MSG);
-    const tmax = opts.big ? 420 : 200 + top.length * 25 + qty * 40;
-    const o = { id: W.orderSeq++, h, name, msg, top: opts.big ? [] : top, extra: opts.big ? false : extra, qty, left: qty, pay: Math.round(pay / 10) * 10, t: tmax, tmax, sting, rich, big: !!opts.big, state: opts.accepted ? 'open' : 'new', exp: 50 };
+    const tmax = opts.big ? 300 : 130 + top.length * 20 + qty * 30;
+    const o = { id: W.orderSeq++, h, name, msg, top: opts.big ? [] : top, extra: opts.big ? false : extra, qty, left: qty, pay: Math.round(pay / 10) * 10, t: tmax, tmax, sting, rich, big: !!opts.big, state: opts.accepted ? 'open' : 'new', exp: 35 };
     W.orders.push(o);
     g.broadcastEvent({ k: 'ding', id: o.id });
     g.dirty();
@@ -123,10 +123,11 @@ export class Orders {
   }
 
   /** host: a player at a door with boxes */
-  deliver(pid, id) {
+  deliver(pid, id, carId) {
     const g = this.g, o = this.list.find(x => x.id === id);
     if (!o || o.state !== 'open') return;
-    const H = g.hold(pid);
+    const car = carId != null ? g.W.cars.find(c => c.id === carId) : null;
+    const H = car ? (car.cargo || []) : g.hold(pid);
     let bi = -1, best = -1;
     H.forEach((b, i) => { if (b.k !== 'box') return; const s = this.score(o, b).s; if (s > best) { best = s; bi = i; } });
     if (bi < 0) return g.tell(pid, 'You need a boxed pizza.');
@@ -150,6 +151,8 @@ export class Orders {
     if (s >= 1 && late === 1 && mult === 1) pay = Math.round(pay * 1.2); // tip
     const tier = this.g.debts.tier;
     if (tier >= 2 && pay > 0) pay = Math.round(pay * 1.15);              // nervous customers tip more
+    if (W.weather?.k === 'storm' && pay > 0) pay = Math.round(pay * 1.5); // soaked customers tip big
+    this.g.inspections.tip(o.big ? 3 : 1);                               // somebody always talks
     // sometimes they can't pay right now: "put it on my tab"
     const owes = this.g.debts.list.some(d => d.kind === 'house' && d.ref === o.h);
     if (pid && !o.big && !o.rich && !owes && pay > 0 && s >= 0.5 && Math.random() < (this.forceTab ? 1 : 0.12)) {
@@ -212,7 +215,10 @@ export class Orders {
       const at = this.at(o), d = Math.hypot(at.x - P.pos.x, at.z - P.pos.z);
       if (d > 3.2) continue;
       const boxes = H.filter(b => b.k === 'box').length;
+      // or straight out of a car parked nearby
+      const car = !boxes && this.g.W.cars.find(c => (c.cargo || []).some(b => b.k === 'box') && Math.hypot(c.x - at.x, c.z - at.z) < 16);
       if (boxes) out.push({ x: at.x, z: at.z, d, label: 'Deliver to ' + o.name + (o.left > 1 ? ' (' + o.left + ' left)' : ''), act: { k: 'deliver', id: o.id } });
+      else if (car) out.push({ x: at.x, z: at.z, d, label: 'Deliver to ' + o.name + ' (grab a box from the ' + (VEHICLES[car.kind]?.name || 'car') + ')', act: { k: 'deliver', id: o.id, car: car.id } });
       else out.push({ x: at.x, z: at.z, d, label: o.name + ' wants: ' + recipeText(o) + ' (bring a box)', info: true });
     }
   }

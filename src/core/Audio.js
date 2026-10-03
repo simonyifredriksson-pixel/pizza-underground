@@ -30,6 +30,7 @@ export class Audio {
     this.engGain = ctx.createGain(); this.engGain.gain.value = 0;
     this.eng.connect(ef); ef.connect(this.engGain); this.engGain.connect(this.sfx); this.eng.start();
     this.fire = this._bed('bandpass', 1800, 0.7);
+    this.rainBed = this._bed('highpass', 2500, 0.5);
     this.siren = ctx.createOscillator(); this.siren.type = 'triangle'; this.siren.frequency.value = 700;
     this.sirenGain = ctx.createGain(); this.sirenGain.gain.value = 0;
     this.siren.connect(this.sirenGain); this.sirenGain.connect(this.sfx); this.siren.start();
@@ -115,6 +116,7 @@ export class Audio {
     this.engGain.gain.setTargetAtTime(w.engine ? 0.05 + w.engine * 0.06 : 0, t, 0.1);
     this.eng.frequency.setTargetAtTime(40 + (w.engine || 0) * 90, t, 0.1);
     this.fire.g.gain.setTargetAtTime(Math.min(0.25, (w.fire || 0) * 0.08), t, 0.3);
+    this.rainBed.g.gain.setTargetAtTime((w.rain || 0) * 0.14, t, 0.5);
     const s = w.siren || 0;
     this.sirenGain.gain.setTargetAtTime(s * 0.035, t, 0.2);
     if (s) this.siren.frequency.setValueAtTime(650 + 250 * (Math.sin(t * 4) > 0 ? 1 : 0), t);

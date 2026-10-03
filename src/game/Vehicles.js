@@ -5,7 +5,7 @@
    W.cars so everyone sees it. Traffic is local to each player: it is just
    scenery, except that it really will run you over. */
 import * as THREE from '../../lib/three.module.js';
-import { makeCar } from '../art/Props.js';
+import { makeCar, makeItem } from '../art/Props.js';
 import { VEHICLES, DELIVERY_CAR } from '../data/Data.js';
 import { ROADS, RW } from '../world/Town.js';
 import { clamp, damp, dampAngle, wrapAngle, pick } from '../core/Util.js';
@@ -21,9 +21,16 @@ export function drive(c, ctrl, dt, col, spec, len = 3.6, wid = 1.8) {
   else c.spd = damp(c.spd, 0, 0.8, dt);
   if (ctrl.brake) c.spd = damp(c.spd, 0, 4, dt);
   c.spd = clamp(c.spd, -max * 0.4, max);
-  const turn = clamp(c.spd / 7, -1, 1) * (1.9 - Math.min(0.8, Math.abs(c.spd) / max * 0.8));
+  const turn = clamp(c.spd / 7, -1, 1) * (1.9 - Math.min(0.8, Math.abs(c.spd) / max * 0.8)) * (spec.getaway ? 1.25 : 1);
   c.yaw += ctrl.steer * turn * dt * (ctrl.brake ? 1.6 : 1);
-  c.x += Math.sin(c.yaw) * c.spd * dt; c.z += Math.cos(c.yaw) * c.spd * dt;
+  // the body keeps some of its old direction: low grip (or rain) means it slides
+  const fx = Math.sin(c.yaw) * c.spd, fz = Math.cos(c.yaw) * c.spd;
+  if (c.vx == null) { c.vx = fx; c.vz = fz; }
+  const grip = (spec.grip ?? 1) * (spec.wet ? 0.6 : 1) * (ctrl.brake ? 0.55 : 1);
+  const k = 1 - Math.exp(-grip * 7 * dt);
+  c.vx += (fx - c.vx) * k; c.vz += (fz - c.vz) * k;
+  c.slip = Math.hypot(fx - c.vx, fz - c.vz);
+  c.x += c.vx * dt; c.z += c.vz * dt;
   // collide as three circles along the body
   let hit = 0, px = 0, pz = 0, n = 0;
   const r = wid * 0.55;
@@ -35,10 +42,14 @@ export function drive(c, ctrl, dt, col, spec, len = 3.6, wid = 1.8) {
   if (n) {
     c.x += px / n; c.z += pz / n;
     hit = Math.abs(c.spd);
-    c.spd *= -0.25;
+    c.spd *= -0.25; c.vx *= -0.25; c.vz *= -0.25;
   }
   return hit;
 }
+
+/** cargo units in a car / for an item */
+export const unitsOf = (it) => (it.k === 'crate' ? 2 : 1);
+export const cargoUsed = (c) => (c.cargo || []).reduce((s, it) => s + unitsOf(it), 0);
 
 export class Vehicles {
   constructor(game) {
@@ -100,10 +111,13 @@ export class Vehicles {
 
     if (this.local) {
       const I = g.input, frozen = g.frozen();
-      const spec = carSpec(mine.c.kind);
+      const spec = { ...carSpec(mine.c.kind), wet: g.W.weather?.k === 'storm' };
       const ctrl = frozen ? { thr: 0, steer: 0, brake: 1 } : { thr: I.axis('KeyS', 'KeyW'), steer: I.axis('KeyD', 'KeyA'), brake: I.held('Space') };
       const m = this.ensure(mine.c);
       const hit = drive(this.local, ctrl, dt, g.town.col, spec, m.C.S.len, m.C.S.wid);
+      // tyre smoke when you slide
+      if (this.local.slip > 4 && Math.random() < dt * 20) for (const s of [-1, 1]) g.fx.smoke(this.local.x - Math.sin(this.local.yaw) * m.C.S.len * 0.35 + Math.cos(this.local.yaw) * s * 0.8, 0.3, this.local.z - Math.cos(this.local.yaw) * m.C.S.len * 0.35 - Math.sin(this.local.yaw) * s * 0.8, 1, 0.1);
+      if (this.local.slip > 6 && Math.random() < dt * 3) g.audio.noise(0.25, 0.05, 'highpass', 3000, 2);
       if (hit > 7 && this.crashT <= 0) { g.audio.crash(P.pos); g.fx.shake = Math.min(1, hit / 25); this.crashT = 0.6; }
       this.crashT -= dt;
       if (hit > 4 && ctrl.thr === 0 && hit < 7) g.audio.thud(P.pos);
@@ -135,8 +149,65 @@ export class Vehicles {
       };
       if (c.drv) place(c.drv, 0);
       c.pas.forEach((p, i) => place(p, i + 1));
+      // what's in the back: boxes and crates in an open bed you can see
+      const key = JSON.stringify(c.cargo || []);
+      if (m.cargoKey !== key) {
+        m.cargoKey = key;
+        if (m.cargoG) m.C.body.remove(m.cargoG);
+        m.cargoG = new THREE.Group();
+        const b = m.C.bed;
+        if (b) (c.cargo || []).slice(0, 18).forEach((it, i) => {
+          const col = i % b.cols, row = Math.floor(i / b.cols) % 3, lay = Math.floor(i / (b.cols * 3));
+          const g2 = makeItem(it); g2.scale.setScalar(0.8);
+          g2.position.set(b.x + (col - (b.cols - 1) / 2) * 0.55, b.y + lay * (it.k === 'crate' ? 0.4 : 0.14), b.z + (row - 1) * 0.5);
+          m.cargoG.add(g2);
+        });
+        m.C.body.add(m.cargoG);
+      }
     }
     for (const [id, m] of this.meshes) if (!seen.has(id)) { g.scene.remove(m.C.group); this.meshes.delete(id); }
+  }
+
+  /** where the boot is: behind the car */
+  rear(c) { const m = this.ensure(c), L = m.C.S.len; return { x: c.x - Math.sin(c.yaw) * (L / 2 + 0.7), z: c.z - Math.cos(c.yaw) * (L / 2 + 0.7) }; }
+
+  /** load and unload prompts at the back of a car */
+  targets(P, out) {
+    const g = this.g, W = g.W, H = g.hold(g.me), top = H[H.length - 1];
+    if (P.car || P.floor !== 0) return;
+    for (const c of W.cars) {
+      const r = this.rear(c), d = Math.hypot(P.pos.x - r.x, P.pos.z - r.z);
+      if (d > 2.4) continue;
+      const spec = carSpec(c.kind), used = cargoUsed(c), name = spec.name;
+      const nearHQ = Math.hypot(c.x - 138, c.z - 80) < 16;
+      const crates = (c.cargo || []).filter(i => i.k === 'crate').length;
+      const takeAlt = (c.cargo || []).length ? { label: 'Take something out (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' } } : null;
+      const unloadAlt = nearHQ && crates ? { label: 'Unload all ' + crates + ' crates into the hideout fridge', act: { k: 'cargo', id: c.id, op: 'unloadAll' } } : takeAlt;
+      if (top && (top.k === 'box' || top.k === 'crate')) {
+        if (used + unitsOf(top) <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Load the ' + (top.k === 'box' ? 'pizza box' : 'crate') + ' into the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
+        else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
+      } else if ((c.cargo || []).length) out.push({ x: r.x, z: r.z, d, label: 'Take something out of the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' }, alt: unloadAlt !== takeAlt ? unloadAlt : null });
+      else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ': empty (holds ' + spec.cap + ' - a box is 1, a crate is 2)', info: true });
+    }
+  }
+
+  /** host: loading and unloading */
+  cargo(pid, a) {
+    const g = this.g, W = g.W, c = this.car(a.id); if (!c) return;
+    c.cargo = c.cargo || [];
+    const H = g.hold(pid), top = H[H.length - 1], spec = carSpec(c.kind);
+    if (a.op === 'load') {
+      if (!top || (top.k !== 'box' && top.k !== 'crate') || cargoUsed(c) + unitsOf(top) > spec.cap) return;
+      c.cargo.push(H.pop()); g.sfx('drop', c);
+    } else if (a.op === 'take') {
+      if (!c.cargo.length || H.length >= 8) return;
+      H.push(c.cargo.pop()); g.sfx('pickup', c);
+    } else if (a.op === 'unloadAll') {
+      let n = 0;
+      c.cargo = c.cargo.filter(it => { if (it.k !== 'crate') return true; W.stock[it.s] = (W.stock[it.s] || 0) + it.n; n++; return false; });
+      if (n) { g.tell(pid, n + ' crates carried into the hideout fridge.'); g.sfx('drop', c); g.story.onStock(); }
+    }
+    g.dirty();
   }
 
   /** where to put someone getting out */

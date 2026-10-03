@@ -27,8 +27,8 @@ export const QUEST = [
   'Find the old shoe repair shop on Anchovy Road',          // 4
   'Clean up the place',                                     // 5
   'Get the power working (the fuse box)',                   // 6
-  "Buy an oven at Oleg's Appliances",                       // 7
-  'Buy dough, sauce and cheese from underground suppliers', // 8
+  'Buy a pizza oven at the Crumb Mall',                     // 7
+  'Get flour, sauce and cheese into the hideout fridge',    // 8
   'Make a pizza',                                           // 9
   'Deliver the pizza to the Suspicious Man',                // 10
   'Run the business. Find out why pizza was banned.',       // 11
@@ -64,28 +64,32 @@ export const HOSPITAL = [
   ['dez', 'Honestly? No idea. The doctors had a meeting about it.'],
   ['nurse', "Oh, you're awake! You've been in a coma for three weeks."],
   ['you', 'THREE WEEKS?'],
-  ['nurse', "A lot has changed. Just... don't say the P-word out there, okay?"],
-  ['you', 'The P-word?'],
-  ['nurse', '(whispering) ...Pizza.'],
-  ['nurse', "It's illegal now. Off you go! Your bill is in your pocket. It's huge."],
+  ['nurse', "Three weeks. You slept through a lot. Anyway! You're fine. Off you go."],
+  ['you', 'What did we sleep through?'],
+  ['nurse', '(She is already gone.)'],
+  ['nurse', '(From the hallway) Your bill is in your pocket! It\'s huge!'],
   ['dez', "Go ahead, I'll catch up. I just need to... unstick."],
 ];
 
 export const MAN_MEET = [
-  ['man', 'Hey.'],
-  ['you', 'Uh... hi?'],
-  ['man', '(looks left) (looks right) ...You got pizza?'],
-  ['you', 'What?'],
-  ['man', 'Pizza. You know. Circular. Cheese. Illegal.'],
-  ['you', 'I used to make pizzas. I\'m a pizza guy. Was.'],
-  ['man', 'YOU MAKE PIZZAS?'],
-  ['man', "I'll give you fifteen thousand dollars for one."],
-  ['you', '...Fifteen thousand?'],
-  ['man', 'Cash.'],
-  ['you', 'For a pizza?'],
-  ['man', 'Do I look like a man who negotiates with carbohydrates?'],
+  ['man', 'Hey... you.'],
+  ['you', 'Me?'],
+  ['man', '(looks left) (looks right) (looks left again, for longer)'],
+  ['man', 'You ever make pizza?'],
+  ['you', 'I deliver pizza. Delivered. I was a pizza guy. I made them too, before the... car thing.'],
+  ['man', '(his face changes completely) ...You MAKE pizza?'],
+  ['narr', '(A very long pause.)'],
+  ['man', 'You know pizza is illegal now, right?'],
+  ['you', '...WHAT?'],
+  ['man', 'Shhh! SHHH! Three weeks ago. The mayor banned it. Overnight. No reason. Every pizzeria in town: closed. Ovens: confiscated.'],
+  ['man', 'People are going crazy. I\'m going crazy. I had a dream about a breadstick and I woke up crying.'],
+  ['you', 'Pizza is ILLEGAL? How the hell is pizza illegal?!'],
+  ['man', 'Nobody knows. That\'s the scary part.'],
+  ['man', '(leans in) $15,000. One pizza.'],
+  ['you', '...Fifteen THOUSAND?'],
+  ['man', 'Cash. Do I look like a man who negotiates with carbohydrates?'],
   ['man', "Here. All of it, up front. I trust you. I'm desperate as hell."],
-  ['narr', '+$15,000'],
+  ['narr', '+$15,000. Pizza is banned... and people will pay ANYTHING for it.'],
   ['man', "There's an old shoe repair shop on Anchovy Road. East side of town. Nobody's been in there since the incident."],
   ['you', 'What incident?'],
   ['man', "Nobody knows. That's what makes it an incident. Go. Make pizza. I'll be right here. I'm always right here."],
@@ -123,11 +127,12 @@ export const HQ_CLEAN = [
 ];
 export const HQ_POWER = [
   ['narr', 'You hit the fuse box until it worked. Electricians hate this one trick.'],
-  ['dez', "Power! Now we need an oven. Oleg's Appliances sells them. For 'bread'."],
+  ['dez', "Power! Now we need an oven. The new Crumb Mall has an equipment store. EQUIP-O-RAMA. They sell 'bread ovens'."],
 ];
 export const HQ_STOCK = [
-  ['dez', 'Oven, check. Now ingredients. Normal shops won\'t sell to us, so it\'s the underground guys.'],
-  ['dez', 'Doughboy Doug behind the dead pizzerias, Tomato Tony behind the gas station, and Big Cheese in the alley behind the shops. Check the map (M).'],
+  ['dez', 'Oven, check. Now ingredients. Flour, sauce, cheese are still legal, weirdly. Just not all of them together, round, in a box.'],
+  ['dez', 'The Crumb Mall grocery sells everything in crates. Carry them here (or drive them) and unload them into the STOCK fridge.'],
+  ['dez', 'And if the grocery runs out, there\'s a whole underground: Doughboy Doug, Tomato Tony, Big Cheese... The map (M) knows.'],
 ];
 export const HQ_MAKE = [
   ['dez', "Okay, we have everything. Here's how this works, I watched a video once:"],

@@ -43,7 +43,78 @@ export function furnish(T, kind, F) {
   const desk = (u, v, pc = true) => { table(u, v, 1.4, 0.7, '#c8b090', 0.76); if (pc) { box(u, v + 0.15, 0.76, 0.5, 0.36, 0.06, '#1b1b24'); box(u, v + 0.12, 0.8, 0.44, 0.28, 0.02, '#3a6ac8'); box(u, v - 0.15, 0.76, 0.45, 0.03, 0.15, '#2b2b33'); } chair(u, v - 0.6, '#2b2b38', -1); };
   ceilingLights();
 
+  // a product you can buy: a price tag facing the shopper, and a spot to stand
+  const facing = Math.atan2(fx, fz);
+  const tag = (u, v, y, lines, bg = '#ffffff') => { const p = P(u, v); T.sign(lines, p.x, y, p.z, facing, 1.5, 0.55, { bg, fg: '#2a1640' }); };
+  const sell = (u, v, cat, item, tagY = 1.35) => {
+    const p = P(u, v - 1.25);
+    F.shop && F.shop({ cat, key: item.key, x: p.x, z: p.z });
+    tag(u, v - 0.5, tagY, [item.label.replace(/ \(.*\)| - .*|"[^"]*"/g, '').slice(0, 22), '$' + item.price.toLocaleString('en-US')], cat === 'grocery' ? '#fff6c8' : '#ffffff');
+  };
+  const bakeAt = (grp, u, v, y, s = 1, extraRy = 0) => { const p = P(u, v); grp.position.set(p.x, y, p.z); grp.scale.setScalar(s); grp.rotation.y = facing + extraRy; F.bake(m, grp); };
+  const pedestal = (u, v, c = '#e8e2f2') => { cyl(u, v, 0, 0.8, 0.5, c, 12); cyl(u, v, 0.5, 0.85, 0.06, '#c8a03a', 12); const p = P(u, v); T.col.circle(p.x, p.z, 0.8, { h: 0.6 }); };
+
   switch (kind) {
+    case 'grocery': {
+      // checkouts by the door, with a cashier
+      for (const s of [-1, 1]) { counter(s * 3.2, 1.6, 2.4, 0.8, '#e8e2d2', '#3fa34d'); box(s * 3.2 - 0.6, 1.6, 0.95, 0.35, 0.3, 0.3, '#2b2b33'); box(s * 3.2 + 0.5, 1.6, 0.94, 1.2, 0.03, 0.7, '#3a3048'); }
+      { const p = P(-3.2, 0.7); T.person({ shirt: '#3fa34d', pants: '#2b2b38', hat: 'cap', hatColor: '#3fa34d', skin: '#e0a57c', hair: '#2a1a14' }, p.x, p.z, facing + Math.PI); }
+      // every ingredient on its own shelf, along the back wall and two aisles
+      F.goods.forEach((it, i) => {
+        const row = i < 5 ? 0 : 1, col = row ? i - 5 : i;
+        const u = row ? -A + 3 + col * ((2 * A - 6) / 3) : -A + 2.2 + col * ((2 * A - 4.4) / 4), v = row ? B + 0.6 : D - 0.6;
+        box(u, v, 0, 2.4, 0.08, 0.8, WOOD2);
+        box(u, v + 0.38, 0, 2.5, 2.05, 0.06, '#e8e2d2');                   // back panel
+        for (const s of [-1, 1]) box(u + s * 1.22, v, 0, 0.07, 2.05, 0.82, WOOD2); // uprights
+        box(u, v, 2.0, 2.5, 0.08, 0.82, WOOD2);                             // top
+        box(u, v - 0.41, 0.0, 2.4, 0.12, 0.03, '#3fa34d');                  // kick plate
+        for (let k = 0; k < 3; k++) {
+          box(u, v, 0.08 + k * 0.62, 2.4, 0.06, 0.8, WOOD);
+          for (let j = 0; j < 5; j++) {
+            const q = P(u - 0.95 + j * 0.47, v);
+            if (it.stock === 'sauce' || it.stock === 'olive') m.cyl(q.x, 0.14 + k * 0.62, q.z, 0.14, 0.34, it.color, 8);
+            else if (it.stock === 'dough') m.box(q.x, 0.14 + k * 0.62, q.z, 0.36, 0.42, 0.3, it.color);
+            else m.ico(q.x, 0.32 + k * 0.62, q.z, 0.3, 0.3, 0.3, it.color, 0, j);
+          }
+        }
+        solid(u, v, 2.4, 0.8, 1.9);
+        sell(u, v, 'grocery', it, 2.15);
+      });
+      for (let i = 0; i < 3; i++) { const q = P(A - 1.5, 3 + i * 0.6); m.box(q.x, 0.15, q.z, 0.8, 0.5, 0.55, STEEL); m.box(q.x, 0.65, q.z, 0.85, 0.04, 0.6, STEEL); } // shopping carts
+      box(-A + 0.6, B, 0, 1.0, 0.9, 3.0, '#bfe4ff'); solid(-A + 0.6, B, 1.0, 3.0, 0.9); // a chest freezer
+      return {};
+    }
+    case 'equipment':
+      counter(-A + 2, 1.4, 2.6, 0.8, '#e8e2d2', '#ff9f1a');
+      { const p = P(-A + 2, 0.6); T.person({ shirt: '#ff9f1a', pants: '#3a3048', hat: 'bald', beard: '#5a3a1a', skin: '#f2c29b', belly: 1.25 }, p.x, p.z, facing + Math.PI); }
+      F.equip.forEach((it, i) => {
+        const u = -A + 3 + (i % 3) * ((2 * A - 6) / 2), v = 3.8 + Math.floor(i / 3) * ((D - 5) / 2);
+        pedestal(u, v);
+        if (it.model) bakeAt(it.model(), u, v, 0.56, it.scale || 0.8);
+        sell(u, v, 'equipment', it, 2.1);
+      });
+      return {};
+    case 'showroom':
+      counter(A - 2.2, 1.4, 2.6, 0.8, '#e8e2d2', '#3a7bd5');
+      { const p = P(A - 2.2, 0.6); T.person({ hat: 'cowboy', shirt: '#ffcf33', pants: '#3a5a9a', skin: '#e0a57c', mustache: true, tie: '#d6232a', belly: 1.2 }, p.x, p.z, facing + Math.PI); }
+      rug(0, B + 1, 2 * A - 2, D - 3, '#2a2238');
+      F.cars.forEach((it, i) => {
+        const u = -A + 2.6 + (i % 4) * ((2 * A - 5.2) / 3), v = 4 + Math.floor(i / 4) * ((D - 5.5) / 2);
+        pedestal(u, v, '#3a3048');
+        bakeAt(it.model(), u, v, 0.56, 0.36, Math.PI / 2);
+        sell(u, v, 'vehicle', it, 1.9);
+      });
+      return {};
+    case 'general':
+      counter(A - 2, 1.4, 2.4, 0.8, '#e8e2d2', '#8a4ac8');
+      { const p = P(A - 2, 0.6); T.person({ shirt: '#8a4ac8', pants: '#2b2b38', hairStyle: 'big', hair: '#c84a8a', skin: '#f7d6b8', glasses: 'round' }, p.x, p.z, facing + Math.PI); }
+      F.misc.forEach((it, i) => {
+        const u = -A + 2 + (i % 4) * ((2 * A - 4) / 3), v = 3.6 + Math.floor(i / 4) * 3.6;
+        box(u, v, 0, 1.6, 0.9, 0.9, i < 4 ? '#c9a8f0' : '#f7a8c8'); solid(u, v, 1.6, 0.9, 0.9);
+        if (it.model) bakeAt(it.model(), u, v, 0.9, it.scale || 1);
+        sell(u, v, 'general', it, 1.8);
+      });
+      return {};
     case 'house': {
       const wall = pick(['#f6e8d0', '#e8f0e0', '#f0e0f0', '#e0ecf6']);
       rug(-A / 2, B, 3.2, 2.4, pick(['#c84a5a', '#3a7bd5', '#8a4ac8', '#2f8a4a']));
@@ -136,7 +207,7 @@ export function furnish(T, kind, F) {
       for (let i = 0; i < 5; i++) chair(-1.2 + i * 0.6, 3.2, '#3a7bd5', 1); // waiting bench for the "suspects"
       plant(-A + 0.5, 0.6); plant(A - 0.5, 0.6);
       box(0, 2.0, 0.95, 0.5, 0.35, 0.4, '#2b2b33'); // a big old radio on the desk
-      T.sign(['MOST WANTED:', 'WHOEVER IS MAKING', 'ALL THAT PIZZA'], P(-A + 4, D - 0.08).x, 1.7, P(-A + 4, D - 0.08).z, Math.atan2(-fx, -fz), 2.6, 1.3, { bg: '#e8d8a8' });
+      T.sign(['MOST WANTED:', 'WHOEVER IS MAKING', 'ALL THAT PIZZA'], P(-A + 4, D - 0.08).x, 1.7, P(-A + 4, D - 0.08).z, Math.atan2(-fx, -fz), 2.6, 1.3, { bg: '#e8d8a8', before: ['MOST WANTED:', 'WHOEVER STOLE', 'THE MAYOR\'S PARKING SPOT'] });
       // a holding cell in the back corner
       for (let i = 0; i <= 10; i++) cyl(A - 4 + i * 0.35, D - 2.4, 0, 0.03, 2.6, '#5a5a6a', 5);
       solid(A - 2.2, D - 2.4, 3.6, 0.1, 2.6);
@@ -166,7 +237,7 @@ export function furnish(T, kind, F) {
       for (let i = 0; i < 5; i++) for (const s of [-1, 1]) box(s * 1.6, 3 + (i + 0.5) * (D - 6) / 5, 0.72, 0.06, 0.06, (D - 6) / 5, '#c8323a');
       for (let i = 0; i < 4; i++) for (const s of [-1, 1]) { box(s * 5, 6 + i * 3, 0, 2.6, 0.45, 0.5, WOOD2); box(s * 5, 6 + i * 3 + 0.22, 0.45, 2.6, 0.5, 0.08, WOOD2); }
       { const pp = P(0, D - 0.08); T.sign(['OUR GREAT MAYOR', 'GORDON CRUMB', '(he is very hungry)'], pp.x, 2.6, pp.z, Math.atan2(-fx, -fz), 3.6, 2.2, { bg: '#e8c45a', fg: '#4a3a20', borderColor: '#6a3a22' }); }
-      { const pp = P(-A + 0.1, B); T.sign([''], pp.x, 2.2, pp.z, Math.atan2(ax, az), 2, 2, { ban: true, bg: '#ffffff' }); }
+      { const pp = P(-A + 0.1, B); T.sign([''], pp.x, 2.2, pp.z, Math.atan2(ax, az), 2, 2, { ban: true, bg: '#ffffff', revealOnly: true }); }
       return { portrait: P(0, D - 0.06) };
     case 'mansion':
       rug(0, B, 6, 4, '#8a2a3a');

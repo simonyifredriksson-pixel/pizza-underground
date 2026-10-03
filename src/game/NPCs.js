@@ -24,7 +24,7 @@ export class NPCs {
       SPEAKERS[key] = { name: s.name, color: COLORS[key] || '#ffffff' };
       const rig = s.critter ? makeCritter(s.critter, { ...(s.opts || {}), scale: 1.25 }) : makeChar(s.human);
       const p = T.poi[s.poi];
-      this.add(key, rig, p.x, p.z, 'Talk to ' + s.name, () => this.supplier(key), () => this.g.W.quest >= Q.TOWN);
+      this.add(key, rig, p.x, p.z, 'Talk to ' + s.name, () => this.supplier(key), () => this.g.W.quest >= Q.FIND);
     }
     const human = (look) => makeChar(look);
     this.add('man', human({ hat: 'fedora', coat: '#8a6a4a', glasses: 'sun', skin: '#e0a57c', hair: '#2a1a14' }), T.poi.manSpot.x, T.poi.manSpot.z, 'Talk to the Suspicious Man', () => this.g.story.talkMan(), () => this.g.W.quest >= Q.LEAVE);
@@ -70,6 +70,14 @@ export class NPCs {
       // big cheese wanders off during "the cheese supplier is missing"
       if (n.key === 'cheese') { const away = ev && ev.k === 'cheeseMissing' && ev.at; n.x = away ? ev.at.x : n.home.x; n.z = away ? ev.at.z : n.home.z; }
       if (n.key === 'dez') this._dez(n, dt);
+      // the Suspicious Man spots you and sidles over (only before he has made his offer)
+      if (n.key === 'man') {
+        const dp = Math.hypot(P.pos.x - n.x, P.pos.z - n.z);
+        const tx = W.quest === Q.TOWN && dp < 24 && P.floor === 0 && !P.car ? P.pos.x : n.home.x, tz = W.quest === Q.TOWN && dp < 24 && P.floor === 0 && !P.car ? P.pos.z : n.home.z;
+        const dx = tx - n.x, dz = tz - n.z, d = Math.hypot(dx, dz), stop = tx === n.home.x ? 0.2 : 2.4;
+        n.walking = d > stop;
+        if (n.walking) { const s = Math.min(d - stop, 2.6 * dt); n.x += dx / d * s; n.z += dz / d * s; n.ry = Math.atan2(dx, dz); }
+      }
       const d = Math.hypot(P.pos.x - n.x, P.pos.z - n.z);
       const talking = g.ui.talking === n.key;
       let want = n.ry;
@@ -86,7 +94,7 @@ export class NPCs {
     }
     // clues: spin, hide once found
     for (const [id, c] of this.clues) {
-      c.m.visible = !W.clues.includes(id) && W.quest >= Q.TOWN;
+      c.m.visible = !W.clues.includes(id) && W.quest >= Q.BIZ;
       c.m.rotation.y += dt * 1.5;
       c.m.position.y = 1.4 + Math.sin(performance.now() * 0.003) * 0.15;
     }

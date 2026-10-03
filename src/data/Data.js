@@ -1,11 +1,52 @@
 /* Data.js - everything you can buy, everyone you can buy it from, and the
    numbers that make the money get ridiculous. */
 
-export const TOPPINGS = ['pepperoni', 'mushroom', 'pineapple', 'olive', 'pepper'];
+export const TOPPINGS = ['pepperoni', 'mushroom', 'pineapple', 'olive', 'pepper', 'sausage'];
 export const STOCK = ['dough', 'sauce', 'cheese', ...TOPPINGS];
-export const STOCK_NAME = { dough: 'Dough', sauce: 'Sauce', cheese: 'Cheese', pepperoni: 'Pepperoni', mushroom: 'Mushrooms', pineapple: 'Pineapple', olive: 'Olives', pepper: 'Peppers' };
-// keys 1-7 at the prep counter
-export const ADD_KEYS = ['sauce', 'cheese', 'pepperoni', 'mushroom', 'pineapple', 'olive', 'pepper'];
+export const STOCK_NAME = { dough: 'Dough', sauce: 'Sauce', cheese: 'Cheese', pepperoni: 'Pepperoni', mushroom: 'Mushrooms', pineapple: 'Pineapple', olive: 'Olives', pepper: 'Peppers', sausage: 'Sausage' };
+// keys 1-8 at the prep counter
+export const ADD_KEYS = ['sauce', 'cheese', 'pepperoni', 'mushroom', 'pineapple', 'olive', 'pepper', 'sausage'];
+
+/* ---------------- the Crumb Mall ----------------
+   Every product sits on a real shelf in a real store. Walk up, press E.
+   Groceries come as crates: carry them (or drive them) to the hideout and
+   unload them into the STOCK fridge. */
+export const GROCERY = [
+  { key: 'flour', label: 'Flour (10 dough)', stock: 'dough', qty: 10, price: 350, color: '#f1e6cf' },
+  { key: 'sauce', label: 'Tomato Sauce (10)', stock: 'sauce', qty: 10, price: 300, color: '#d6232a' },
+  { key: 'cheese', label: 'Mozzarella (10)', stock: 'cheese', qty: 10, price: 500, color: '#ffe14a' },
+  { key: 'pepperoni', label: 'Pepperoni (10)', stock: 'pepperoni', qty: 10, price: 450, color: '#b8322c' },
+  { key: 'sausage', label: 'Sausage (10)', stock: 'sausage', qty: 10, price: 450, color: '#a8553a' },
+  { key: 'mushroom', label: 'Mushrooms (10)', stock: 'mushroom', qty: 10, price: 350, color: '#e9dcc4' },
+  { key: 'pineapple', label: 'Pineapple (10) - we don\'t judge', stock: 'pineapple', qty: 10, price: 600, color: '#f6cf3a' },
+  { key: 'olive', label: 'Olives (10)', stock: 'olive', qty: 10, price: 350, color: '#2a2a22' },
+  { key: 'pepper', label: 'Peppers (10)', stock: 'pepper', qty: 10, price: 350, color: '#3fa34d' },
+];
+/** the equipment store: ovens and upgrades, each on its own display stand */
+export const EQUIPMENT = [
+  { key: 'oven1', label: 'Pizza Oven ("Bread Oven")', price: 4000, desc: 'Wood-fired. Delivered to the hideout. Do not ask how.' },
+  { key: 'camera', label: 'Security Cameras', price: 15000 },
+  { key: 'hidden', label: 'Hidden Entrance', price: 30000 },
+  { key: 'sprinkler', label: 'Sprinklers', price: 25000 },
+  { key: 'fastoven', label: 'Oven Mods', price: 20000 },
+  { key: 'bigfridge', label: 'Walk-in Fridge', price: 18000 },
+  { key: 'safe', label: 'Secret Safe', price: 10000 },
+  { key: 'shoes', label: 'Shoe Display Racks', price: 6000, desc: 'Real shoes on real racks. The hideout looks like a business. Inspections find 2 less evidence.' },
+  { key: 'purifier', label: 'Air Purifier 3000', price: 9000, desc: 'Sucks the pizza smell out. Cooking makes 40% less heat, and inspectors can\'t smell the ovens.' },
+];
+/** the general store: things that help when everything is on fire */
+export const GENERAL = [
+  { key: 'smoke', label: 'Smoke Bomb', price: 1500, desc: 'Press G to vanish. Every cop chasing you loses you. You can carry several.' },
+  { key: 'energy', label: 'Energy Drink "LIQUID PANIC"', price: 400, desc: 'You drink it right there. Run 40% faster for 60 seconds.' },
+  { key: 'fresh', label: 'Air Freshener (Pine)', price: 800, desc: 'The hideout smells like a forest for 3 minutes: no smell heat, no smell evidence.' },
+  { key: 'license', label: 'Fake Business License', price: 5000, desc: 'Laminated! The next inspection finds 3 less evidence. Then the inspector notices the spelling.' },
+  { key: 'mustache', label: 'Fake Mustache (costume aisle)', price: 1500, disg: true },
+  { key: 'coat', label: 'Trench Coat & Shades (costume aisle)', price: 6000, disg: true },
+  { key: 'suit', label: 'Suspicious Suit (costume aisle)', price: 12000, disg: true, tier: 2 },
+  { key: 'cop', label: 'Police Uniform (costume aisle, "for a party")', price: 40000, disg: true },
+];
+/** cargo units: a pizza box is 1, a crate of supplies is 2 */
+export const CARGO = { box: 1, crate: 2 };
 
 export const LOOKS = [
   { name: 'Red', hat: 'cap', hatColor: '#d23a3a', shirt: '#d23a3a', pants: '#2b2b38', skin: '#f2c29b', hair: '#3a2418', capLogo: '#ffd23f' },
@@ -87,15 +128,21 @@ export const UPGRADES = {
   safe: { name: 'Secret Safe', price: 10000, desc: 'A safe in the hidden storage room (hatch in the yard). Money in it can\'t be fined or confiscated.', tier: 1 },
   knuckles: { name: 'Hire Knuckles', price: 15000, desc: 'A debt collector with a foam bat. Send him to anyone who is late paying (phone > Debts).', tier: 2 },
 };
+/* Every vehicle has a job. cap = cargo units (box 1, crate 2). grip < 1 slides.
+   sus = how suspicious cops find it (1 normal). */
 export const VEHICLES = {
-  scooter: { name: 'Rusty Scooter', price: 3000, speed: 20, accel: 16, desc: 'Slow, loud, perfect.' },
-  van: { name: 'Delivery Van', price: 25000, speed: 22, accel: 14, desc: 'Fits the whole crew. Looks like a kidnapping.' },
-  icecream: { name: 'Ice Cream Truck', price: 80000, speed: 21, accel: 13, desc: 'The perfect disguise. Cops ignore it unless the town is really hot.', disguise: true },
-  sports: { name: 'Sports Car', price: 200000, speed: 40, accel: 26, desc: 'Fast as hell. Two seats.' },
-  armored: { name: 'Armored Pizza Truck', price: 750000, speed: 26, accel: 15, desc: 'Cops can not stop it. They will try.', armored: true },
-  family: { name: 'The Family Sedan', price: 60000, speed: 30, accel: 18, desc: 'Long. Black. Shiny. Extremely serious. Seats four.', tier: 3 },
+  scooter: { name: 'Rusty Scooter', price: 2000, speed: 21, accel: 18, cap: 2, grip: 1.2, sus: 1, desc: 'Two boxes on the back. Squeezes through anything. Sounds like an angry bee.' },
+  delivery: { name: 'Pizza Delivery Car', price: 4500, speed: 24, accel: 16, cap: 6, grip: 1, sus: 1.6, desc: 'Cheap. Cheerful. Has a giant PIZZA! sign on the roof. Cops love it. Not in a good way.' },
+  smallvan: { name: 'Small Van', price: 14000, speed: 23, accel: 14, cap: 12, grip: 0.95, sus: 1, desc: 'A sensible little van. Nobody has ever looked at it twice.' },
+  pickup: { name: 'Pickup Truck', price: 22000, speed: 26, accel: 16, cap: 10, grip: 0.9, sus: 0.9, desc: 'Crates ride in the open bed. Everyone can see them. Nobody asks.' },
+  van: { name: 'Large Delivery Van', price: 30000, speed: 20, accel: 12, cap: 24, grip: 0.85, sus: 1.1, desc: 'Fits a whole rush hour. Turns like a fridge.' },
+  getaway: { name: 'Getaway Car', price: 65000, speed: 42, accel: 30, cap: 4, grip: 0.6, sus: 1.2, getaway: true, desc: 'Absurdly fast. Slides around every corner. Cops lose you twice as quickly.' },
+  cargo: { name: 'Cargo Truck', price: 55000, speed: 17, accel: 9, cap: 40, grip: 0.8, sus: 1.4, desc: 'A warehouse on wheels. Slow. Enormous. Every cop wonders what is inside.' },
+  icecream: { name: 'Ice Cream Truck', price: 80000, speed: 21, accel: 13, cap: 10, grip: 0.9, sus: 0, disguise: true, desc: 'The perfect disguise. Cops ignore it unless the town is really hot.' },
+  family: { name: 'The Family Sedan', price: 60000, speed: 30, accel: 18, cap: 8, grip: 1, sus: 0.5, tier: 3, desc: 'Long. Black. Shiny. Cops look away out of respect. Seats four.' },
+  armored: { name: 'Armored Pizza Truck', price: 750000, speed: 26, accel: 15, cap: 20, grip: 0.9, sus: 1, armored: true, desc: 'Cops can not stop it. They will try.' },
 };
-export const DELIVERY_CAR = { name: 'Delivery Car', speed: 24, accel: 16 };
+export const DELIVERY_CAR = { name: 'Car', speed: 24, accel: 16, cap: 6, grip: 1, sus: 1 };
 export const DISGUISES = {
   mustache: { name: 'Fake Mustache', price: 1500, detect: 0.7, desc: 'Cops notice you 30% later. Glued on with cheese.' },
   coat: { name: 'Trench Coat & Shades', price: 6000, detect: 0.55, desc: 'Cops notice you 45% later. Very undercover. Extremely obvious.' },

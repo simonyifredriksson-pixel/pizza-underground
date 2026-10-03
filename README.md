@@ -4,6 +4,11 @@ Pizza has been banned. Nobody knows why. You and your friends decide to become t
 
 A low-poly co-op comedy for 1-4 players, in the browser.
 
+- BUY INGREDIENTS → MAKE PIZZA → TAKE ORDERS → DELIVER → MAKE MONEY → EXPAND → HIDE FROM POLICE → UPGRADE → TAKE BIGGER RISKS.
+- POLICE INSPECTIONS: the police collect tips (deliveries, reports, smoke, fires) and roll the dice every second. When it hits: INSPECTION IN 45... 30... 15... 5, 4, 3. Hide the pizzas in the "shoe" fridge, put out the ovens, disguise the stock fridge, flip the specials board, close the secret hatch, move the cash into the safe, drive the delivery car away. Then two officers walk in and check everything while you act normal. Pass, get fined, lose half your ingredients - or get SHUT DOWN.
+- The Crumb Mall: a grocery (crates of ingredients off real shelves), a car showroom (scooter, pizza car, small van, pickup, large van, getaway car, cargo truck, ice cream truck, the Family Sedan, armored truck - each with its own speed, handling and cargo space), an equipment store and a general store (smoke bombs, energy drinks, air freshener, a fake business license, costumes).
+- Load boxes and crates into a vehicle (E at the back), deliver straight out of the truck bed, unload a car full of crates into the hideout in one go.
+- Always something happening: rush hours, supplier vans, tow trucks, grocery shortages, storms (cars slide, tips +50%), police informants, a task list on screen.
 - It starts in the car: a crappy delivery car, Dez riding shotgun, a pizza for City Hall, two minutes late. Then a limo. Then the hospital, where the doctor has good news and bad news, and Dez is stuck in a wall.
 - Crumbville: a town square with a statue of the mayor, City Hall, the hospital, the police station, a gas station, shops, dead pizzerias, back alleys, houses, a cardboard factory, a junkyard, a park and a forest. Signs everywhere: PIZZA IS ILLEGAL. REPORT SUSPICIOUS CHEESE ACTIVITY.
 - A suspicious man in a trench coat pays you $15,000 for one pizza. Find the abandoned shoe repair shop, clean it, hit the fuse box until it works, buy an oven from Oleg ("for bread"), buy ingredients from underground suppliers (half of them are toppings: Tomato Tony, Big Cheese, Sal Ami, Pineapple Pete...) and watch out for Legit Larry.
@@ -21,7 +26,9 @@ A low-poly co-op comedy for 1-4 players, in the browser.
 
 Everything - the town, the characters, the toppings, the cars, the signs and every sound - is generated in code. No asset files.
 
-Controls: WASD move, Shift run, Space jump, mouse look, wheel zoom, E interact (hold for some things), R second action, Q throw away, X act natural, 1-7 toppings, F car, H honk, TAB phone, M map, T chat, ESC pause, LMB spray an extinguisher.
+Owner tools: the admin panel opens with the key sequence J, L, O, 3 (host or solo player only).
+
+Controls: G smoke bomb, V first/third person, WASD move, Shift run, Space jump, mouse look, wheel zoom, E interact (hold for some things), R second action, Q throw away, X act natural, 1-7 toppings, F car, H honk, TAB phone, M map, T chat, ESC pause, LMB spray an extinguisher.
 
 Run it: serve the folder with any static server (`python -m http.server`) and open it. After changing any .js file run `node tools/stamp.mjs` so browsers fetch the new code.
 

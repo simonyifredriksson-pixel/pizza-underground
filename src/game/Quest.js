@@ -21,8 +21,8 @@ export class Quest {
       case Q.FIND: sub = 'East side of town. It\'s marked on your map (M).'; break;
       case Q.CLEAN: sub = W.trash.filter(t => !t).length + ' / ' + W.trash.length + ' junk piles (hold E)'; break;
       case Q.POWER: sub = 'Hold E on the fuse box by the door.'; break;
-      case Q.OVEN: sub = "Oleg's Appliances, across from the hospital. " + money(4000) + '.'; break;
-      case Q.STOCK: sub = ['dough', 'sauce', 'cheese'].map(k => STOCK_NAME[k] + (W.stock[k] > 0 ? ' ✓' : ' ✗')).join('   '); break;
+      case Q.OVEN: sub = 'EQUIP-O-RAMA in the Crumb Mall (east side of the courtyard). ' + money(4000) + '.'; break;
+      case Q.STOCK: sub = ['dough', 'sauce', 'cheese'].map(k => STOCK_NAME[k] + (W.stock[k] > 0 ? ' ✓' : ' ✗')).join('   ') + '  - Crumb Mall grocery: crates go in the STOCK fridge (E)'; break;
       case Q.MAKE: sub = 'Dough → counter (hold E) → 1 sauce, 2 cheese → oven → take out golden → box it.'; break;
       case Q.FIRST: sub = 'He\'s in the alley by Oleg\'s. Bring the box.'; break;
       case Q.BIZ: sub = 'Orders on your phone (TAB). Clues found: ' + W.clues.length + ' / ' + CLUES.length + '. Upgrades on the laptop.'; break;
@@ -38,8 +38,8 @@ export class Quest {
     if (q === Q.LEAVE) out.push({ ...T.hospExit, label: 'Exit' });
     if (q === Q.TOWN) out.push({ ...T.manSpot, label: '?' });
     if (q === Q.FIND || q === Q.CLEAN || q === Q.POWER) out.push({ x: HQ.door.x, z: HQ.door.z, label: 'Hideout' });
-    if (q === Q.OVEN) out.push({ ...T.oleg, label: 'Oleg' });
-    if (q === Q.STOCK) { if (!W.stock.dough) out.push({ ...T.doug, label: 'Dough' }); if (!W.stock.sauce) out.push({ ...T.tony, label: 'Sauce' }); if (!W.stock.cheese) out.push({ ...T.bigCheese, label: 'Cheese' }); }
+    if (q === Q.OVEN) out.push({ ...T.mallEquip, label: 'Oven' });
+    if (q === Q.STOCK) { out.push({ ...T.mallGrocery, label: 'Grocery' }); out.push({ x: HQ.door.x, z: HQ.door.z, label: 'Fridge' }); }
     if (q === Q.FIRST) out.push({ ...T.manSpot, label: 'Deliver' });
     if (q === Q.FINALE) out.push({ ...T.cityHallDoor, label: 'Mayor' });
     if (W.event?.k === 'cheeseMissing' && W.event.at && !W.event.found) out.push({ ...W.event.at, label: 'Big Cheese?' });
@@ -51,7 +51,8 @@ export class Quest {
     const g = this.g, W = this.W, P = g.player;
     if (P.floor !== 0) return;
     const T = g.town.poi;
-    if (W.quest === Q.TOWN && !this.manBusy && Math.hypot(P.pos.x - T.manSpot.x, P.pos.z - T.manSpot.z) < 7) { this.manBusy = true; g.act({ k: 'q', what: 'man' }); }
+    const man = g.npcs.get('man');
+    if (W.quest === Q.TOWN && !this.manBusy && man && Math.hypot(P.pos.x - man.x, P.pos.z - man.z) < 3.4) { this.manBusy = true; g.act({ k: 'q', what: 'man' }); }
     if (W.quest === Q.FIND && Math.hypot(P.pos.x - HQ.door.x, P.pos.z - HQ.door.z) < 7) g.act({ k: 'q', what: 'arrive' });
   }
   talkMan() {

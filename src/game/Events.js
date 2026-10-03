@@ -10,8 +10,10 @@ import { HQ } from '../world/Town.js';
 import { isContraband } from './State.js';
 import { roomAt } from '../data/Hideout.js';
 import { pick, rand, money } from '../core/Util.js';
+import { ROADS, RW } from '../world/Town.js';
+import { VEHICLES } from '../data/Data.js';
 
-const KINDS = ['inspector', 'ovenFire', 'bigOrder', 'cheeseMissing', 'copOutside', 'posted', 'law', 'checkpoint', 'dezSold', 'raccoon', 'smell'];
+const KINDS = ['ovenFire', 'bigOrder', 'cheeseMissing', 'copOutside', 'posted', 'law', 'checkpoint', 'dezSold', 'raccoon', 'smell', 'supplierVan', 'supplierVan', 'tow', 'rushHour', 'rushHour', 'shortage', 'storm', 'informant'];
 
 export class Events {
   constructor(game) { this.g = game; this.lastHeatNews = 0; }
@@ -25,7 +27,11 @@ export class Events {
     if (band && band[0] > this.lastHeatNews) g.broadcastEvent({ k: 'news', text: band[1] });
     this.lastHeatNews = band ? band[0] : 0;
     W.newsT = (W.newsT || 60) - dt;
-    if (W.newsT <= 0 && W.quest >= Q.TOWN) { W.newsT = rand(70, 120); g.broadcastEvent({ k: 'news', text: pick(NEWS.filler) }); }
+    // weather, shortages and the air freshener run out on their own
+    if (W.weather) { W.weather.t -= dt; if (W.weather.t <= 0) { W.weather = null; g.tell(null, 'The storm is over.'); g.dirty(); } }
+    if (W.shortage) { W.shortage.t -= dt; if (W.shortage.t <= 0) { g.tell(null, 'The grocery has ' + W.shortage.s + ' again.'); W.shortage = null; g.dirty(); } }
+    if (W.fresh > 0) W.fresh = Math.max(0, W.fresh - dt);
+    if (W.newsT <= 0 && W.quest >= Q.FIND) { W.newsT = rand(70, 120); g.broadcastEvent({ k: 'news', text: pick(NEWS.filler) }); }
     // laws run out
     if (W.law) { W.law.t -= dt; if (W.law.t <= 0) { g.broadcastEvent({ k: 'news', text: 'The law "' + W.law.name + '" has been repealed. Nobody knows why it existed.' }); W.law = null; g.dirty(); } }
     // the current event
@@ -33,7 +39,7 @@ export class Events {
     if (ev) this._tick(ev, dt, players);
     else if (W.quest >= Q.BIZ) {
       W.eventT -= dt;
-      if (W.eventT <= 0) { W.eventT = rand(110, 190); this.start(this._pick()); }
+      if (W.eventT <= 0) { W.eventT = rand(60, 120); this.start(this._pick()); }
     }
   }
 
@@ -47,16 +53,59 @@ export class Events {
       if (k === 'raccoon') return W.stock.dough >= 3;
       if (k === 'bigOrder') return W.rep >= 4;
       if (k === 'copOutside' || k === 'checkpoint') return W.heat >= 15;
+      if (k === 'tow') return this._towable().length > 0;
+      if (k === 'storm') return !W.weather;
+      if (k === 'shortage') return !W.shortage;
       return true;
     });
     return pick(ok);
   }
   _anyoneHome() { return this.g.allPlayers().some(p => roomAt(p.x, p.z, p.floor)); }
+  /** player cars parked in the middle of a road */
+  _towable() { return this.g.W.cars.filter(c => !c.drv && ROADS.some(r => Math.abs(c.x - r) < RW / 2 || Math.abs(c.z - r) < RW / 2) && Math.abs(c.x) < 205 && Math.abs(c.z) < 205); }
 
   start(k) {
     const g = this.g, W = g.W;
     switch (k) {
-      case 'inspector': {
+      case 'supplierVan': {
+        const goods = ['dough', 'sauce', 'cheese', 'pepperoni', 'sausage', 'mushroom'];
+        const crates = Array.from({ length: 3 + Math.floor(Math.random() * 3) }, () => ({ k: 'crate', s: pick(goods), n: 8 }));
+        W.event = { k, t: 50, count: true, show: 'SUPPLIER VAN OUTSIDE!', sub: 'Tony\'s cousin brought crates. $250 each. Grab them before he leaves.', crates };
+        g.alarm('SUPPLIER VAN OUTSIDE THE HIDEOUT!');
+        break;
+      }
+      case 'tow': {
+        const c = pick(this._towable());
+        W.event = { k, t: 40, count: true, show: 'TOW TRUCK COMING!', sub: 'Your ' + (VEHICLES[c.kind]?.name || 'car') + ' is parked in the road. Move it!', car: c.id };
+        g.alarm('YOUR CAR IS BLOCKING THE ROAD!');
+        break;
+      }
+      case 'rushHour': {
+        for (let i = 0; i < 3; i++) { const o = g.orders.spawn({ accepted: true }); o.pay = Math.round(o.pay * 1.6); o.t = o.tmax = 110; }
+        g.alarm('RUSH HOUR! 3 ORDERS AT ONCE!');
+        g.tell(null, 'Three hungry people, all at once, all paying extra. GO GO GO.');
+        return;
+      }
+      case 'shortage': {
+        const s = pick(['cheese', 'sauce', 'dough']);
+        W.shortage = { s, t: 150 };
+        g.alarm('THE GROCERY IS OUT OF ' + s.toUpperCase() + '!');
+        g.broadcastEvent({ k: 'news', text: 'Crumb Grocery: "We have no ' + s + '. We don\'t know why. Try the guy in the alley." (Underground suppliers still sell it.)' });
+        g.dirty();
+        return;
+      }
+      case 'storm':
+        W.weather = { k: 'storm', t: 150 };
+        g.alarm('A STORM IS COMING!');
+        g.tell(null, 'Rain: cars slide, cops see less, and wet customers tip 50% more.');
+        g.dirty();
+        return;
+      case 'informant':
+        g.inspections.tip(14);
+        g.broadcastEvent({ k: 'news', text: 'Police hotline "flooded with calls" about "the smell" near Anchovy Road. (An inspection could come any second.)' });
+        return;
+      case 'inspector': g.inspections.start(); return;
+      case 'oldInspector': {
         const slow = !!W.owned.up.lookout;
         const c = g.police.startInspector(slow);
         const eta = g.police.routeLeft(c) / c.speed;
@@ -133,7 +182,19 @@ export class Events {
   _tick(ev, dt, players) {
     const g = this.g, W = g.W;
     if (ev.t != null) ev.t -= dt;
-    if (ev.k === 'inspector') {
+    if (ev.k === 'supplierVan') {
+      if (ev.t <= 0 || !ev.crates.length) { g.tell(null, ev.crates.length ? 'The supplier van drove off. ' + ev.crates.length + ' crates went with it.' : 'The supplier van is empty and leaves happy.'); this.end(); this._after(); }
+    } else if (ev.k === 'tow') {
+      const c = W.cars.find(c => c.id === ev.car);
+      const still = c && !c.drv && ROADS.some(r => Math.abs(c.x - r) < RW / 2 || Math.abs(c.z - r) < RW / 2);
+      if (!c || !still) { if (c) g.tell(null, 'Moved it just in time. The tow truck driver looks disappointed.'); this.end(); this._after(); }
+      else if (ev.t <= 0) {
+        c.x = 160 + Math.random() * 6; c.z = 148; c.yaw = Math.PI; c.cargo = [];
+        const fee = Math.min(W.money, 500); W.money -= fee;
+        g.alarm('TOWED!'); g.tell(null, 'Your ' + (VEHICLES[c.kind]?.name || 'car') + ' was towed to the junkyard (and emptied). Fee: ' + money(fee) + '.');
+        this.end(); this._after();
+      }
+    } else if (ev.k === 'inspector') {
       const c = g.police.cops.find(c => c.id === ev.insp);
       if (c) ev.t = Math.max(0, g.police.routeLeft(c) / c.speed);
       if (!c || c.st === 'leave') this.end();
@@ -148,6 +209,17 @@ export class Events {
     if (Math.random() < dt * 2) g.dirty();
   }
   end() { this.g.W.event = null; this.g.dirty(); }
+  /** after an event, sometimes the police hear about it: inspections can come right after */
+  _after() { if (Math.random() < 0.3) this.g.inspections.tip(6); }
+  /** host: grab a crate from the supplier van */
+  grabCrate(pid) {
+    const g = this.g, W = g.W, ev = W.event;
+    if (!ev || ev.k !== 'supplierVan' || !ev.crates.length) return;
+    const H = g.hold(pid);
+    if (H.some(i => i.k !== 'crate' && i.k !== 'box') || H.length >= 6) return g.tell(pid, 'Your hands are full.');
+    if (W.money < 250) return g.tell(pid, 'You can\'t afford it ($250).');
+    W.money -= 250; H.push(ev.crates.pop()); g.sfx('pickup', { x: 131, z: 88 }); g.dirty();
+  }
 
   /** host: the inspector reached the middle of the front room */
   inspectorArrived(c) {

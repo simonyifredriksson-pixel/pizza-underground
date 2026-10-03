@@ -114,6 +114,7 @@ export class Player {
     const slow = Math.max(0.55, 1 - 0.03 * Math.max(0, n - 1));
     let target = (this.running ? RUN : WALK) * slow;
     if (this.g.natural) target *= 0.55;
+    if (this.boost > 0) { this.boost -= dt; target *= 1.4; }
     if (this.flying) {
       this.vel.y -= 24 * dt;
     } else if (len > 0) {

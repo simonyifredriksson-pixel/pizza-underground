@@ -50,16 +50,36 @@ export class UI {
     else if (g.police.mySus > 0.15) { st.textContent = 'A cop is getting suspicious...'; st.className = 'sus'; }
     else st.className = 'off';
     // the event banner countdown
-    const ev = W.event;
+    const ev = W.event, I = W.insp;
     const b = $('banner');
-    if (ev && ev.show) { b.classList.add('on'); $('bannertxt').textContent = ev.show; $('bannersub').textContent = (ev.sub || '') + (ev.t != null && ev.count ? '  ' + Math.max(0, Math.ceil(ev.t)) + 's' : ''); }
+    if (I) {
+      b.classList.add('on');
+      $('bannertxt').textContent = I.ph === 'warn' ? 'POLICE INSPECTION IN: ' + Math.max(0, Math.ceil(I.t)) : 'POLICE INSPECTION: ACT NORMAL';
+      $('bannersub').textContent = I.ph === 'warn' ? 'Hide pizzas (shoe fridge) · put out ovens (R) · disguise the fridge (R) · flip the board · close the hatch · cash in the safe · move the cars' : 'Evidence found so far: ' + I.score + '. Don\'t run. Hold X to look innocent.';
+    } else if (W.shutdown > 0) { b.classList.add('on'); $('bannertxt').textContent = 'SHUT DOWN BY POLICE: ' + Math.ceil(W.shutdown) + 's'; $('bannersub').textContent = 'No cooking. Deliver what you have. Lie low.'; }
+    else if (ev && ev.show) { b.classList.add('on'); $('bannertxt').textContent = ev.show; $('bannersub').textContent = (ev.sub || '') + (ev.t != null && ev.count ? '  ' + Math.max(0, Math.ceil(ev.t)) + 's' : ''); }
     else b.classList.remove('on');
+    document.body.classList.toggle('alert', !!I || g.police.chasingMe);
+    document.body.classList.toggle('panic', !!I && I.ph === 'warn' && I.t < 10);
     const law = W.law;
     $('law').style.display = law ? '' : 'none';
     if (law) $('law').textContent = 'NEW LAW: ' + this.bleep(law.name) + ' (' + Math.ceil(law.t) + 's)';
     // world bars (oven timers, hold progress)
     this._bars();
     this._bubbles(dt);
+  }
+
+  /** the to-do feed under the objective */
+  tasks(list) {
+    const el = $('tasks');
+    const html = list.map(t => `<div class="tk ${t.c}">${esc(t.t)}</div>`).join('');
+    if (el._h !== html) { el._h = html; el.innerHTML = html; }
+  }
+  /** a huge number in the middle of the screen (inspection countdown) */
+  bigCount(text) {
+    const el = $('bigcount');
+    el.textContent = text;
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
   }
 
   objective(text, sub) {
@@ -85,7 +105,7 @@ export class UI {
     const el = $('prepkeys');
     if (!it) { el.style.display = 'none'; return; }
     el.style.display = '';
-    const names = [['1', 'Sauce', 'sauce'], ['2', 'Cheese', 'cheese'], ['3', 'Pepperoni', 'pepperoni'], ['4', 'Mushroom', 'mushroom'], ['5', 'Pineapple', 'pineapple'], ['6', 'Olives', 'olive'], ['7', 'Peppers', 'pepper']];
+    const names = [['1', 'Sauce', 'sauce'], ['2', 'Cheese', 'cheese'], ['3', 'Pepperoni', 'pepperoni'], ['4', 'Mushroom', 'mushroom'], ['5', 'Pineapple', 'pineapple'], ['6', 'Olives', 'olive'], ['7', 'Peppers', 'pepper'], ['8', 'Sausage', 'sausage']];
     el.innerHTML = '<div class="pk-title">ADD TO THE PIZZA</div>' + names.map(([k, n, s]) => {
       const on = s === 'sauce' ? it.sauce : s === 'cheese' ? it.cheese : (it.top || []).includes(s);
       return `<div class="pk ${stock[s] > 0 ? '' : 'out'} ${on ? 'on' : ''}"><b class="key">${k}</b>${n}${s === 'cheese' && it.cheese ? ' x' + it.cheese : ''}<span>${stock[s]}</span></div>`;
