@@ -6,6 +6,8 @@
    scenery, except that it really will run you over. */
 import * as THREE from '../../lib/three.module.js';
 import { makeCar, makeItem } from '../art/Props.js';
+import { makeCockpit } from '../art/Cockpit.js';
+import { lookFor } from './Player.js';
 import { VEHICLES, DELIVERY_CAR } from '../data/Data.js';
 import { ROADS, RW } from '../world/Town.js';
 import { clamp, damp, dampAngle, wrapAngle, pick } from '../core/Util.js';
@@ -48,7 +50,7 @@ export function drive(c, ctrl, dt, col, spec, len = 3.6, wid = 1.8) {
 }
 
 /** cargo units in a car / for an item */
-export const unitsOf = (it) => (it.k === 'crate' ? 2 : 1);
+export const unitsOf = (it) => (it.k === 'bag' ? 4 : it.k === 'crate' ? 2 : 1);
 export const cargoUsed = (c) => (c.cargo || []).reduce((s, it) => s + unitsOf(it), 0);
 
 export class Vehicles {
@@ -166,6 +168,37 @@ export class Vehicles {
       }
     }
     for (const [id, m] of this.meshes) if (!seen.has(id)) { g.scene.remove(m.C.group); this.meshes.delete(id); }
+    this._cockpit(dt, mine);
+  }
+
+  /** first person in a car: hide the outside of it and draw the inside */
+  _cockpit(dt, mine) {
+    const g = this.g, P = g.player;
+    const m = mine && this.meshes.get(mine.c.id);
+    const on = !!(m && g.cam.mode === 'first' && !m.C.S.scooter && mine.seat < 2);
+    for (const [id, mm] of this.meshes) mm.C.group.visible = !(on && id === mine.c.id);
+    if (!on) { if (this.cockpit) this.cockpit.group.visible = false; return; }
+    const key = mine.c.kind + ':' + mine.seat + ':' + P.look + ':' + (g.W.wear[g.me] || '');
+    if (!this.cockpit || this.cockpit.key !== key) {
+      if (this.cockpit) g.scene.remove(this.cockpit.group);
+      // the wheel stays on the driver's side; a passenger just doesn't get hands on it
+      this.cockpit = makeCockpit(m.C, lookFor(P.look, g.W.wear[g.me]));
+      this.cockpit.key = key;
+      if (mine.seat !== 0) this.cockpit.hands.visible = false;
+      g.scene.add(this.cockpit.group);
+    }
+    const K = this.cockpit;
+    K.group.visible = true;
+    K.group.position.set(m.x, 0, m.z); K.group.rotation.y = m.yaw;
+    K.group.rotation.z = m.C.body.rotation.z;
+    // the wheel follows your steering, the needles follow the car
+    const steer = this.local && !g.frozen() ? g.input.axis('KeyD', 'KeyA') : 0;
+    K.steer = damp(K.steer || 0, steer, 8, dt);
+    K.wheel.rotation.z = -K.steer * 1.4;
+    const spd = Math.abs(this.local ? this.local.spd : mine.c.spd || 0), max = carSpec(mine.c.kind).speed;
+    K.dials[0].rotation.z = -2.2 + 4.4 * Math.min(1.05, spd / max);
+    K.rpm = damp(K.rpm || 0, 0.15 + (spd / max) * 0.6 + (this.local && g.input.held('KeyW') ? 0.25 : 0) + Math.sin(performance.now() * 0.05) * 0.02, 6, dt);
+    K.dials[1].rotation.z = -2.2 + 4.4 * Math.min(1, K.rpm);
   }
 
   /** where the boot is: behind the car */
@@ -183,9 +216,10 @@ export class Vehicles {
       const crates = (c.cargo || []).filter(i => i.k === 'crate').length;
       const takeAlt = (c.cargo || []).length ? { label: 'Take something out (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' } } : null;
       const unloadAlt = nearHQ && crates ? { label: 'Unload all ' + crates + ' crates into the hideout fridge', act: { k: 'cargo', id: c.id, op: 'unloadAll' } } : takeAlt;
-      if (top && (top.k === 'box' || top.k === 'crate')) {
-        if (used + unitsOf(top) <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Load the ' + (top.k === 'box' ? 'pizza box' : 'crate') + ' into the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
-        else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
+      if (top && (top.k === 'box' || top.k === 'crate' || top.k === 'bag')) {
+        const what = top.k === 'box' ? 'pizza box' : top.k === 'bag' ? 'sack (' + top.name + ', wriggling)' : 'crate';
+        if (used + unitsOf(top) <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Put the ' + what + ' in the ' + (top.k === 'bag' ? 'trunk of the ' : '') + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
+        else out.push({ x: r.x, z: r.z, d, label: top.k === 'bag' ? 'The sack doesn\'t fit in the ' + name + ' (needs 4 space, ' + (spec.cap - used) + ' free)' : 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
       } else if ((c.cargo || []).length) out.push({ x: r.x, z: r.z, d, label: 'Take something out of the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' }, alt: unloadAlt !== takeAlt ? unloadAlt : null });
       else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ': empty (holds ' + spec.cap + ' - a box is 1, a crate is 2)', info: true });
     }
@@ -197,10 +231,11 @@ export class Vehicles {
     c.cargo = c.cargo || [];
     const H = g.hold(pid), top = H[H.length - 1], spec = carSpec(c.kind);
     if (a.op === 'load') {
-      if (!top || (top.k !== 'box' && top.k !== 'crate') || cargoUsed(c) + unitsOf(top) > spec.cap) return;
+      if (!top || (top.k !== 'box' && top.k !== 'crate' && top.k !== 'bag') || cargoUsed(c) + unitsOf(top) > spec.cap) return;
       c.cargo.push(H.pop()); g.sfx('drop', c);
     } else if (a.op === 'take') {
       if (!c.cargo.length || H.length >= 8) return;
+      if (c.cargo[c.cargo.length - 1].k === 'bag' && H.length) return g.tell(pid, 'You need both arms for the sack.');
       H.push(c.cargo.pop()); g.sfx('pickup', c);
     } else if (a.op === 'unloadAll') {
       let n = 0;

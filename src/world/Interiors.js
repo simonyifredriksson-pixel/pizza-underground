@@ -109,8 +109,8 @@ export function furnish(T, kind, F) {
       counter(A - 2, 1.4, 2.4, 0.8, '#e8e2d2', '#8a4ac8');
       { const p = P(A - 2, 0.6); T.person({ shirt: '#8a4ac8', pants: '#2b2b38', hairStyle: 'big', hair: '#c84a8a', skin: '#f7d6b8', glasses: 'round' }, p.x, p.z, facing + Math.PI); }
       F.misc.forEach((it, i) => {
-        const u = -A + 2 + (i % 4) * ((2 * A - 4) / 3), v = 3.6 + Math.floor(i / 4) * 3.6;
-        box(u, v, 0, 1.6, 0.9, 0.9, i < 4 ? '#c9a8f0' : '#f7a8c8'); solid(u, v, 1.6, 0.9, 0.9);
+        const u = -A + 2 + (i % 5) * ((2 * A - 4) / 4), v = 3.6 + Math.floor(i / 5) * 3.6;
+        box(u, v, 0, 1.6, 0.9, 0.9, it.disg ? '#f7a8c8' : '#c9a8f0'); solid(u, v, 1.6, 0.9, 0.9);
         if (it.model) bakeAt(it.model(), u, v, 0.9, it.scale || 1);
         sell(u, v, 'general', it, 1.8);
       });

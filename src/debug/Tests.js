@@ -39,6 +39,14 @@ export function setupAt(g, q) {
     if (ui === 'admin') g.admin.toggle();
     if (ui === 'phone') { g.orders.spawn(); g.orders.spawn().state = 'open'; g.orders.spawn().sting = true; g.phone(); }
     if (ui === 'laptop') g.npcs.laptop();
+    if (ui === 'drive') {
+      const id = W.carSeq++; W.cars.push({ id, kind: qs.get('car') || 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
+      g.exec(g.me, { k: 'enter', id }); g.cam.mode = 'first';
+    }
+    if (ui === 'chair') {
+      const d = g.debts.create('house', 2, 'Gary', 2000, 'test'); d.state = 'guest'; d.t = 60;
+      const ch = g.town.poi.storageChair; g.player.teleport(ch.x - 1.5, ch.z - 2.5, 0, 0.6); g.cam.fpPitch = 0.2;
+    }
     if (ui === 'shop') g.npcs.supplierMenuOnly('larry');
     if (ui === 'dialog') g.ui.dialog([['man', 'Do I look like a man who negotiates with carbohydrates?']]);
     if (ui === 'chase') { W.hold[g.me] = [{ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }, { k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }, { k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }]; g.player.teleport(0, 24, 0, Math.PI); g.player.camYaw = Math.PI * 0.9; g.cam.pitch = 0.3; const c = g.police.spawnCop(); c.x = 3; c.z = 31; c.st = 'chase'; c.tgt = g.me; c.lx = 0; c.lz = 24; g.alarm('SPOTTED!'); }
@@ -100,6 +108,19 @@ export async function run(g, name) {
     if (name === 'inspector') return inspector(g);
     if (name === 'input') return inputTest(g);
     if (name === 'debts') return debts(g);
+    if (name === 'kidnap') return kidnap(g);
+    if (name === 'cockdbg') {
+      fresh(g); const W = g.W;
+      const id = W.carSeq++; W.cars.push({ id, kind: 'family', x: -80, z: -26, yaw: Math.PI, drv: null, pas: [], cargo: [] });
+      g.exec(g.me, { k: 'enter', id }); g.cam.mode = 'first'; sim(g, 0.5);
+      const c = W.cars.find(x => x.id === id), cam = g.camera.position, P = g.player;
+      const lx = cam.x - c.x, lz = cam.z - c.z, cs = Math.cos(-c.yaw), sn = Math.sin(-c.yaw);
+      note('car ' + c.x.toFixed(2) + ',' + c.z.toFixed(2) + ' yaw ' + c.yaw.toFixed(2) + ' P ' + P.pos.x.toFixed(2) + ',' + P.pos.y.toFixed(2) + ',' + P.pos.z.toFixed(2));
+      note('cam world ' + cam.x.toFixed(2) + ',' + cam.y.toFixed(2) + ',' + cam.z.toFixed(2) + ' local x ' + (lx * cs + lz * sn).toFixed(2) + ' z ' + (-lx * sn + lz * cs).toFixed(2));
+      const K = g.vehicles.cockpit; note('cockpit pos ' + K.group.position.x.toFixed(2) + ',' + K.group.position.z.toFixed(2) + ' rot ' + K.group.rotation.y.toFixed(2) + ' seat0 ' + JSON.stringify(g.vehicles.meshes.get(id).C.seats[0]));
+      const f = g.camera.position.clone(); g.camera.getWorldDirection(f); note('cam dir ' + f.x.toFixed(2) + ',' + f.y.toFixed(2) + ',' + f.z.toFixed(2) + ' mode ' + g.cam.mode);
+      return;
+    }
     if (name === 'mall') return mall(g);
     if (name === 'admin') {
       setupAt(g, 3); sim(g, 0.2);
@@ -210,6 +231,71 @@ function debts(g) {
   g.exec(me, { k: 'debt', id: e.id, op: 'talk' });
   log(true, 'talked to a debtor: ' + (W.debts.includes(e) ? 'refused (menu offered)' : 'paid'));
   note('debts done');
+}
+
+/** the Comically Large Sack: bag a debtor, trunk, Time-Out Chair, pay. And the cockpit. */
+function kidnap(g) {
+  fresh(g);
+  const me = g.me, W = g.W, D = g.debts, P = g.player;
+  W.money = 50000;
+  g.exec(me, { k: 'shop', cat: 'general', key: 'sack' });
+  g.exec(me, { k: 'shop', cat: 'general', key: 'sack' });
+  log(W.inv[me].sack === 2, 'bought 2 sacks at the general store');
+  const d = D.create('house', 2, 'Gary', 2000, 'test'); d.state = 'late';
+  const at = D.at(d); P.teleport(at.x, at.z + 0.6, 0); sim(g, 0.2);
+  const T = []; D.targets(P, T);
+  log(T.some(t => t.debt === d.id && t.alt && t.alt.act.op === 'bag'), 'at their door: R = "' + (T.find(t => t.debt === d.id)?.alt?.label) + '"');
+  g.exec(me, { k: 'debt', id: d.id, op: 'bag' });
+  log(d.state === 'bagged' && g.hold(me).some(i => i.k === 'bag' && i.id === d.id) && W.inv[me].sack === 1, 'bagged them: ' + d.name + ' is in the sack, in your arms');
+  sim(g, 0.5);
+  log(!D.rigs.has(d.id), 'nobody stands at the door any more');
+  // into a trunk
+  g.admin.run('car', 'scooter'); g.admin.close();
+  const sc = W.cars[W.cars.length - 1];
+  g.exec(me, { k: 'cargo', id: sc.id, op: 'load' });
+  log(g.hold(me).some(i => i.k === 'bag'), 'a sack does not fit on a scooter');
+  g.admin.run('car', 'family'); g.admin.close();
+  const car = W.cars[W.cars.length - 1];
+  g.exec(me, { k: 'cargo', id: car.id, op: 'load' });
+  log(car.cargo.some(i => i.k === 'bag') && !g.hold(me).length, 'the sack went into the trunk of the family car');
+  sim(g, 2);
+  log(d.state === 'bagged', 'still in the trunk after a drive');
+  // first person from the driver's seat: the cockpit
+  g.cam.mode = 'first';
+  g.exec(me, { k: 'enter', id: car.id }); sim(g, 0.3);
+  const K = g.vehicles.cockpit, M = g.vehicles.meshes.get(car.id);
+  log(K && K.group.visible && !M.C.group.visible && K.hands.visible, 'first person in the car: cockpit with hands on the wheel, outside of the car hidden');
+  g.vehicles.local.spd = 12; g.vehicles._cockpit(0.1, g.vehicles.seatOf(me));
+  log(Math.abs(K.dials[0].rotation.z + 2.2) > 0.3, 'the speedometer needle moved (' + K.dials[0].rotation.z.toFixed(2) + ')');
+  g.exec(me, { k: 'exit' }); sim(g, 0.2);
+  log(!K.group.visible && M.C.group.visible, 'got out: cockpit gone, the car is back');
+  // out of the trunk, to the chair
+  g.exec(me, { k: 'cargo', id: car.id, op: 'take' });
+  log(g.hold(me).some(i => i.k === 'bag'), 'took the sack out of the trunk');
+  const ch = g.town.poi.storageChair; P.teleport(ch.x + 1, ch.z, 0); sim(g, 0.2);
+  const T2 = []; D.targets(P, T2);
+  log(T2.some(t => t.act && t.act.op === 'seat'), 'at the Time-Out Chair: "' + T2.find(t => t.act && t.act.op === 'seat')?.label + '"');
+  g.exec(me, { k: 'debt', id: d.id, op: 'seat' });
+  sim(g, 0.3);
+  log(d.state === 'guest' && D.guest && D.guest.id === d.id, d.name + ' is in the Time-Out Chair watching Dez\'s slideshow');
+  const t0 = d.t; g.exec(me, { k: 'debt', id: d.id, op: 'slide' });
+  log(!W.debts.includes(d) || d.t < t0 - 10, 'showed them a slide (' + Math.round(t0) + 's -> ' + (W.debts.includes(d) ? Math.round(d.t) + 's' : 'they cracked') + ')');
+  const m0 = W.money;
+  if (W.debts.includes(d)) { d.t = 0.05; sim(g, 0.3); }
+  log(!W.debts.includes(d) && (W.money === m0 + d.amount || W.money >= m0), 'they paid up and went home');
+  sim(g, 0.2);
+  log(!D.guest, 'the chair is empty again');
+  // a dropped sack: they escape
+  const e = D.create('house', 4, 'Brenda', 1500, 'test'); e.state = 'overdue';
+  g.exec(me, { k: 'debt', id: e.id, op: 'bag' });
+  g.exec(me, { k: 'toss', x: P.pos.x, z: P.pos.z });
+  log(e.state === 'overdue' && !g.hold(me).length, 'dropped the sack: ' + e.name + ' escaped and went home');
+  // busted with a sack: the cops take it, they escape
+  W.inv[me].sack = 1;
+  g.exec(me, { k: 'debt', id: e.id, op: 'bag' });
+  g.bust(me, 'test', 0, 0); sim(g, 0.2);
+  log(e.state === 'overdue' && !g.hold(me).length, 'busted carrying a sack: the cops let them out');
+  note('kidnap done');
 }
 
 /** the real input path: walk up to things and press keys */

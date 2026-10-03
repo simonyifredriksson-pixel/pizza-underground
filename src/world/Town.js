@@ -775,6 +775,17 @@ export class Town {
     // the ladder out
     for (let i = 0; i < 8; i++) m.box(X + W / 2 - 0.5, 0.3 + i * 0.5, Z - 4.5, 0.06, 0.06, 0.8, '#8a8aa0');
     for (const s of [-1, 1]) m.box(X + W / 2 - 0.5, 0, Z - 4.5 + s * 0.4, 0.08, 4.5, 0.08, '#8a8aa0');
+    // the Time-Out Chair: a comfy chair, a lamp, a TV playing Dez's vacation slideshow on loop
+    const cx2 = X - 4.6, cz2 = Z + 2.2;
+    m.box(cx2, 0, cz2, 0.9, 0.5, 0.9, '#c8323a'); m.box(cx2 - 0.4, 0.5, cz2, 0.12, 0.9, 0.9, '#c8323a');
+    for (const s of [-1, 1]) m.box(cx2, 0.5, cz2 + s * 0.42, 0.9, 0.3, 0.1, '#a8222a');
+    this.col.boxc(cx2, cz2, 0.9, 0.9, { h: 0.6 });
+    m.box(cx2 + 2.4, 0, cz2, 0.6, 0.7, 1.4, '#5a3a22'); m.box(cx2 + 2.4, 0.7, cz2, 0.15, 0.9, 1.5, '#1b1b24');
+    this.col.boxc(cx2 + 2.4, cz2, 0.6, 1.5, { h: 1.6 });
+    this.sign(['DEZ\'S VACATION', 'SLIDESHOW', '(slide 1 of 4,000)'], cx2 + 2.31, 1.15, cz2, -Math.PI / 2, 1.3, 0.75, { bg: '#43c0ff', fg: '#1b1b24', border: false });
+    this.sign(['THE TIME-OUT', 'CHAIR'], cx2 - 0.9, 2.6, cz2, Math.PI / 2, 2.0, 0.7, { bg: '#ffe14a' });
+    this.root.add(part(geo.ico(0), '#fff6c8', cx2 + 0.6, 2.8, cz2, 0.35, 0.3, 0.35, { emissive: 0xfff2b0, ei: 1 }));
+    this.poi.storageChair = { x: cx2, z: cz2 };
     this.root.add(m.build({ cast: false }));
     this.poi.storageExit = { x: X + W / 2 - 1.3, z: Z - 4.5 };
     this.poi.storageIn = { x: X + W / 2 - 2, z: Z - 3 };
@@ -929,6 +940,7 @@ export class Town {
       coat: () => { const g = new THREE.Group(); g.add(part(geo.frust(0.8, 7), '#8a6a4a', 0, 0.45, 0, 0.6, 0.9, 0.45)); g.add(part(geo.cyl(10), '#4a3b30', 0, 1.0, 0, 0.6, 0.05, 0.6)); return g; },
       suit: () => { const g = new THREE.Group(); g.add(part(geo.frust(0.8, 7), '#1b1b24', 0, 0.45, 0, 0.6, 0.9, 0.45)); g.add(part(geo.box(), '#d6232a', 0, 0.6, 0.22, 0.08, 0.4, 0.02)); g.add(part(geo.box(), '#111018', 0, 1.0, 0.1, 0.4, 0.08, 0.05)); return g; },
       cop: () => { const g = new THREE.Group(); g.add(part(geo.cyl(8), '#1e2a5a', 0, 0.15, 0, 0.6, 0.25, 0.6)); g.add(part(geo.ico(0), '#ffd23f', 0, 0.2, 0.3, 0.14, 0.14, 0.05)); return g; },
+      sack: () => { const g = new THREE.Group(); g.add(part(geo.ico(1), '#b8945a', 0, 0.4, 0, 0.7, 0.8, 0.6)); g.add(part(geo.cyl(6), '#8a6a3a', 0, 0.85, 0, 0.2, 0.15, 0.2)); return g; },
     };
     const misc = GENERAL.map(e => ({ ...e, model: genModel[e.key] }));
     const extra = { shop, bake: (mm, gp) => bake(mm, gp) };

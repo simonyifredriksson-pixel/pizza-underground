@@ -30,6 +30,15 @@ export function makeItem(item) {
     return g;
   }
   if (item.k === 'trash') { g.add(part(geo.ico(0), '#2b2b33', 0, 0.3, 0, 0.6, 0.6, 0.6)); return g; }
+  if (item.k === 'bag') { // a comically large burlap sack, with a very unhappy debtor in it
+    const s = part(geo.ico(1), '#b8945a', 0, 0.55, 0, 0.9, 1.1, 0.8); g.add(s);
+    g.add(part(geo.cyl(6), '#8a6a3a', 0, 1.1, 0, 0.3, 0.18, 0.3));
+    g.add(part(geo.cone(6), '#b8945a', 0, 1.3, 0, 0.4, 0.3, 0.4));
+    for (const x of [-0.2, 0.2]) g.add(part(geo.box(), '#1d1a24', x, 0.05, 0.1, 0.18, 0.12, 0.3)); // feet sticking out
+    g.add(part(geo.box(), '#2a1640', 0, 0.6, 0.41, 0.3, 0.05, 0.02)); // a stencil: "NOT A PERSON"
+    g.userData.wiggle = true;
+    return g;
+  }
   if (item.k === 'crate') { // a crate of supplies, with a sample of what's inside on top
     g.add(part(geo.box(), '#b8894c', 0, 0.22, 0, 0.62, 0.44, 0.5));
     for (const s of [-1, 1]) g.add(part(geo.box(), '#8a6234', 0, 0.22, s * 0.26, 0.64, 0.08, 0.02));
@@ -312,7 +321,7 @@ export function makeCar(style) {
     for (const s of [-1, 1]) body.add(part(geo.box(), '#c41a1a', s * W * 0.4, 0.75, -L / 2 - 0.02, 0.24, 0.14, 0.04, { emissive: 0xff2020, ei: 0.3 }));
     wheelsAt(S.cargo ? 0.5 : 0.42, S.cargo ? [L * 0.36, -L * 0.2, -L * 0.36] : [L * 0.32, -L * 0.3]);
     const sy = 0.55;
-    C.seats = [{ x: -W * 0.22, y: sy, z: cabZ }, { x: W * 0.22, y: sy, z: cabZ }, ...(S.pickup ? [{ x: -W * 0.25, y: 0.75, z: bedZ }, { x: W * 0.25, y: 0.75, z: bedZ }] : [])];
+    C.seats = [{ x: W * 0.22, y: sy, z: cabZ }, { x: -W * 0.22, y: sy, z: cabZ }, ...(S.pickup ? [{ x: -W * 0.25, y: 0.75, z: bedZ }, { x: W * 0.25, y: 0.75, z: bedZ }] : [])];
     return C;
   }
   const bodyH = S.van ? S.h * 0.55 : S.h * 0.55;
@@ -381,7 +390,7 @@ export function makeCar(style) {
     g.add(w); C.wheels.push(w);
   }
   const sy = 0.35 + bodyH * 0.35;
-  C.seats = [{ x: -W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: -W * 0.22, y: sy, z: cabZ - cabL * 0.3 }, { x: W * 0.22, y: sy, z: cabZ - cabL * 0.3 }];
+  C.seats = [{ x: W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: -W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: -W * 0.22, y: sy, z: cabZ - cabL * 0.3 }, { x: W * 0.22, y: sy, z: cabZ - cabL * 0.3 }];
   return C;
 }
 

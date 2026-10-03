@@ -174,6 +174,7 @@ export class Game {
         case 'toss': {
           const it = H.pop(); if (!it) break;
           if (it.k === 'ext') { const st = this.kitchen.st(it.from || 'ext1'); st.ext = true; this.tell(pid, 'The extinguisher magically returns to the wall. (Physics.)'); }
+          else if (it.k === 'bag') { this.fxAt('poof', a.x, 0.6, a.z); const d = this.debts.list.find(x => x.id === it.id); if (d && d.state === 'bagged') this.debts.release(d, ' hit the ground, wriggled out of the sack and ran home yelling "I\'M TELLING!"'); }
           else this.fxAt('splat', a.x, 1.2, a.z);
           this.sfx('splat', a); this.dirty(); break;
         }
@@ -297,6 +298,7 @@ export class Game {
         if (!pay(it.price)) return;
         W.owned.disg.push(a.key); W.wear[pid] = a.key;
       } else if (a.key === 'smoke') { if (!pay(it.price)) return; inv.smoke++; this.tell(pid, 'Smoke bombs: ' + inv.smoke + '. Press G to vanish.'); }
+      else if (a.key === 'sack') { if (!pay(it.price)) return; inv.sack = (inv.sack || 0) + 1; this.tell(pid, 'Comically Large Sacks: ' + inv.sack + '. Find someone who owes you money. Press R at their door.'); }
       else if (a.key === 'energy') { if (!pay(it.price)) return; this.broadcastEvent({ k: 'energy', pid }); }
       else if (a.key === 'fresh') { if (!pay(it.price)) return; W.fresh = 180; this.tell(pid, 'The hideout now smells like a pine forest. For 3 minutes.'); }
       else if (a.key === 'license') { if (W.license) return this.tell(pid, 'You already have one. One forgery at a time.'); if (!pay(it.price)) return; W.license = true; }
@@ -859,14 +861,15 @@ export class Game {
   _fpCamera(dt, look) {
     const cam = this.camera, C = this.cam, P = this.player;
     if (!this.ui.menuOpen) { P.camYaw -= look.x; C.fpPitch = clamp((C.fpPitch || 0) + look.y, -1.45, 1.45); }
+    // getting in: look out of the windshield
+    if (P.car !== C.lastCar) { C.lastCar = P.car; const c0 = P.car && this.vehicles.car(P.car); if (c0) { P.camYaw = c0.yaw - Math.PI; C.fpPitch = 0.1; C.carLook = 0; } }
     let eye, yaw = P.camYaw + Math.PI;
-    if (P.car !== C.lastCar) { C.lastCar = P.car; const c0 = P.car && this.vehicles.car(P.car); if (c0) { P.camYaw = c0.yaw - Math.PI; C.fpPitch = 0.08; } }
     if (P.car) {
-      const c = this.vehicles.car(P.car);
+      const c = this.vehicles.car(P.car), K = this.vehicles.cockpit;
       // free look inside the car, relative to where the car points
       C.carLook = clamp(wrapAngle(yaw - (c ? c.yaw : yaw)), -2.4, 2.4);
       if (c) { yaw = c.yaw + C.carLook; P.camYaw = yaw - Math.PI; }
-      eye = new THREE.Vector3(P.pos.x, P.pos.y + 1.28, P.pos.z);
+      eye = new THREE.Vector3(P.pos.x, K && K.group.visible ? K.eyeY : P.pos.y + 1.28, P.pos.z);
     } else if (P.hidden) eye = new THREE.Vector3(P.pos.x, 1.2, P.pos.z);
     else {
       C.bob = (C.bob || 0) + dt * P.speed * 1.9;

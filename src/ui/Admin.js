@@ -71,6 +71,7 @@ export class Admin {
         if (arg === 'ext') H.push({ k: 'ext', from: 'ext1' });
         if (arg === 'stock') for (const k in W.stock) W.stock[k] += 20;
         if (arg === 'smoke') { W.inv = W.inv || {}; (W.inv[me] ||= { smoke: 0 }).smoke += 3; }
+        if (arg === 'sack') { W.inv = W.inv || {}; const i = (W.inv[me] ||= { smoke: 0 }); i.sack = (i.sack || 0) + 3; }
         break;
       }
       case 'event': g.events.start(arg); break;
@@ -109,7 +110,7 @@ export class Admin {
       body = `<div class="arow"><b>Teleport me</b></div><div class="agrid">${Object.entries(spots).map(([n, p]) => btn(n, 'tp', { x: p.x, z: p.z })).join('')}</div>
       <div class="arow"><b>Players</b></div><div class="agrid">${[...g.remotes.values()].map(r => btn('Bring ' + r.name + ' to me', 'tpPlayer', r.id) + btn('Go to ' + r.name, 'goto', r.id)).join('') || '<span class="adim">Nobody else is here.</span>'}</div>
       <div class="arow"><b>Spawn a vehicle in front of me</b></div><div class="agrid">${Object.entries(VEHICLES).map(([k, v]) => btn(v.name, 'car', k)).join('')}</div>
-      <div class="arow"><b>Give me</b></div><div class="agrid">${btn('A boxed pizza', 'item', 'box')}${btn('A crate of cheese', 'item', 'crate')}${btn('An extinguisher', 'item', 'ext')}${btn('3 smoke bombs', 'item', 'smoke')}</div>`;
+      <div class="arow"><b>Give me</b></div><div class="agrid">${btn('A boxed pizza', 'item', 'box')}${btn('A crate of cheese', 'item', 'crate')}${btn('An extinguisher', 'item', 'ext')}${btn('3 smoke bombs', 'item', 'smoke')}${btn('3 sacks', 'item', 'sack')}</div>`;
     }
     if (this.tab === 'testing') body = `
       <div class="arow"><b>Current event</b> ${W.event ? esc(W.event.k) : 'none'} · <b>Weather</b> ${W.weather ? 'storm' : 'clear'}</div>

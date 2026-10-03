@@ -22,6 +22,19 @@ SPEAKERS.debtor = { name: 'Debtor', color: '#c8c8d8' };
 SPEAKERS.knuckles = { name: 'Knuckles', color: '#ff9f1a' };
 SPEAKERS.rival = { name: 'Calzone Cartel', color: '#ff6b6b' };
 
+const BAGGABLE = ['owed', 'late', 'warned', 'overdue'];
+const SLIDES = [
+  'Slide 2: the airport again, but from the parking lot.',
+  'Slide 17: a seagull. I named him Gary. Gary stole my sandwich.',
+  'Slide 44: my thumb. Very artistic. Very moody.',
+  'Slide 102: a beach. Slide 103: the same beach, slightly to the left.',
+  'Slide 230: a really nice rock. Let me tell you about this rock for twenty minutes.',
+  'Slide 511: me pointing at a sign that says "NO POINTING".',
+  'Slide 900: the hotel breakfast buffet. Every single item. Individually.',
+  'Slide 1,404: a cloud that looks like a pizza. Or a pizza that looks like a cloud. Discuss.',
+];
+const SLIDE_GROANS = ['(muffled screaming)', 'How many slides ARE there?!', 'Why is it ALWAYS the same beach?!', 'I can feel my soul leaving my body.', 'Okay, the rock was kind of nice. NO. Stay strong.', 'Please. I have a family. They also hate slideshows.'];
+
 const KNUCKLES_LOOK = { hat: 'fedora', hatColor: '#1b1b24', coat: '#1b1b24', glasses: 'sun', skin: '#e0a57c', belly: 1.35, mustache: true, headSize: 0.92 };
 const RIVAL_LOOK = { hat: 'fedora', hatColor: '#f6f1e6', coat: '#f6f1e6', glasses: 'sun', skin: '#c98a5e', tie: '#d6232a', mustache: '#1a1410' };
 
@@ -49,7 +62,7 @@ export class Debts {
   itemOf(d) { return d.kind === 'house' ? this.g.town.houses[d.ref].valuable : 'Shop Sign'; }
   stateText(d) {
     const t = Math.max(0, Math.ceil(d.t || 0));
-    return { owed: 'due in ' + t + 's', late: 'LATE', warned: 'deadline in ' + t + 's', overdue: 'DEADLINE PASSED', seized: 'their ' + this.itemOf(d) + ' is in your storage room' }[d.state];
+    return { owed: 'due in ' + t + 's', late: 'LATE', warned: 'deadline in ' + t + 's', overdue: 'DEADLINE PASSED', seized: 'their ' + this.itemOf(d) + ' is in your storage room', bagged: 'in a sack', guest: 'in the Time-Out Chair (' + t + 's)' }[d.state];
   }
 
   /* ---------------- reputation ---------------- */
@@ -97,6 +110,14 @@ export class Debts {
       } else if (d.state === 'seized') {
         d.t -= dt;
         if (d.t <= 0) { this.pay(null, d, true); changed = true; }
+      } else if (d.state === 'bagged') {
+        // a sack is not a long-term plan: dropped, confiscated or just slow, they wriggle out
+        d.bt = (d.bt ?? 240) - dt;
+        if (!this.bagOf(d.id)) { this.release(d, ' wriggled out of the sack and sprinted home. Rude.'); changed = true; }
+        else if (d.bt <= 0) { this.release(d, ' chewed through the sack and escaped. It was a cheap sack.'); changed = true; }
+      } else if (d.state === 'guest') {
+        d.t -= dt;
+        if (d.t <= 0) { this.pay(null, d); changed = true; }
       }
     }
     // businesses run tabs once they know who you are
@@ -170,8 +191,57 @@ export class Debts {
         if (!W.owned.up.knuckles || W.kn || !['late', 'warned', 'overdue'].includes(d.state)) return;
         this._sendKnuckles(d);
         break;
+      case 'bag': {
+        // the Comically Large Sack: they go in, you carry them to a trunk
+        const inv = W.inv?.[pid], H = g.hold(pid);
+        if (!BAGGABLE.includes(d.state)) return;
+        if (!inv || !(inv.sack > 0)) return g.tell(pid, 'You need a Comically Large Sack (General store at the mall).');
+        if (H.length) return g.tell(pid, 'You need both hands free to bag someone.');
+        inv.sack--;
+        d.prev = d.state; d.state = 'bagged'; d.bt = 240;
+        H.push({ k: 'bag', id: d.id, name: d.name });
+        g.addHeat(3); this.addRep(1);
+        g.sfx('whoosh', at);
+        say([['you', 'Get in the sack.'], ['debtor', 'The WHAT?'], ['narr', '*FWUMP.* ' + d.name + ' is in the sack. Put them in a car trunk (back of the car, E) and take them to the Time-Out Chair in the hidden storage room.'], ['debtor', '(muffled) THIS IS A VIOLATION OF MY RIGHTS. AND IT SMELLS LIKE ONIONS.']]);
+        break;
+      }
+      case 'seat': {
+        const H = g.hold(pid), top = H[H.length - 1];
+        if (d.state !== 'bagged' || !top || top.k !== 'bag' || top.id !== d.id) return;
+        if (this.list.some(x => x.state === 'guest')) return g.tell(pid, 'The Time-Out Chair is taken. One guest at a time. We are not animals.');
+        H.pop();
+        d.state = 'guest'; d.t = 60; d.slide = 0;
+        say([['narr', 'You sit ' + d.name + ' in the Time-Out Chair and pull off the sack. The TV clicks on.'], ['dez', 'Welcome! This is my vacation slideshow. All four thousand slides. Slide one: an airport.'], ['debtor', 'No. No no no. Not the slides.'], ['narr', 'They pay when they crack (60s), or speed it up by showing them slides yourself (E).']]);
+        break;
+      }
+      case 'slide': {
+        if (d.state !== 'guest') return;
+        d.slide = (d.slide || 0) + 1;
+        d.t -= 14;
+        const line = SLIDES[(d.slide - 1) % SLIDES.length];
+        if (d.t <= 0 || Math.random() < 0.08 + this.tier * 0.03) { say([['dez', line], ['debtor', 'OKAY! OKAY! I\'LL PAY! JUST MAKE IT STOP!']]); this.pay(pid, d); }
+        else say([['dez', line], ['debtor', pick(SLIDE_GROANS)]]);
+        break;
+      }
     }
     g.dirty();
+  }
+  /** where a sacked debtor currently is: in someone's arms or in a trunk */
+  bagOf(id) {
+    const W = this.W, is = i => i.k === 'bag' && i.id === id;
+    for (const [pid, h] of Object.entries(W.hold || {})) if (h.some(is)) return { pid };
+    for (const c of W.cars || []) if ((c.cargo || []).some(is)) return { car: c.id };
+    return null;
+  }
+  /** host: the sack is gone one way or another; they go home, a bit later on their payment */
+  release(d, why) {
+    const W = this.W, is = i => !(i.k === 'bag' && i.id === d.id);
+    for (const k of Object.keys(W.hold || {})) W.hold[k] = W.hold[k].filter(is);
+    for (const c of W.cars || []) if (c.cargo) c.cargo = c.cargo.filter(is);
+    d.state = d.prev === 'overdue' || d.prev === 'warned' ? 'overdue' : 'late'; d.t = 0;
+    this.addRep(-1);
+    this.g.tell(null, d.name + why);
+    this.g.dirty();
   }
   seize(d) {
     d.state = 'seized'; d.t = rand(70, 140);
@@ -181,12 +251,13 @@ export class Debts {
   pay(pid, d, returned) {
     const g = this.g, W = this.W;
     W.money += d.amount; W.stats.earned += d.amount; W.stats.collected = (W.stats.collected || 0) + d.amount;
-    const at = this.at(d);
-    const wasSeized = d.state === 'seized';
+    const wasSeized = d.state === 'seized', wasGuest = d.state === 'guest';
+    const at = wasGuest ? g.town.poi.storageChair : this.at(d);
     this.list.splice(this.list.indexOf(d), 1);
-    this.addRep(wasSeized ? 2 : 4);
-    g.broadcastEvent({ k: 'paid', x: at.x, z: at.z, pay: d.amount, why: 'debt', line: wasSeized ? 'Here! Here\'s your money! Now give me back my ' + this.itemOf(d) + '!' : 'Paid in full. Please leave.', name: d.name, pid });
+    this.addRep(wasSeized ? 2 : wasGuest ? 3 : 4);
+    g.broadcastEvent({ k: 'paid', x: at.x, z: at.z, pay: d.amount, why: 'debt', line: wasSeized ? 'Here! Here\'s your money! Now give me back my ' + this.itemOf(d) + '!' : wasGuest ? 'FINE! TAKE IT! I never want to see another beach! Can I go home now?' : 'Paid in full. Please leave.', name: d.name, pid });
     if (wasSeized) g.tell(null, pick(RETURN_LINES).replace('{N}', d.name).replace('{X}', this.itemOf(d)));
+    if (wasGuest) g.tell(null, d.name + ' paid ' + money(d.amount) + ' and was escorted home with a free garlic knot. No hard feelings.');
     g.dirty();
   }
 
@@ -259,7 +330,7 @@ export class Debts {
     const seen = new Set();
     for (const d of this.list) {
       const at = this.at(d);
-      if (Math.hypot(P.pos.x - at.x, P.pos.z - at.z) > 30 || d.state === 'seized') continue;
+      if (Math.hypot(P.pos.x - at.x, P.pos.z - at.z) > 30 || d.state === 'seized' || d.state === 'bagged' || d.state === 'guest') continue;
       seen.add(d.id);
       let r = this.rigs.get(d.id);
       if (!r) {
@@ -274,6 +345,25 @@ export class Debts {
       r.anim(dt, { talk: talking, panic: talking && /NOT THE|TAKE/.test(g.ui.dlg?.full || '') ? 1 : 0 });
     }
     for (const [id, r] of this.rigs) if (!seen.has(id)) { g.scene.remove(r.root); this.rigs.delete(id); }
+    // the guest in the Time-Out Chair, staring at the slideshow
+    const guest = this.list.find(d => d.state === 'guest'), ch = T.poi.storageChair;
+    if (guest && ch) {
+      if (!this.guest || this.guest.id !== guest.id) {
+        if (this.guest) g.scene.remove(this.guest.rig.root);
+        const s = guest.id * 7;
+        const rig = makeChar({ skin: SKINS[s % SKINS.length], shirt: ['#f7a8c8', '#8fc1e3', '#ffd23f', '#a8e0c0', '#c9a8f0'][s % 5], pants: '#3a5a9a', hat: ['default', 'bald', 'beanie', 'default'][s % 4], hair: ['#2a1a14', '#c8742a', '#e0e0e0'][s % 3], hairStyle: ['', 'big', 'bun'][s % 3], glasses: s % 3 === 0 ? 'round' : null, belly: 1 + (s % 4) * 0.1 });
+        rig.root.position.set(ch.x - 0.05, 0.17, ch.z); rig.root.rotation.y = Math.PI / 2;
+        g.scene.add(rig.root); this.guest = { id: guest.id, rig, t: 3 };
+      }
+      this.guest.rig.anim(dt, { sit: true, panic: 0.6, talk: true });
+      this.guest.t -= dt;
+      if (this.guest.t <= 0 && Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z) < 14) { this.guest.t = rand(6, 10); g.bubble(() => ({ x: ch.x, z: ch.z }), pick(SLIDE_GROANS)); }
+    } else if (this.guest) { g.scene.remove(this.guest.rig.root); this.guest = null; }
+    // the sack mumbles while you carry it
+    const myBag = g.hold(g.me).find(i => i.k === 'bag');
+    this.mmphT = (this.mmphT ?? 2) - dt;
+    if (myBag && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the sack) MMPH! I\'LL PAY! I\'LL PAY TUESDAY!', '(the sack) Is this a TRUNK? Are we going to a TRUNK?', '(the sack) MMMPH MMPH! (it sounds like "I want a lawyer")', '(the sack) It\'s dark in here and it smells like onions!', '(the sack) Can I at least get a garlic knot?'])); }
+    else if (!myBag) this.mmphT = Math.max(this.mmphT, 1.5);
     // confiscated things vanish from home and appear in the storage room
     const seized = this.list.filter(d => d.state === 'seized');
     for (const h of T.houses) h.vgroup.visible = !seized.some(d => d.kind === 'house' && d.ref === h.id);
@@ -317,11 +407,24 @@ export class Debts {
   targets(P, out) {
     const g = this.g, W = this.W, T = g.town.poi;
     if (P.floor !== 0) return;
+    const sacks = W.inv?.[g.me]?.sack || 0, H = g.hold(g.me), top = H[H.length - 1];
     for (const d of this.list) {
       const at = this.at(d), dd = Math.hypot(P.pos.x - at.x, P.pos.z - at.z);
-      if (dd > 3.4) continue;
+      if (dd > 3.4 || d.state === 'bagged' || d.state === 'guest') continue;
+      const bag = BAGGABLE.includes(d.state) && sacks > 0 ? { label: H.length ? 'Bag them (free your hands first)' : 'Bag them! (' + sacks + ' sack' + (sacks > 1 ? 's' : '') + ')', act: { k: 'debt', id: d.id, op: 'bag' } } : null;
       if (d.state === 'seized') out.push({ x: at.x, z: at.z, d: dd, label: d.name + ' is saving up. (Their ' + this.itemOf(d) + ' is in your storage room.)', info: true });
-      else out.push({ x: at.x, z: at.z, d: dd - 0.2, label: 'Collect ' + money(d.amount) + ' from ' + d.name + ' (' + this.stateText(d) + ')', act: { k: 'debt', id: d.id, op: d.state === 'overdue' ? 'talk' : 'talk' }, debt: d.id });
+      else out.push({ x: at.x, z: at.z, d: dd - 0.2, label: 'Collect ' + money(d.amount) + ' from ' + d.name + ' (' + this.stateText(d) + ')', act: { k: 'debt', id: d.id, op: 'talk' }, debt: d.id, alt: bag });
+    }
+    // the Time-Out Chair
+    const ch = T.storageChair;
+    if (ch) {
+      const dc = Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z);
+      if (dc < 2.6) {
+        const guest = this.list.find(d => d.state === 'guest');
+        if (top && top.k === 'bag') out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
+        else if (guest) out.push({ x: ch.x, z: ch.z, d: dc, label: 'Show ' + guest.name + ' the next slide (' + this.stateText(guest) + ', owes ' + money(guest.amount) + ')', act: { k: 'debt', id: guest.id, op: 'slide' } });
+        else out.push({ x: ch.x, z: ch.z, d: dc, label: 'The Time-Out Chair. Bring a debtor in a sack (Comically Large Sack: General store).', info: true });
+      }
     }
     if (W.rival) { const dd = Math.hypot(P.pos.x - W.rival.x, P.pos.z - W.rival.z); if (dd < 3) out.push({ x: W.rival.x, z: W.rival.z, d: dd, label: 'Confront the Calzone Cartel', local: 'rival' }); }
     if (W.quest >= Q.FIND) {
@@ -341,6 +444,7 @@ export class Debts {
     if (d.pressed !== d.state) items.push({ label: 'Pay up. NOW.', sub: 'Lean in. Look serious. (It works better in a suit.)', on: () => g.act({ k: 'debt', id, op: 'press' }) });
     if (['owed', 'late'].includes(d.state)) items.push({ label: 'You have until tomorrow.', sub: 'Set a deadline. If they miss it, you can take their ' + this.itemOf(d) + '.', on: () => g.act({ k: 'debt', id, op: 'deadline' }) });
     if (d.state === 'overdue') items.push({ label: 'We\'re taking the ' + this.itemOf(d) + '.', sub: 'Confiscate it until they pay. It goes to your hidden storage room.', on: () => g.act({ k: 'debt', id, op: 'seize' }) });
+    if (BAGGABLE.includes(d.state) && (g.W.inv?.[g.me]?.sack || 0) > 0) items.push({ label: 'Get in the sack.', sub: 'Bag them, put them in a trunk, sit them in the Time-Out Chair until they pay. Police will NOT like it.', on: () => g.act({ k: 'debt', id, op: 'bag' }) });
     items.push({ label: 'Forget it. You\'re forgiven.', sub: 'Lose the money. Gain a friend. Mafia rep -1.', on: () => g.act({ k: 'debt', id, op: 'forgive' }) });
     items.push({ label: 'Leave' });
     g.ui.menu({ title: d.name + ' owes ' + money(d.amount), sub: d.reason + ' · ' + this.stateText(d), items });

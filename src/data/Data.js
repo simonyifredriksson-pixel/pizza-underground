@@ -40,13 +40,14 @@ export const GENERAL = [
   { key: 'energy', label: 'Energy Drink "LIQUID PANIC"', price: 400, desc: 'You drink it right there. Run 40% faster for 60 seconds.' },
   { key: 'fresh', label: 'Air Freshener (Pine)', price: 800, desc: 'The hideout smells like a forest for 3 minutes: no smell heat, no smell evidence.' },
   { key: 'license', label: 'Fake Business License', price: 5000, desc: 'Laminated! The next inspection finds 3 less evidence. Then the inspector notices the spelling.' },
+  { key: 'sack', label: 'Comically Large Sack', price: 500, desc: 'For "giving debtors a ride". Bag one at their door (R), put them in a trunk, sit them in the Time-Out Chair in the hidden basement until they pay.' },
   { key: 'mustache', label: 'Fake Mustache (costume aisle)', price: 1500, disg: true },
   { key: 'coat', label: 'Trench Coat & Shades (costume aisle)', price: 6000, disg: true },
   { key: 'suit', label: 'Suspicious Suit (costume aisle)', price: 12000, disg: true, tier: 2 },
   { key: 'cop', label: 'Police Uniform (costume aisle, "for a party")', price: 40000, disg: true },
 ];
 /** cargo units: a pizza box is 1, a crate of supplies is 2 */
-export const CARGO = { box: 1, crate: 2 };
+export const CARGO = { box: 1, crate: 2, bag: 4 };
 
 export const LOOKS = [
   { name: 'Red', hat: 'cap', hatColor: '#d23a3a', shirt: '#d23a3a', pants: '#2b2b38', skin: '#f2c29b', hair: '#3a2418', capLogo: '#ffd23f' },

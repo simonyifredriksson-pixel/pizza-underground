@@ -61,5 +61,5 @@ export function loadProfile() {
 export function saveProfile(p) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* */ } }
 
 /** is this item evidence of a pizza crime */
-export const isContraband = it => it && (it.k === 'pizza' || it.k === 'box' || it.k === 'base' || it.k === 'dough');
+export const isContraband = it => it && (it.k === 'pizza' || it.k === 'box' || it.k === 'base' || it.k === 'dough' || it.k === 'bag');
 export const isPizza = it => it && (it.k === 'pizza' || it.k === 'box');
