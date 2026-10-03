@@ -19,7 +19,7 @@ export class Events {
   hostUpdate(dt, players) {
     const g = this.g, W = g.W;
     // heat cools off over time
-    W.heat = Math.max(0, W.heat - dt * 0.06 * (W.level >= 5 ? 2 : 1) * (W.ending ? 1.5 : 1));
+    W.heat = Math.max(0, W.heat - dt * 0.06 * (W.level >= 5 ? 2 : 1) * (W.ending ? 1.5 : 1) * (g.debts.tier >= 4 ? 1.6 : 1));
     // the news follows the heat
     const band = NEWS.heat.filter(([h]) => W.heat >= h).pop();
     if (band && band[0] > this.lastHeatNews) g.broadcastEvent({ k: 'news', text: band[1] });

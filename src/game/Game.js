@@ -17,6 +17,8 @@ import { NPCs } from './NPCs.js';
 import { Quest } from './Quest.js';
 import { Events } from './Events.js';
 import { Intro } from './Intro.js';
+import { Debts } from './Debts.js';
+import { tierOf, TIERS, NERVOUS } from '../data/Mafia.js';
 import { Effects } from './Effects.js';
 import { UI } from '../ui/UI.js';
 import { MapView } from '../ui/MapView.js';
@@ -62,6 +64,7 @@ export class Game {
     this.story = new Quest(this);
     this.events = new Events(this);
     this.intro = new Intro(this);
+    this.debts = new Debts(this);
     this._netHooks();
   }
 
@@ -147,6 +150,7 @@ export class Game {
         case 'accept': this.orders.accept(pid, a.id); break;
         case 'decline': this.orders.decline(pid, a.id); break;
         case 'clue': this.story.onClue(pid, a.id); break;
+        case 'debt': case 'rival': case 'safe': this.debts.exec(pid, a); break;
         case 'toss': {
           const it = H.pop(); if (!it) break;
           if (it.k === 'ext') { const st = this.kitchen.st(it.from || 'ext1'); st.ext = true; this.tell(pid, 'The extinguisher magically returns to the wall. (Physics.)'); }
@@ -226,7 +230,7 @@ export class Game {
     if (it.scam && Math.random() < it.scam) {
       this.broadcastEvent({ k: 'scam', pid, text: SCAM_TEXT[it.item] });
     } else {
-      W.stock[it.item] += Math.round(it.qty * (W.owned.up.bigfridge ? 1.5 : 1));
+      W.stock[it.item] += Math.round(it.qty * (W.owned.up.bigfridge ? 1.5 : 1) * (this.debts.tier >= 5 ? 1.5 : 1));
       this.sfx('cash', null);
     }
     this.story.onStock();
@@ -264,7 +268,8 @@ export class Game {
     const mine = e.pid == null || e.pid === this.me;
     switch (e.k) {
       case 'tell': if (mine) ui.toast(e.text); break;
-      case 'dlg': if (mine && this.phase === 'play') ui.dialog(e.lines); break;
+      case 'dlg': if (mine && this.phase === 'play') { if (e.who) Object.assign(SPEAKERS, e.who); ui.dialog(e.lines); } break;
+      case 'debtMenu': if (e.pid === this.me) { const open = () => (ui.inDialog ? setTimeout(open, 200) : this.debts.menuFor(e.id)); setTimeout(open, 300); } break;
       case 'alarm': ui.alarm(e.text); a.fail(); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;
@@ -279,7 +284,7 @@ export class Game {
       case 'ding': a.ding(); a.phone(); ui.toast('DING DING! New order on your phone (TAB)', 'order'); break;
       case 'paid': {
         const pos = new THREE.Vector3(e.x, 2.4, e.z);
-        this.fx.text(e.pay > 0 ? '+' + money(e.pay) : '$0', pos, e.pay > 0 ? '#43e07a' : '#ff5a5a', true);
+        this.fx.text(e.pay > 0 ? '+' + money(e.pay) : e.why === 'tab' ? 'ON THE TAB' : '$0', pos, e.pay > 0 ? '#43e07a' : e.why === 'tab' ? '#ffd23f' : '#ff5a5a', true);
         this.bubble({ x: e.x, z: e.z }, e.line);
         if (e.pay > 0) { a.cash(); this.fx.sparkle(e.x, 1.6, e.z, '#43e07a'); } else a.deny();
         if (e.why === 'soap') this.fx.foam(e.x, 1.4, e.z);
@@ -429,6 +434,7 @@ export class Game {
       this.orders.hostUpdate(dt);
       this.police.hostUpdate(dt, players);
       this.events.hostUpdate(dt, players);
+      this.debts.hostUpdate(dt, players);
       for (const c of W.cars) if (c.drv) this.police.carHit(c);
       this._saveT -= dt;
       if (this._saveT <= 0 && (this._dirty || this._saveT < -30)) { this._saveT = 8; if (this._dirty) saveWorld(W); }
@@ -440,6 +446,7 @@ export class Game {
     this.orders.sync(dt);
     this.police.sync(dt);
     this.npcs.update(dt);
+    this.debts.sync(dt);
     this.traffic.setVisible(this.phase !== 'intro');
     if (this.phase === 'play') { this.traffic.update(dt); this.citizens.update(dt); this.story.localUpdate(dt); }
     for (const r of this.remotes.values()) r.update(dt);
@@ -506,13 +513,14 @@ export class Game {
     const T = [];
     if (P.hidden) T.push({ d: 0, label: 'Climb out of the dumpster', local: 'unhide' });
     else if (!P.car) {
-      if (this.phase === 'play' && P.pos.x > HOSPITAL_SET.x - 50) {
+      if (this.phase === 'play' && Math.abs(P.pos.x - HOSPITAL_SET.x) < 30) {
         const e = this.town.poi.hospExit, d = Math.hypot(P.pos.x - e.x, P.pos.z - e.z);
         if (d < 2.5) T.push({ d, label: 'Leave the hospital', local: 'exitHospital' });
       } else {
         this.kitchen.targets(P, T);
         this.orders.targets(P, T);
         this.npcs.targets(P, T);
+        this.debts.targets(P, T);
         if (P.floor === 0) for (const d of this.town.poi.dumpsters || []) { const dd = Math.hypot(P.pos.x - d.x, P.pos.z - d.z); if (dd < 3.0) T.push({ d: dd + 0.5, label: 'Hide in the dumpster', local: 'hide', at: d }); }
       }
     }
@@ -560,6 +568,9 @@ export class Game {
       case 'hide': P.hidden = t.at; P.pos.set(t.at.x, 0, t.at.z); this.audio.thud(P.pos); this.ui.toast('You are in a dumpster. It smells like... actually, it smells like old pizza. Nice.'); break;
       case 'unhide': { const d = P.hidden; P.hidden = null; P.teleport(d.x + 2, d.z + 1.6, 0); this.audio.thud(P.pos); break; }
       case 'exitHospital': this.leaveHospital(); break;
+      case 'rival': this.debts.rivalTalk(); break;
+      case 'safe': this.debts.safeMenu(); break;
+      case 'storageIn': case 'storageOut': { const T = this.town.poi, p = t.local === 'storageIn' ? T.storageIn : { x: 137.8, z: 66.8 }; this.ui.fade(true); this.audio.ovenDoor(null); setTimeout(() => { P.teleport(p.x, p.z, 0, t.local === 'storageIn' ? -Math.PI / 2 : Math.PI / 2); this.cam.snap = true; this.ui.fade(false); }, 300); break; }
     }
   }
 
@@ -588,6 +599,10 @@ export class Game {
       };
     });
     if (!items.length) items.push({ label: 'No orders right now. They will come. DING DING.', disabled: true });
+    if (W.quest >= Q.BIZ) {
+      const late = (W.debts || []).filter(d => ['late', 'overdue'].includes(d.state)).length;
+      items.unshift({ label: 'DEBTS: ' + (W.debts || []).length + ' people owe you money' + (late ? ' (' + late + ' late!)' : ''), sub: 'Mafia Rep: ' + TIERS[tierOf(W.mrep || 0)].name, price: money((W.debts || []).reduce((s, d) => s + d.amount, 0)), on: () => this.debts.phoneMenu() });
+    }
     ui.menu({ title: 'Phone', sub: 'Pick a new order to accept or decline. Accepted orders get a pin over the door.', items, cls: 'phone' });
   }
   pause() {

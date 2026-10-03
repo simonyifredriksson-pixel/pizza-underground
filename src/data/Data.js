@@ -84,6 +84,8 @@ export const UPGRADES = {
   cook: { name: 'Hire a Cook', price: 20000, desc: 'Marco makes pizzas for your open orders and puts them on the READY shelf. Needs Bigger Kitchen.', level: 2 },
   driver: { name: 'Hire a Driver', price: 25000, desc: 'Vinny delivers boxed pizzas from the READY shelf for you. Customers tip less. Needs Bigger Kitchen.', level: 2 },
   lookout: { name: 'Hire a Lookout', price: 12000, desc: 'Grandma Rosa sits outside and warns you about inspectors twice as early. She is terrifying.' },
+  safe: { name: 'Secret Safe', price: 10000, desc: 'A safe in the hidden storage room (hatch in the yard). Money in it can\'t be fined or confiscated.', tier: 1 },
+  knuckles: { name: 'Hire Knuckles', price: 15000, desc: 'A debt collector with a foam bat. Send him to anyone who is late paying (phone > Debts).', tier: 2 },
 };
 export const VEHICLES = {
   scooter: { name: 'Rusty Scooter', price: 3000, speed: 20, accel: 16, desc: 'Slow, loud, perfect.' },
@@ -91,12 +93,14 @@ export const VEHICLES = {
   icecream: { name: 'Ice Cream Truck', price: 80000, speed: 21, accel: 13, desc: 'The perfect disguise. Cops ignore it unless the town is really hot.', disguise: true },
   sports: { name: 'Sports Car', price: 200000, speed: 40, accel: 26, desc: 'Fast as hell. Two seats.' },
   armored: { name: 'Armored Pizza Truck', price: 750000, speed: 26, accel: 15, desc: 'Cops can not stop it. They will try.', armored: true },
+  family: { name: 'The Family Sedan', price: 60000, speed: 30, accel: 18, desc: 'Long. Black. Shiny. Extremely serious. Seats four.', tier: 3 },
 };
 export const DELIVERY_CAR = { name: 'Delivery Car', speed: 24, accel: 16 };
 export const DISGUISES = {
   mustache: { name: 'Fake Mustache', price: 1500, detect: 0.7, desc: 'Cops notice you 30% later. Glued on with cheese.' },
   coat: { name: 'Trench Coat & Shades', price: 6000, detect: 0.55, desc: 'Cops notice you 45% later. Very undercover. Extremely obvious.' },
   cop: { name: 'Police Uniform', price: 40000, detect: 0.25, desc: 'Cops barely look at you. Do not run.' },
+  suit: { name: 'Suspicious Suit', price: 12000, detect: 0.5, desc: 'Black suit, black hat, sunglasses indoors. Debtors pay faster. Cops notice you 50% later.', tier: 2 },
 };
 
 /* ---------------- the mystery ---------------- */

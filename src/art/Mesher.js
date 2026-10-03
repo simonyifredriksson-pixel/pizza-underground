@@ -116,6 +116,9 @@ export function part(g, color, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, o) {
   return m;
 }
 
+/** rotate a part and hand it back (so it can go straight into group.add) */
+export function rot(m, axis, v) { m.rotation[axis] = v; return m; }
+
 /* ---------------- text on canvas: signs, posters, labels ---------------- */
 const TEX = new Map();
 export function textTexture(lines, o = {}) {

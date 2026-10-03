@@ -8,9 +8,10 @@
 
    Coordinates: x east, z south, y up. Roads run at +-40 and +-120. */
 import * as THREE from '../../lib/three.module.js';
-import { Mesher, signMesh, textTexture, vcMat, geo, part, mat } from '../art/Mesher.js';
+import { Mesher, signMesh, textTexture, vcMat, vcGlowMat, geo, part, mat } from '../art/Mesher.js';
 import { makeChar } from '../art/Chars.js';
-import { makeCar, makeDumpster } from '../art/Props.js';
+import { makeCar, makeDumpster, MAFIA, bake, makeValuable, VALUABLES, OUTDOOR_VALUABLES } from '../art/Props.js';
+import { furnish } from './Interiors.js';
 import { Colliders } from './Colliders.js';
 import { seeded } from '../core/Util.js';
 
@@ -49,11 +50,22 @@ export class Town {
     this.hideWalls = [];  // hideout walls that cut away when the camera is outside them
     this.rand = seeded(1337);
     this.statics = [];   // [{group, x, z}] characters placed as scenery
+    this.biz = {};       // business name -> { x, z (outside the door), info.sign }
   }
 
   m(x, z) { // the Mesher for the chunk containing (x,z)
     const k = Math.floor((x + 280) / 140) + ',' + Math.floor((z + 280) / 140);
     let c = this.chunks.get(k); if (!c) this.chunks.set(k, c = new Mesher()); return c;
+  }
+  /** unlit (always bright): ceilings, so rooms never look like caves */
+  mc(x, z) {
+    const k = 'c' + Math.floor((x + 280) / 140) + ',' + Math.floor((z + 280) / 140);
+    let c = this.chunks.get(k); if (!c) this.chunks.set(k, c = new Mesher(0.02)); c.noCast = true; c.unlit = true; return c;
+  }
+  /** same, but for things that must not cast shadows (roofs, ceilings, floors: so interiors are lit) */
+  mn(x, z) {
+    const k = 'n' + Math.floor((x + 280) / 140) + ',' + Math.floor((z + 280) / 140);
+    let c = this.chunks.get(k); if (!c) this.chunks.set(k, c = new Mesher()); c.noCast = true; return c;
   }
 
   build() {
@@ -77,7 +89,8 @@ export class Town {
     this.lampsAndProps();
     this.streetLife();
     this.hospitalRoom();
-    for (const [, me] of this.chunks) this.root.add(me.build());
+    this.storageRoom();
+    for (const [, me] of this.chunks) this.root.add(me.build({ cast: !me.noCast, material: me.unlit ? vcGlowMat() : undefined }));
     // the edge of the world: invisible walls
     for (const s of [-1, 1]) { this.col.box(-230, s * 228, 230, s * 232, { h: 50 }); this.col.box(s * 228, -230, s * 232, 230, { h: 50 }); }
   }
@@ -135,8 +148,48 @@ export class Town {
   /* ---------------- building helpers ---------------- */
   /** front: 'n' faces -z, 's' faces +z, 'e' faces +x, 'w' faces -x. Returns the spot just outside the door. */
   bldg(cx, cz, w, d, h, color, front = 's', o = {}) {
-    const m = this.m(cx, cz);
-    m.box(cx, 0, cz, w, h, d, color);
+    const mw = this.m(cx, cz);           // walls: cast shadows
+    const m = this.mn(cx, cz);           // roof, ceiling, floor: don't (the inside stays lit)
+    const [fx, fz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[front];
+    const t = 0.3, gap = 2.0, ih = Math.min(h - 0.15, o.gable ? h : 4.4);
+    const inner = o.inner || '#f2ecdf';
+    // ---- the shell: four walls, the front one with a doorway ----
+    const wallSeg = (x0, z0, x1, z1, y0 = 0, hh = h) => {
+      mw.box((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, hh, z1 - z0, color);
+      if (y0 === 0) this.col.box(x0, z0, x1, z1, { h: hh + 2, tag: o.tag });
+    };
+    const innerSeg = (x0, z0, x1, z1) => m.box((x0 + x1) / 2, 0.07, (z0 + z1) / 2, x1 - x0, ih - 0.07, z1 - z0, inner);
+    const X0 = cx - w / 2, X1 = cx + w / 2, Z0 = cz - d / 2, Z1 = cz + d / 2;
+    for (const s of ['n', 's', 'e', 'w']) {
+      const isF = s === front;
+      if (s === 'n' || s === 's') {
+        const za = s === 'n' ? Z0 : Z1 - t, zb = za + t, zi = s === 'n' ? zb : za - 0.04;
+        if (isF) {
+          wallSeg(X0, za, cx - gap / 2, zb); wallSeg(cx + gap / 2, za, X1, zb); wallSeg(cx - gap / 2, za, cx + gap / 2, zb, 2.7, h - 2.7);
+          innerSeg(X0 + t, zi, cx - gap / 2, zi + 0.04); innerSeg(cx + gap / 2, zi, X1 - t, zi + 0.04);
+        } else { wallSeg(X0, za, X1, zb); innerSeg(X0 + t, zi, X1 - t, zi + 0.04); }
+      } else {
+        const xa = s === 'w' ? X0 : X1 - t, xb = xa + t, xi = s === 'w' ? xb : xa - 0.04;
+        if (isF) {
+          wallSeg(xa, Z0 + t, xb, cz - gap / 2); wallSeg(xa, cz + gap / 2, xb, Z1 - t); wallSeg(xa, cz - gap / 2, xb, cz + gap / 2, 2.7, h - 2.7);
+          innerSeg(xi, Z0 + t, xi + 0.04, cz - gap / 2); innerSeg(xi, cz + gap / 2, xi + 0.04, Z1 - t);
+        } else { wallSeg(xa, Z0 + t, xb, Z1 - t); innerSeg(xi, Z0 + t, xi + 0.04, Z1 - t); }
+      }
+    }
+    // floor and ceiling
+    m.flat(X0 + t, Z0 + t, X1 - t, Z1 - t, 0.07, o.floor || ['#c8a070', '#b8946a', '#d8c8b0', '#a8b8c8'][Math.floor(this.rand() * 4)], 2, 0.05);
+    this.mc(cx, cz).box(cx, ih, cz, w - 2 * t, 0.12, d - 2 * t, o.ceiling || '#e6e0ec');
+    if (h > ih + 0.5) m.box(cx, ih + 0.12, cz, w - 2 * t, h - ih - 0.12, d - 2 * t, color); // the floors above are not open
+    // the inside
+    const A = (fz ? w : d) / 2 - t, B = (fz ? d : w) / 2 - t;
+    const info = furnish(this, o.kind || 'default', { cx, cz, f: [fx, fz], A, B, ih, m: mw, rand: this.rand }) || {};
+    // the door, swung open into the room
+    const hx = cx + fx * (fz ? 0 : w / 2 - t) + (fz ? gap / 2 - 0.05 : 0), hz = cz + fz * (fx ? 0 : d / 2 - t) + (fx ? gap / 2 - 0.05 : 0);
+    mw.box(hx - fx * 0.85, 0.07, hz - fz * 0.85, fz ? 0.08 : 1.7, 2.5, fz ? 1.7 : 0.08, o.doorColor || C.door);
+    m.box(hx - fx * 0.85 - (fz ? 0.06 : 0), 1.15, hz - fz * 0.85 - (fx ? 0.06 : 0), 0.08, 0.08, 0.08, '#c8a03a');
+    m.box(cx + fx * (fz ? 0 : w / 2), 2.7, cz + fz * (fx ? 0 : d / 2), fx ? 0.4 : gap + 0.3, 0.2, fx ? gap + 0.3 : 0.4, C.trim); // lintel trim
+    this.interiors = this.interiors || [];
+    this.interiors.push({ cx, cz, w, d, front, kind: o.kind, info, ih });
     m.box(cx, h, cz, w + 0.4, 0.35, d + 0.4, o.trim || C.trim);   // roof trim
     if (o.gable) {
       m.roof(cx, h + 0.35, cz, w + 0.6, d + 0.6, o.gable, o.roof || ROOF_COLORS[0], (front === 'e' || front === 'w') ? Math.PI / 2 : 0);
@@ -189,13 +242,15 @@ export class Town {
         const wc = this.rand() < lit ? C.winLit : C.win;
         m.box(x, y, z, nx ? 0.08 : 1.4, 1.5, nx ? 1.4 : 0.08, wc, 0, 0.02);
         m.box(x, y - 0.12, z, nx ? 0.2 : 1.7, 0.12, nx ? 1.7 : 0.2, C.trim, 0, 0.02);
+        // and the same window from the inside: sky-blue glass in a frame
+        if (y + 1.5 < ih) {
+          const xi = cx + (nx ? nx * (w / 2 - t - 0.06) : t * len), zi = cz + (nz ? nz * (d / 2 - t - 0.06) : t * len);
+          m.box(xi, y, zi, nx ? 0.05 : 1.4, 1.5, nx ? 1.4 : 0.05, '#bfe4ff', 0, 0.02);
+          m.box(xi, y - 0.1, zi, nx ? 0.18 : 1.6, 0.1, nx ? 1.6 : 0.18, C.trim, 0, 0.02);
+          m.box(xi, y, zi, nx ? 0.07 : 0.06, 1.5, nx ? 0.06 : 0.07, C.trim, 0, 0.02);
+        }
       }
     }
-    // the door
-    const [fx, fz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[front];
-    const dx = cx + fx * (w / 2 + 0.05), dz = cz + fz * (d / 2 + 0.05);
-    m.box(dx, 0, dz, fx ? 0.14 : 1.8, 2.6, fx ? 1.8 : 0.14, o.doorColor || C.door);
-    m.box(dx + fx * 0.06, 2.6, dz + fz * 0.06, fx ? 0.2 : 2.2, 0.2, fx ? 2.2 : 0.2, C.trim);
     if (o.awning) {
       const ax = cx + fx * (w / 2 + 1.0), az = cz + fz * (d / 2 + 1.0);
       for (let i = 0; i < 6; i++) {
@@ -208,11 +263,10 @@ export class Town {
       const sy = Math.min(h - 1, 4.4);
       sg.position.set(cx + fx * (w / 2 + 0.12), sy, cz + fz * (d / 2 + 0.12));
       sg.rotation.y = { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[front];
-      this.root.add(sg);
+      this.root.add(sg); info.sign = sg;
     }
     if (o.poster !== false && this.rand() < 0.6) this.poster(cx, cz, w, d, front);
-    this.col.boxc(cx, cz, w, d, { h: h + 2, tag: o.tag });
-    return { x: cx + fx * (w / 2 + 1.4), z: cz + fz * (d / 2 + 1.4), ry: { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[front] };
+    return { x: cx + fx * (w / 2 + 1.4), z: cz + fz * (d / 2 + 1.4), ry: { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[front], info };
   }
 
   /** an anti-pizza propaganda poster on a side wall */
@@ -317,7 +371,7 @@ export class Town {
 
   cityHall(cx, cz) {
     const m = this.m(cx, cz);
-    const d = this.bldg(cx, cz - 4, 44, 26, 12, '#efe6d0', 's', { sign: ['CITY HALL'], signBg: '#efe6d0', lit: 0.5, poster: false });
+    const d = this.bldg(cx, cz - 4, 44, 26, 12, '#efe6d0', 's', { kind: 'hall', floor: '#e8e2f0', inner: '#f6f1e6', sign: ['CITY HALL'], signBg: '#efe6d0', lit: 0.5, poster: false });
     m.cyl(cx, 12.3, cz - 4, 7, 2, '#efe6d0', 12);
     m.add(geo.sph(12, 6), new THREE.Matrix4().compose(new THREE.Vector3(cx, 14.2, cz - 4), new THREE.Quaternion(), new THREE.Vector3(13, 9, 13)), '#e8c45a');
     m.cyl(cx, 18.5, cz - 4, 0.1, 3, '#666', 5);
@@ -335,7 +389,7 @@ export class Town {
   }
 
   hospital(cx, cz) {
-    this.bldg(cx, cz + 2, 44, 26, 10, '#f6f6fa', 'n', { sign: ['HOSPITAL'], signFg: '#d6232a', lit: 0.5, awning: '#d6232a', poster: false });
+    this.bldg(cx, cz + 2, 44, 26, 10, '#f6f6fa', 'n', { kind: 'hospital', floor: '#e0ecf0', inner: '#f6f6fa', sign: ['HOSPITAL'], signFg: '#d6232a', lit: 0.5, awning: '#d6232a', poster: false });
     const m = this.m(cx, cz);
     // red cross on the roof edge
     m.box(cx + 16, 7, cz - 11.2, 3.6, 1.2, 0.2, '#d6232a'); m.box(cx + 16, 5.8, cz - 11.2, 1.2, 3.6, 0.2, '#d6232a');
@@ -352,7 +406,7 @@ export class Town {
   }
 
   police(cx, cz) {
-    const d = this.bldg(cx, cz - 2, 36, 24, 9, '#6f8fd8', 'n', { sign: ['POLICE'], signBg: '#1e2a5a', signFg: '#ffffff', lit: 0.6 });
+    const d = this.bldg(cx, cz - 2, 36, 24, 9, '#6f8fd8', 'n', { kind: 'police', floor: '#a8b8c8', inner: '#dfe6f0', sign: ['POLICE'], signBg: '#1e2a5a', signFg: '#ffffff', lit: 0.6 });
     this.poi.policeDoor = { x: cx, z: cz - 15.5 };
     this.car('police', cx - 14, cz + 18, 0);
     this.car('police', cx - 9, cz + 18, 0);
@@ -379,7 +433,7 @@ export class Town {
     for (const [x, z] of [[-19, 13], [-1, 13], [-19, 23], [-1, 23]]) { m.box(cx + x, 0, cz + z, 0.5, 5, 0.5, '#e0e0ea'); this.col.circle(cx + x, cz + z, 0.35); }
     for (const x of [-15, -5]) { m.box(cx + x, 0, cz + 18, 1, 1.8, 0.7, '#d6232a'); m.box(cx + x, 1.8, cz + 18, 1.1, 0.4, 0.8, '#ffffff'); this.col.boxc(cx + x, cz + 18, 1, 0.7, { h: 2 }); }
     this.sign(['GAS'], cx - 10, 5.4, cz + 24.25, 0, 3, 0.7, { bg: '#d6232a', fg: '#ffffff', border: false });
-    this.bldg(cx + 18, cz + 16, 18, 12, 4.5, '#ffe9a8', 's', { sign: ["GAS 'N' SAD"], awning: '#3fa34d' });
+    this.biz.gas = this.bldg(cx + 18, cz + 16, 18, 12, 4.5, '#ffe9a8', 's', { kind: 'store', floor: '#e0e0e8', sign: ["GAS 'N' SAD"], awning: '#3fa34d' });
     this.poi.tony = { x: cx + 22, z: cz + 6.5 };
     this.poi.clue_gas = { x: cx + 12, z: cz + 23.5, y: 1.0 };
     m.box(cx + 12, 0, cz + 23.2, 1.2, 1.0, 0.6, '#3a7bd5');
@@ -387,7 +441,7 @@ export class Town {
     this.dumpster(cx + 26, cz + 4);
     // honest hank's car lot
     m.flat(cx - 31, cz - 31, cx + 31, cz - 8, 0.06, '#9a94b0', 4, 0.05);
-    this.bldg(cx + 20, cz - 22, 12, 9, 4, '#ffcf33', 'w', { sign: ["HONEST HANK'S"], awning: '#d6232a', poster: false });
+    this.biz.hank = this.bldg(cx + 20, cz - 22, 12, 9, 4, '#ffcf33', 'w', { kind: 'office', sign: ["HONEST HANK'S"], awning: '#d6232a', poster: false });
     for (let i = 0; i < 6; i++) { m.cyl(cx - 26 + i * 8, 0, cz - 9, 0.06, 4.5, '#aaa', 4); m.box(cx - 25.6 + i * 8, 3.8, cz - 9, 0.8, 0.6, 0.05, ['#d6232a', '#ffd23f', '#3a7bd5'][i % 3]); }
     for (const [st, x] of [['scooter', -22], ['van', -12], ['icecream', -2], ['sports', 8]]) this.car(st, cx + x, cz - 20, 0.3);
     this.poi.hank = { x: cx + 12, z: cz - 22 };
@@ -395,9 +449,9 @@ export class Town {
 
   shops(cx, cz) {
     const front = cz + 24;
-    this.bldg(cx - 23, front, 18, 14, 7, '#8fc1e3', 's', { sign: ["OLEG'S APPLIANCES"], awning: '#3a7bd5' });
-    this.bldg(cx, front, 18, 14, 6, '#f7a8c8', 's', { sign: ['MUSTACHE', 'EMPORIUM'], awning: '#2a1640' });
-    this.bldg(cx + 23, front, 18, 14, 6.5, '#f7d26b', 's', { sign: ["SHOES 'R' SHOES"], awning: '#d6232a' });
+    this.biz.oleg = this.bldg(cx - 23, front, 18, 14, 7, '#8fc1e3', 's', { kind: 'appliance', floor: '#e0e0e8', sign: ["OLEG'S APPLIANCES"], awning: '#3a7bd5' });
+    this.biz.mustache = this.bldg(cx, front, 18, 14, 6, '#f7a8c8', 's', { kind: 'mustache', inner: '#ffe0ee', sign: ['MUSTACHE', 'EMPORIUM'], awning: '#2a1640' });
+    this.biz.shoes = this.bldg(cx + 23, front, 18, 14, 6.5, '#f7d26b', 's', { kind: 'shoes', inner: '#fff6d0', sign: ["SHOES 'R' SHOES"], awning: '#d6232a' });
     this.poi.oleg = { x: cx - 23, z: front + 8.4 };
     this.poi.mustache = { x: cx, z: front + 8.4 };
     this.poi.manSpot = { x: cx - 11.5, z: front + 1 };
@@ -407,16 +461,16 @@ export class Town {
     m.flat(cx - 31, cz - 31, cx + 31, cz + 16, 0.06, '#9a94b0', 4, 0.05);
     this.dumpster(cx - 11.5, cz + 10);
     this.dumpster(cx + 15, cz + 8, Math.PI / 2);
-    this.bldg(cx - 18, cz - 20, 20, 12, 5, '#a8e0c0', 'n', { sign: ['SPIN CYCLE', 'LAUNDROMAT'] });
-    this.bldg(cx + 18, cz - 20, 16, 12, 5, '#3a3048', 'n', { sign: ['INK & REGRET'], signBg: '#2a1640', signFg: '#ff8fc8' });
+    this.biz.laundry = this.bldg(cx - 18, cz - 20, 20, 12, 5, '#a8e0c0', 'n', { kind: 'laundry', floor: '#d8e8f0', sign: ['SPIN CYCLE', 'LAUNDROMAT'] });
+    this.biz.tattoo = this.bldg(cx + 18, cz - 20, 16, 12, 5, '#3a3048', 'n', { kind: 'tattoo', floor: '#3a3048', inner: '#4a3a5a', sign: ['INK & REGRET'], signBg: '#2a1640', signFg: '#ff8fc8' });
   }
 
   pizzerias(cx, cz) {
     const front = cz - 22;
     const closed = { signBg: '#5a4a3a', signFg: '#ffd65a', boarded: true, lit: 0, poster: false };
-    this.bldg(cx - 22, front, 18, 12, 5.5, '#c8a090', 'n', { ...closed, sign: ['SLICE SLICE BABY'] });
-    this.bldg(cx, front, 18, 12, 6, '#b8a8c8', 'n', { ...closed, sign: ["MAMMA MIA'S"] });
-    this.bldg(cx + 22, front, 18, 12, 5.5, '#a8b8a0', 'n', { ...closed, sign: ['CRUST FUND'] });
+    this.bldg(cx - 22, front, 18, 12, 5.5, '#c8a090', 'n', { ...closed, kind: 'oldpizza', floor: '#a89888', inner: '#d8c8b0', sign: ['SLICE SLICE BABY'] });
+    this.bldg(cx, front, 18, 12, 6, '#b8a8c8', 'n', { ...closed, kind: 'oldpizza', floor: '#a89888', inner: '#d8c8b0', sign: ["MAMMA MIA'S"] });
+    this.bldg(cx + 22, front, 18, 12, 5.5, '#a8b8a0', 'n', { ...closed, kind: 'oldpizza', floor: '#a89888', inner: '#d8c8b0', sign: ['CRUST FUND'] });
     for (const x of [-22, 0, 22]) {
       this.sign(['CLOSED BY ORDER', 'OF THE MAYOR'], cx + x + 4, 1.6, front - 6.12, Math.PI, 2.4, 1.1, { bg: '#ffe14a', stripe: '#2a1640' });
       const m = this.m(cx + x, front);
@@ -424,7 +478,7 @@ export class Town {
       m.boxc(cx + x, 1.4, front - 6.21, 7, 0.25, 0.05, '#ffd23f', 0, 0, -0.18);
     }
     // the bakery behind and doughboy doug
-    this.bldg(cx, cz + 16, 22, 12, 5, '#ffe0c0', 's', { sign: ['DOUGH-RE-MI', 'BAKERY (CLOSED)'], boarded: true });
+    this.bldg(cx, cz + 16, 22, 12, 5, '#ffe0c0', 's', { kind: 'bakery', sign: ['DOUGH-RE-MI', 'BAKERY (CLOSED)'], boarded: true });
     this.poi.doug = { x: cx - 14, z: cz - 6 };
     this.dumpster(cx - 18, cz - 9);
     this.dumpster(cx + 14, cz - 9);
@@ -440,7 +494,7 @@ export class Town {
         const color = WALL_COLORS[Math.floor(this.rand() * WALL_COLORS.length)];
         const roof = ROOF_COLORS[Math.floor(this.rand() * ROOF_COLORS.length)];
         const front = r < 0 ? 'n' : 's';
-        const door = this.bldg(x, z, 12, 10, 4, color, front, { gable: 2.6, roof, lit: 0.4, poster: this.rand() < 0.3 });
+        const door = this.bldg(x, z, 12, 10, 4, color, front, { kind: 'house', gable: 2.6, roof, lit: 0.4, poster: this.rand() < 0.3 });
         const num = (Math.abs(bx) + 7 * i + (r > 0 ? 3 : 0)) % 97 + 1;
         // mailbox with the number, and a little fence
         const mz = z + r * 9.5, mx = x + 3.2;
@@ -451,13 +505,19 @@ export class Town {
         this.fence(x + 1.5, z + r * 10.5, x + 6, z + r * 10.5);
         if (this.rand() < 0.7) this.tree(x + (this.rand() < 0.5 ? -8.5 : 8.5), z + r * 2, 0.8 + this.rand() * 0.4);
         this.bush(x - 4, z + r * 6.2, 0.6); this.bush(x + 4, z + r * 6.2, 0.6);
-        this.houses.push({ id: this.houses.length, num, street, addr: num + ' ' + street, x, z, door: { x: door.x, z: door.z }, ry: door.ry, color });
+        // the thing the family loves most (and the first thing a debt collector takes)
+        const id = this.houses.length, vk = VALUABLES[(num * 7 + id) % VALUABLES.length];
+        const vg = makeValuable(vk);
+        if (OUTDOOR_VALUABLES.has(vk)) { vg.position.set(x - 2.8, 0.05, z + r * 8.1); vg.rotation.y = door.ry; }
+        else { const p = door.info.valuableIn; vg.position.set(p.x, 0.07, p.z); vg.rotation.y = door.ry + Math.PI; }
+        this.dyn.add(vg);
+        this.houses.push({ id, num, street, addr: num + ' ' + street, x, z, door: { x: door.x, z: door.z }, ry: door.ry, color, valuable: vk, vgroup: vg });
       }
     }
   }
 
   mansion(cx, cz) {
-    const d = this.bldg(cx, cz - 6, 28, 18, 9, '#f2b5d4', 's', { gable: 4, roof: '#c8a03a', trim: '#ffe9a8', sign: ['CRUMB MANOR'], signBg: '#ffe9a8', lit: 0.7, poster: false });
+    const d = this.bldg(cx, cz - 6, 28, 18, 9, '#f2b5d4', 's', { kind: 'mansion', floor: '#e8d8b0', inner: '#fff0f6', gable: 4, roof: '#c8a03a', trim: '#ffe9a8', sign: ['CRUMB MANOR'], signBg: '#ffe9a8', lit: 0.7, poster: false });
     const m = this.m(cx, cz);
     for (let i = 0; i < 4; i++) { m.cyl(cx - 9 + i * 6, 0, cz + 4.5, 0.6, 9, '#ffffff', 8); this.col.circle(cx - 9 + i * 6, cz + 4.5, 0.6, { h: 9 }); }
     this.fence(cx - 30, cz + 18, cx - 4, cz + 18, '#c8a03a', 2);
@@ -472,14 +532,14 @@ export class Town {
 
   industry() {
     // east column: warehouses, a factory, sal ami's loading dock
-    const wh = (x, z, w, d, h, c, front, sign) => this.bldg(x, z, w, d, h, c, front, { sign, gable: 1.2, roof: '#5a6070', lit: 0.1 });
+    const wh = (x, z, w, d, h, c, front, sign) => this.bldg(x, z, w, d, h, c, front, { kind: 'warehouse', floor: '#9a9aaa', inner: '#c8c8d0', sign, gable: 1.2, roof: '#5a6070', lit: 0.1 });
     wh(150, -96, 30, 18, 8, '#9aa0b8', 'w', ['WAREHOUSE 2']);
     wh(178, -62, 18, 22, 7, '#b8a890', 'w', ['DEFINITELY NOT', 'A WAREHOUSE']);
     wh(148, -60, 14, 12, 6, '#8a90a8', 's', ['LOADING']);
     this.poi.sal = { x: 148, z: -51 };
     this.dumpster(158, -52);
     // the cardboard factory
-    this.bldg(162, -2, 40, 28, 10, '#c8b090', 'w', { sign: ['CRUMBVILLE', 'CARDBOARD CO.'], lit: 0.2 });
+    this.bldg(162, -2, 40, 28, 10, '#c8b090', 'w', { kind: 'factory', floor: '#9a9aaa', inner: '#d8d0c0', sign: ['CRUMBVILLE', 'CARDBOARD CO.'], lit: 0.2 });
     const m = this.m(170, 0);
     m.cyl(176, 10, 4, 2, 12, '#8a6a5a', 8); m.cyl(176, 22, 4, 2.3, 0.6, '#5a4a3a', 8);
     m.cyl(168, 10, 8, 1.6, 9, '#8a6a5a', 8);
@@ -546,6 +606,7 @@ export class Town {
     this.dumpster(134, 70, Math.PI / 2);
     this.poi.hqDoor = { x: H.door.x, z: H.door.z };
     this.poi.garage = H.garage;
+    this.hideoutDecor(m);
 
     // the basement: dug out under the whole lot
     const B = H.base, by = B.y;
@@ -581,6 +642,91 @@ export class Town {
     for (const [x, z] of [[144, 72], [160, 72], [144, 88], [160, 88]]) {
       const l = part(geo.cyl(6), '#fff6c8', x, by + 5.2, z, 0.8, 0.2, 0.8, { emissive: 0xfff2b0, ei: 1 }); this.root.add(l);
     }
+  }
+
+  /** everything that makes the shoe shop look like a real (illegal) pizza kitchen */
+  hideoutDecor(m) {
+    const put = (g, x, y, z, ry = 0) => { g.position.set(x, y, z); g.rotation.y = ry; bake(m, g); };
+    const steel = '#c8ccd8';
+    // the sink by the door: cabinet, steel basin, tall faucet
+    m.box(140.62, 0.08, 83.4, 0.75, 0.82, 1.1, '#f6f1e6'); m.box(140.62, 0.9, 83.4, 0.8, 0.06, 1.16, steel);
+    m.box(140.66, 0.86, 83.4, 0.5, 0.08, 0.7, '#8a98a6'); m.box(140.35, 0.9, 83.4, 0.06, 0.55, 0.06, steel); m.box(140.5, 1.42, 83.4, 0.35, 0.05, 0.05, steel);
+    this.col.boxc(140.62, 83.4, 0.8, 1.15, { h: 1 });
+    this.sign(['EMPLOYEES MUST', 'WASH HANDS', '(AND EVIDENCE)'], 140.27, 2.2, 83.4, Math.PI / 2, 1.2, 0.7, { bg: '#ffffff', stripe: '#3a7bd5' });
+    // wall shelves full of supplies above the stations
+    for (const [z, x0, x1] of [[72.42, 142, 151.6], [87.58, 141.2, 151.4]]) {
+      const s = z < 80 ? 1 : -1;
+      m.box((x0 + x1) / 2, 2.35, z + s * 0.17, x1 - x0, 0.05, 0.36, '#a87c44');
+      for (let x = x0 + 0.3; x < x1 - 0.2; x += 0.42) {
+        const k = Math.floor(x * 7) % 4;
+        if (k === 0) { m.cyl(x, 2.4, z + s * 0.17, 0.11, 0.28, '#d6232a', 8); m.cyl(x, 2.58, z + s * 0.17, 0.11, 0.04, '#c8c8d8', 8); }   // tomato cans
+        else if (k === 1) m.box(x, 2.4, z + s * 0.17, 0.3, 0.38, 0.24, '#e8dcc0');  // flour
+        else if (k === 2) { m.cyl(x, 2.4, z + s * 0.17, 0.09, 0.26, '#3fa34d', 6); m.cyl(x, 2.66, z + s * 0.17, 0.04, 0.1, '#2a5a2a', 5); } // olive oil
+        else m.box(x, 2.4, z + s * 0.17, 0.32, 0.12, 0.3, '#c79a5b');   // boxes
+      }
+    }
+    this.sign(["TODAY'S SPECIALS", '(ALL ILLEGAL)', 'Margherita... $1,500', 'Pepperoni... $1,800'], 146.2, 3.4, 72.33, 0, 2.6, 1.2, { bg: '#1b1b24', fg: '#ffffff', borderColor: '#c8a070' });
+    // a clock on the partition
+    m.box(151.74, 2.85, 84.5, 0.05, 0.7, 0.7, '#f6f1e6'); m.box(151.7, 3.15, 84.5, 0.02, 0.3, 0.04, '#2a1640'); m.box(151.7, 3.2, 84.6, 0.02, 0.04, 0.22, '#2a1640');
+    // the crew table: rotary phone, walkie-talkies, a briefcase of cash, a money bag
+    m.cyl(149.1, 0.08, 83.6, 0.06, 0.7, '#3a3048', 6); m.cyl(149.1, 0.78, 83.6, 0.6, 0.05, '#a87c44', 12);
+    for (const [x, z] of [[148.2, 83.6], [150, 83.6]]) { m.cyl(x, 0.08, z, 0.05, 0.45, '#3a3048', 5); m.cyl(x, 0.53, z, 0.22, 0.06, '#d6232a', 8); }
+    this.col.circle(149.1, 83.6, 0.6, { h: 0.85 });
+    put(MAFIA.oldPhone(), 148.95, 0.83, 83.45, 0.4);
+    put(MAFIA.walkie(), 149.4, 0.83, 83.85, 0.2); put(MAFIA.walkie(), 149.5, 0.83, 83.6, -0.3);
+    put(MAFIA.briefcase(true), 151.2, 0.08, 86.3, -1.2);
+    put(MAFIA.moneyBag(), 151.4, 0.08, 77.2); put(MAFIA.moneyBag(), 150.8, 0.08, 77.5, 1);
+    const bat = MAFIA.bat(); bat.rotation.z = 0.15; put(bat, 151.65, 0.1, 87.55);
+    // the front door, swung open; boarded windows seen from inside
+    m.box(141.0, 0.08, 81.35, 1.7, 2.5, 0.08, '#5a3a2a'); m.box(140.3, 1.2, 81.25, 0.08, 0.08, 0.08, '#c8a03a');
+    for (const wz of [75, 85]) { m.box(140.06, 1.0, wz, 0.04, 1.5, 1.6, '#2a2238'); for (const r of [-0.6, 0.6]) m.boxc(140.1, 1.75, wz, 0.06, 0.24, 2.0, '#b88a50', 0, r); }
+    // the back room (level 2): fake delivery boxes, crates, a planning table
+    put(MAFIA.crate('NOT PIZZA'), 162.9, 0.08, 87.2); put(MAFIA.crate('SHOES (NO)'), 162.9, 0.98, 87.2); put(MAFIA.crate('DEFINITELY SHOES'), 161.9, 0.08, 87.3, 0.1);
+    this.col.boxc(162.4, 87.2, 2, 1, { h: 2 });
+    m.box(155, 0.08, 81.8, 1.6, 0.72, 1.0, '#6a4a3a'); m.box(155, 0.8, 81.8, 1.7, 0.05, 1.1, '#a87c44'); this.col.boxc(155, 81.8, 1.7, 1.1, { h: 0.85 });
+    m.box(155, 0.86, 81.8, 1.1, 0.01, 0.7, '#e8dcc0'); // a map of town, with "TARGETS" circled
+    put(MAFIA.cashStack(), 154.6, 0.85, 81.6); put(MAFIA.oldPhone(), 155.5, 0.85, 82.0, -0.5);
+    // the yard: a cellar hatch down to the hidden storage room
+    m.box(136.6, 0.07, 65.6, 1.6, 0.08, 1.6, '#5a4a3a'); m.box(136.6, 0.15, 65.6, 1.4, 0.03, 0.1, '#3a2a1a');
+    this.poi.storageHatch = { x: 136.6, z: 65.6 };
+    this.sign(['NOTHING', 'DOWN HERE'], 136.6, 0.9, 64.6, 0, 1.1, 0.5, { bg: '#ffe14a' });
+    m.box(136.6, 0, 64.62, 0.08, 0.7, 0.08, '#5a5a6a');
+  }
+
+  /** the hidden storage room: a separate set, reached by the yard hatch */
+  storageRoom() {
+    const X = 700, Z = 0, m = new Mesher(0.08);
+    const W = 16, D = 12;
+    m.flat(X - W / 2, Z - D / 2, X + W / 2, Z + D / 2, 0, '#8a8a9a', 2, 0.06);
+    const wall = (x0, z0, x1, z1) => { m.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, 4.5, z1 - z0, C.brick); for (let y = 0.6; y < 4.5; y += 0.6) m.box((x0 + x1) / 2, y, (z0 + z1) / 2, x1 - x0 + 0.02, 0.05, z1 - z0 + 0.02, C.brickDark, 0, 0.02); this.col.box(x0, z0, x1, z1, { h: 5 }); };
+    wall(X - W / 2 - 0.4, Z - D / 2 - 0.4, X + W / 2 + 0.4, Z - D / 2); wall(X - W / 2 - 0.4, Z + D / 2, X + W / 2 + 0.4, Z + D / 2 + 0.4);
+    wall(X - W / 2 - 0.4, Z - D / 2, X - W / 2, Z + D / 2); wall(X + W / 2, Z - D / 2, X + W / 2 + 0.4, Z + D / 2);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshBasicMaterial({ color: '#5a4a6a' }));
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(X, 4.5, Z); this.root.add(ceil);
+    for (const x of [-4, 0, 4]) { m.box(X + x, 4.2, Z, 0.08, 0.3, 0.08, '#2a2238'); this.root.add(part(geo.ico(0), '#fff6c8', X + x, 4.0, Z, 0.35, 0.3, 0.35, { emissive: 0xfff2b0, ei: 1 })); }
+    const put = (g, x, y, z, ry = 0) => { g.position.set(x, y, z); g.rotation.y = ry; bake(m, g); };
+    // crates and fake delivery boxes along the left wall
+    for (let i = 0; i < 6; i++) put(MAFIA.crate(['NOT PIZZA', 'SHOES', 'TOTALLY LEGAL', 'DO NOT OPEN', 'GRANDMA\'S', 'NOT PIZZA'][i]), X - W / 2 + 0.6, (i % 2) * 0.9, Z - 4 + Math.floor(i / 2) * 1.1, Math.PI / 2);
+    this.col.boxc(X - W / 2 + 0.6, Z - 2.9, 1, 3.4, { h: 2 });
+    for (let i = 0; i < 8; i++) m.box(X - W / 2 + 2, 0.02 + i * 0.13, Z + 4.6, 0.6, 0.12, 0.6, '#c79a5b');
+    // the planning table: phones, walkie-talkies, a map, a lamp
+    m.box(X, 0, Z + 1, 3, 0.75, 1.4, '#5a3a22'); m.box(X, 0.75, Z + 1, 3.1, 0.06, 1.5, '#a87c44'); this.col.boxc(X, Z + 1, 3.1, 1.5, { h: 0.85 });
+    m.box(X, 0.82, Z + 1, 2, 0.01, 1.0, '#e8dcc0');
+    put(MAFIA.oldPhone(), X - 1.1, 0.81, Z + 0.7, 0.5); put(MAFIA.walkie(), X + 1.0, 0.81, Z + 0.8); put(MAFIA.walkie(), X + 1.2, 0.81, Z + 1.2, 0.6); put(MAFIA.briefcase(true), X + 0.3, 0.81, Z + 1.4, 0.2);
+    for (const [x, z] of [[-1.2, 0], [0, -0.2], [1.2, 0], [-1.2, 2.1], [1.2, 2.1]]) { m.box(X + x, 0, Z + 1 + (z - 1) * 1.1, 0.45, 0.45, 0.45, '#2b2b38'); }
+    put(MAFIA.bat(), X + 2.2, 0, Z + 1.5);
+    this.sign(['THE FAMILY BUSINESS', '(PIZZA)'], X, 3.2, Z - D / 2 + 0.05, 0, 4, 1.2, { bg: '#1b1b24', fg: '#ffd23f', borderColor: '#c8a03a' });
+    this.sign(['CONFISCATED', '(UNTIL THEY PAY)'], X + 3.5, 3.3, Z + D / 2 - 0.05, Math.PI, 3.2, 0.9, { bg: '#ffe14a' });
+    // the ladder out
+    for (let i = 0; i < 8; i++) m.box(X + W / 2 - 0.5, 0.3 + i * 0.5, Z - 4.5, 0.06, 0.06, 0.8, '#8a8aa0');
+    for (const s of [-1, 1]) m.box(X + W / 2 - 0.5, 0, Z - 4.5 + s * 0.4, 0.08, 4.5, 0.08, '#8a8aa0');
+    this.root.add(m.build({ cast: false }));
+    this.poi.storageExit = { x: X + W / 2 - 1.3, z: Z - 4.5 };
+    this.poi.storageIn = { x: X + W / 2 - 2, z: Z - 3 };
+    this.poi.storageSafe = { x: X - 5, z: Z - D / 2 + 1 };
+    this.poi.storageSlots = Array.from({ length: 8 }, (_, i) => ({ x: X - 0.5 + (i % 4) * 2, z: Z + 4.2 - Math.floor(i / 4) * 1.9 }));
+    this.poi.storageBags = { x: X + 5, z: Z - 3.5 };
+    this.poi.storage = { x0: X - W / 2, x1: X + W / 2, z0: Z - D / 2, z1: Z + D / 2 };
   }
 
   junkyard(cx, cz) {

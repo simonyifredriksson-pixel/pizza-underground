@@ -4,6 +4,7 @@ import * as THREE from '../../lib/three.module.js';
 import { esc, money, clamp } from '../core/Util.js';
 import { SPEAKERS } from '../data/Story.js';
 import { filter } from '../data/Data.js';
+import { TIERS, tierOf } from '../data/Mafia.js';
 
 const $ = id => document.getElementById(id);
 
@@ -35,6 +36,10 @@ export class UI {
     $('heatfill').style.background = h < 30 ? '#43e07a' : h < 60 ? '#ffd23f' : h < 80 ? '#ff9f1a' : '#ff3a3a';
     $('heatlabel').textContent = h < 20 ? 'Nobody cares' : h < 40 ? 'Strange smells reported' : h < 60 ? 'Illegal food suspected' : h < 80 ? 'Police investigating' : 'BIGGEST RUMOR IN TOWN';
     $('lvl').textContent = 'HQ LEVEL ' + W.level + ' · ' + W.rep + ' delivered';
+    const mr = W.mrep || 0, ti = tierOf(mr), next = TIERS[ti + 1];
+    $('mrep').style.display = W.quest >= 11 ? '' : 'none';
+    $('mrepfill').style.width = (next ? (mr - TIERS[ti].at) / (next.at - TIERS[ti].at) * 100 : 100) + '%';
+    $('mreplabel').textContent = TIERS[ti].name + (next ? '  →  ' + next.name : '');
     const open = W.orders.filter(o => o.state === 'open').length, nw = W.orders.filter(o => o.state === 'new').length;
     $('phonebadge').textContent = nw ? nw + ' NEW ORDER' + (nw > 1 ? 'S' : '') + ' [TAB]' : open ? open + ' open order' + (open > 1 ? 's' : '') + ' [TAB]' : '';
     $('phonebadge').classList.toggle('ring', nw > 0);

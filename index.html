@@ -12,39 +12,42 @@
 <script type="importmap">{
  "imports": {
   "./lib/three.module.js": "./lib/three.module.js?v=a762b858",
-  "./src/art/Chars.js": "./src/art/Chars.js?v=2bc02c8a",
-  "./src/art/Mesher.js": "./src/art/Mesher.js?v=d2ebee6d",
-  "./src/art/Props.js": "./src/art/Props.js?v=41d998af",
+  "./src/art/Chars.js": "./src/art/Chars.js?v=79dae099",
+  "./src/art/Mesher.js": "./src/art/Mesher.js?v=1a52f6be",
+  "./src/art/Props.js": "./src/art/Props.js?v=dc3bdb8b",
   "./src/core/Audio.js": "./src/core/Audio.js?v=f17099d2",
   "./src/core/Input.js": "./src/core/Input.js?v=f3e6f9e6",
   "./src/core/Util.js": "./src/core/Util.js?v=a7f9cb30",
-  "./src/data/Data.js": "./src/data/Data.js?v=9e83073a",
+  "./src/data/Data.js": "./src/data/Data.js?v=21991ec3",
   "./src/data/Hideout.js": "./src/data/Hideout.js?v=d905138c",
+  "./src/data/Mafia.js": "./src/data/Mafia.js?v=035bc31f",
   "./src/data/Story.js": "./src/data/Story.js?v=e6da158d",
-  "./src/debug/Tests.js": "./src/debug/Tests.js?v=95a99c67",
-  "./src/game/Citizens.js": "./src/game/Citizens.js?v=c4144a0d",
+  "./src/debug/Tests.js": "./src/debug/Tests.js?v=2088daf3",
+  "./src/game/Citizens.js": "./src/game/Citizens.js?v=53509e2c",
+  "./src/game/Debts.js": "./src/game/Debts.js?v=cff3fcd3",
   "./src/game/Effects.js": "./src/game/Effects.js?v=b1f1c34d",
-  "./src/game/Events.js": "./src/game/Events.js?v=26dfcb15",
-  "./src/game/Game.js": "./src/game/Game.js?v=9d8925af",
+  "./src/game/Events.js": "./src/game/Events.js?v=237953ad",
+  "./src/game/Game.js": "./src/game/Game.js?v=4a4d8e7e",
   "./src/game/Intro.js": "./src/game/Intro.js?v=861d6fb2",
-  "./src/game/Kitchen.js": "./src/game/Kitchen.js?v=1be97dd8",
-  "./src/game/NPCs.js": "./src/game/NPCs.js?v=c7a1df54",
-  "./src/game/Orders.js": "./src/game/Orders.js?v=c7b18630",
-  "./src/game/Player.js": "./src/game/Player.js?v=915e3654",
-  "./src/game/Police.js": "./src/game/Police.js?v=c1c1c2df",
+  "./src/game/Kitchen.js": "./src/game/Kitchen.js?v=990d6fed",
+  "./src/game/NPCs.js": "./src/game/NPCs.js?v=52c1a19b",
+  "./src/game/Orders.js": "./src/game/Orders.js?v=ab10b315",
+  "./src/game/Player.js": "./src/game/Player.js?v=cc9618d6",
+  "./src/game/Police.js": "./src/game/Police.js?v=d9be9cec",
   "./src/game/Quest.js": "./src/game/Quest.js?v=87c0a0dd",
-  "./src/game/State.js": "./src/game/State.js?v=5c79f0e8",
+  "./src/game/State.js": "./src/game/State.js?v=54c2f1de",
   "./src/game/Vehicles.js": "./src/game/Vehicles.js?v=f0a19ba6",
   "./src/main.js": "./src/main.js?v=cb09cd14",
   "./src/net/Net.js": "./src/net/Net.js?v=d790b4f1",
-  "./src/ui/MapView.js": "./src/ui/MapView.js?v=54284dff",
-  "./src/ui/UI.js": "./src/ui/UI.js?v=e8158271",
+  "./src/ui/MapView.js": "./src/ui/MapView.js?v=7f97d9e9",
+  "./src/ui/UI.js": "./src/ui/UI.js?v=6c657c42",
   "./src/world/Colliders.js": "./src/world/Colliders.js?v=ad26f1af",
-  "./src/world/Town.js": "./src/world/Town.js?v=6085fc7a"
+  "./src/world/Interiors.js": "./src/world/Interiors.js?v=abc5e3e2",
+  "./src/world/Town.js": "./src/world/Town.js?v=c5384d4a"
  }
 }</script>
 <!-- stamp:end -->
-<link rel="stylesheet" href="styles/main.css?v=15b39247">
+<link rel="stylesheet" href="styles/main.css?v=ba36e952">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 4 L44 40 L4 40Z' fill='%23f6cf3a' stroke='%232a1640' stroke-width='3'/%3E%3Ccircle cx='20' cy='30' r='4' fill='%23d23a3a'/%3E%3Ccircle cx='28' cy='22' r='3' fill='%23d23a3a'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -56,6 +59,7 @@
   <div id="topright">
     <div id="money">$0</div>
     <div id="heat"><span class="hl">TOWN HEAT</span><div class="hb"><i id="heatfill"></i></div><span id="heatlabel"></span></div>
+    <div id="mrep"><span class="hl">MAFIA REP</span><div class="hb"><i id="mrepfill"></i></div><span id="mreplabel"></span></div>
     <div id="lvl"></div>
     <div id="phonebadge"></div>
   </div>

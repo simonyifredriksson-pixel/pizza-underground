@@ -9,6 +9,7 @@ import { makeClue } from '../art/Props.js';
 import { SUPPLIERS, STOCK_NAME, VEHICLES, DISGUISES, CLUES, DEZ_LOOK, DEZ, HQ_LEVELS, UPGRADES } from '../data/Data.js';
 import { SPEAKERS, OLEG, HANK, STACHE, GUARD, MAN_WAIT, Q } from '../data/Story.js';
 import { HQ } from '../world/Town.js';
+import { TIERS } from '../data/Mafia.js';
 import { pick, money, dampAngle, rand } from '../core/Util.js';
 
 const COLORS = { doug: '#f1dfb8', tony: '#ff6b6b', cheese: '#ffd447', sal: '#e07a6a', funguy: '#ff8a7a', pete: '#f6cf3a', olive: '#a8c88a', larry: '#ff8fc8' };
@@ -154,8 +155,9 @@ export class NPCs {
       title: "Honest Hank's Used Cars", sub: 'Bought cars wait for you at the hideout. Get in with F.',
       items: [...Object.entries(VEHICLES).map(([k, v]) => {
         const own = W.owned.veh.includes(k);
-        const lock = k === 'armored' && W.level < 4;
-        return { label: v.name, sub: lock ? 'Hank only sells this to serious operations (HQ level 4).' : v.desc, price: own ? 'OWNED' : v.price, owned: own, disabled: own || lock || W.money < v.price, on: () => g.act({ k: 'buyCar', kind: k }) };
+        const tlock = v.tier && g.debts.tier < v.tier;
+        const lock = (k === 'armored' && W.level < 4) || tlock;
+        return { label: v.name, sub: tlock ? 'Hank only sells this to the family. (Mafia Rep: ' + TIERS[v.tier].name + ')' : lock ? 'Hank only sells this to serious operations (HQ level 4).' : v.desc, price: own ? 'OWNED' : v.price, owned: own, disabled: own || lock || W.money < v.price, on: () => g.act({ k: 'buyCar', kind: k }) };
       }), { label: 'Leave' }],
     });
   }
@@ -167,7 +169,8 @@ export class NPCs {
       title: 'Mustache Emporium', sub: 'Disguises make cops notice you later. Everyone in the crew can wear what the crew owns.',
       items: [...Object.entries(DISGUISES).map(([k, v]) => {
         const own = W.owned.disg.includes(k);
-        if (!own) return { label: 'Buy: ' + v.name, sub: v.desc, price: v.price, disabled: W.money < v.price, on: () => g.act({ k: 'buyDisg', d: k }) };
+        const tlock = v.tier && g.debts.tier < v.tier;
+        if (!own) return { label: 'Buy: ' + v.name, sub: tlock ? 'Not for just anyone, darling. (Mafia Rep: ' + TIERS[v.tier].name + ')' : v.desc, price: v.price, disabled: tlock || W.money < v.price, on: () => g.act({ k: 'buyDisg', d: k }) };
         return { label: (mine === k ? 'Take off: ' : 'Wear: ') + v.name, sub: v.desc, price: mine === k ? 'WEARING' : 'OWNED', owned: true, on: () => g.act({ k: 'wear', d: mine === k ? null : k }) };
       }), { label: 'Leave' }],
     });
@@ -195,8 +198,9 @@ export class NPCs {
     else items.push({ label: 'Hideout: PIZZA EMPIRE', sub: 'You did it. There is nothing bigger. Except maybe your ego.', price: 'MAX', disabled: true, owned: true });
     for (const [k, u] of Object.entries(UPGRADES)) {
       const own = W.owned.up[k];
-      const lock = u.level && W.level < u.level;
-      items.push({ label: u.name, sub: lock ? 'Needs HQ level ' + u.level + '.' : u.desc, price: own ? 'OWNED' : u.price, owned: own, disabled: own || lock || W.money < u.price, on: () => g.act({ k: 'upgrade', u: k }) });
+      const tlock = u.tier && g.debts.tier < u.tier;
+      const lock = (u.level && W.level < u.level) || tlock;
+      items.push({ label: u.name, sub: tlock ? 'Needs Mafia Rep: ' + TIERS[u.tier].name + '.' : lock ? 'Needs HQ level ' + u.level + '.' : u.desc, price: own ? 'OWNED' : u.price, owned: own, disabled: own || lock || W.money < u.price, on: () => g.act({ k: 'upgrade', u: k }) });
     }
     items.push({ label: 'Front sign: ' + (W.sign === 'closed' ? 'OLD SHOE REPAIR (CLOSED)' : 'TOTALLY A SHOE STORE'), sub: 'A shoe store has a reason to have customers. Inspectors relax a bit (heat -10 when they visit).', price: 'TOGGLE', keep: false, on: () => g.act({ k: 'sign' }) });
     items.push({ label: 'Tow every car back to the hideout', sub: 'Lost your car? Hank\'s cousin will drag it home.', price: 200, disabled: !W.cars.length || W.money < 200, on: () => g.act({ k: 'tow' }) });

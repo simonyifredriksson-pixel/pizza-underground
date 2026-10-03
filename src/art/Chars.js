@@ -3,7 +3,7 @@
    scream. Every rig has the same anim(dt, st) so the game can drive a
    doctor, a cop or a pineapple in sunglasses the same way. */
 import * as THREE from '../../lib/three.module.js';
-import { geo, part, mat } from './Mesher.js';
+import { geo, part, mat, rot } from './Mesher.js';
 
 const SKINS = ['#f2c29b', '#e0a57c', '#c98a5e', '#8d5a3b', '#f7d6b8', '#b07250'];
 export { SKINS };
@@ -220,7 +220,7 @@ export function makeCritter(kind, o = {}) {
       const s = new THREE.Shape(); s.moveTo(-0.55, 0); s.lineTo(0.55, 0); s.lineTo(0.55, 0.62); s.lineTo(-0.55, 0.15); s.closePath();
       const g = new THREE.ExtrudeGeometry(s, { depth: 0.7, bevelEnabled: false }); g.translate(0, 0.12, -0.35);
       body.add(part(g, '#ffd447'));
-      for (const [x, y] of [[-0.2, 0.3], [0.25, 0.45], [0.05, 0.22]]) body.add(part(geo.cyl(6), '#e0a92a', x, y, 0.35, 0.12, 0.02, 0.12)).rotation.x = Math.PI / 2;
+      for (const [x, y] of [[-0.2, 0.3], [0.25, 0.45], [0.05, 0.22]]) body.add(rot(part(geo.cyl(6), '#e0a92a', x, y, 0.35, 0.12, 0.02, 0.12), 'x', Math.PI / 2));
       h = 0.8; eyeY = 0.5; eyeZ = 0.36; eyeX = 0.16; armY = 0.4; armX = 0.6;
       break;
     }

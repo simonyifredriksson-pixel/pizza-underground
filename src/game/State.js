@@ -33,6 +33,10 @@ export function newWorld() {
     dezT: 200,
     time: 0,
     ending: 0,               // 1 = the mayor has his pizza
+    debts: [], debtSeq: 0,   // who owes you money (see Debts.js)
+    mrep: 0, tierSeen: 0,    // Mafia Reputation 0..100
+    safe: 0,                 // cash in the secret safe: can't be fined
+    kn: null, rival: null,   // Knuckles on a job; the Calzone Cartel in the park
   };
 }
 

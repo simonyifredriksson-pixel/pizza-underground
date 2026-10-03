@@ -5,6 +5,7 @@
 import { makeChar, SKINS } from '../art/Chars.js';
 import { ROADS } from '../world/Town.js';
 import { BARK } from '../data/Data.js';
+import { NERVOUS } from '../data/Mafia.js';
 import { isContraband } from './State.js';
 import { pick, rand, dampAngle } from '../core/Util.js';
 
@@ -77,7 +78,9 @@ export class Citizens {
         talk = true;
       } else if (d < 5 && c.barkT <= 0) {
         c.barkT = rand(18, 35);
-        g.bubble(() => ({ x: c.x, z: c.z }), pick(BARK.citizenIdle));
+        const nervous = g.debts.tier >= 2 && Math.random() < 0.3 + g.debts.tier * 0.1;
+        g.bubble(() => ({ x: c.x, z: c.z }), pick(nervous ? NERVOUS : BARK.citizenIdle));
+        if (nervous) c.panic = 0.8;
       }
       if (d < 6 && !moving) { c.yaw = dampAngle(c.yaw, Math.atan2(P.pos.x - c.x, P.pos.z - c.z), 4, dt); look = true; }
       c.rig.root.position.set(c.x, 0.04, c.z); c.rig.root.rotation.y = c.yaw;

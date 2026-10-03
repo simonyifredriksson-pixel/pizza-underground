@@ -105,7 +105,14 @@ export class Kitchen {
       const cooking = (s.type === 'oven' || s.type === 'bigoven') && (st.item || st.items.length);
       if (v.S.glow) {
         if (s.type === 'fuse') v.S.glow.material = this._glow(W.power ? 0x20ff60 : 0xff2020);
+        else if (s.type === 'oven') v.S.glow.material = W.power && st.fire <= 0 && !st.burnt ? this._glow(cooking ? 0xff7a20 : 0xc8501a) : this._dark;
         else v.S.glow.material = cooking ? this._glow(0xff7a20) : this._dark;
+      }
+      // the wood fire inside a dome oven: always flickering when the power (gas) is on, roaring while it bakes
+      if (v.S.mouth && W.power && st.fire <= 0 && !st.burnt && Math.random() < dt * (cooking ? 14 : 4)) {
+        v.S.group.updateMatrixWorld();
+        const p = v.S.mouth.clone(); p.z -= 0.25; p.applyMatrix4(v.S.group.matrixWorld);
+        fx.flame(p.x, p.y - 0.15, p.z, cooking ? 0.45 : 0.28);
       }
       const maxCook = st.item ? st.item.cook : Math.max(0, ...st.items.map(i => i.cook || 0));
       if (cooking && (maxCook > 1.15 || st.grease > 0.75) && Math.random() < dt * 8) fx.smoke(s.x, y0 + 1.7, s.z, 1, maxCook > BURNT ? 0.9 : 0.4);
@@ -167,7 +174,7 @@ export class Kitchen {
       const st = this.st(s.id);
       const T = (label, opts = {}) => out.push({ x: s.x, z: s.z, d: d - (s.flat ? 0.5 : 0), label, id: s.id, ...opts });
       if (st.fire > 0) { T('IT\'S ON FIRE! Grab an extinguisher!', { warn: true }); continue; }
-      if (st.burnt) { T('Repair it (' + money(300) + ')', { hold: 2, act: { k: 'use', id: s.id, op: 'repair' } }); continue; }
+      if (st.burnt) { T('Repair it (' + (this.g.debts.tier >= 3 ? 'free, Oleg owes you' : money(300)) + ')', { hold: 2, act: { k: 'use', id: s.id, op: 'repair' } }); continue; }
       switch (s.type) {
         case 'fuse': if (!W.power) T('Whack the fuse box', { hold: 2.2, act: { k: 'use', id: s.id, op: 'fuse' }, whack: true }); break;
         case 'dough':
@@ -229,9 +236,13 @@ export class Kitchen {
     const say = (t) => g.tell(pid, t);
     if (st.fire > 0 && a.op !== 'spray') return;
     switch (a.op) {
-      case 'repair':
-        if (W.money < 300) return say("Can't afford the repair.");
-        W.money -= 300; st.burnt = false; st.grease = 0; g.sfx('buy', s); break;
+      case 'repair': {
+        const cost = g.debts.tier >= 3 ? 0 : 300; // Oleg repairs for the family for free
+        if (W.money < cost) return say("Can't afford the repair.");
+        W.money -= cost; st.burnt = false; st.grease = 0; g.sfx('buy', s);
+        if (!cost) say('Oleg fixed it for free. "Oleg respects the family."');
+        break;
+      }
       case 'fuse':
         if (W.power) return;
         W.power = true; g.sfx('ding', s); g.fxAt('sparkle', s.x, 1.8, s.z);

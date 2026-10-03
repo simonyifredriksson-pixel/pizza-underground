@@ -15,6 +15,7 @@ export function lookFor(look, wear) {
   const o = { ...LOOKS[look % 4] };
   if (wear === 'mustache') { o.mustache = '#2a1a14'; o.nose = 1.25; }
   if (wear === 'coat') { o.coat = '#8a6a4a'; o.hat = 'fedora'; o.glasses = 'sun'; o.mustache = '#2a1a14'; }
+  if (wear === 'suit') { o.coat = '#1b1b24'; o.hat = 'fedora'; o.hatColor = '#1b1b24'; o.glasses = 'sun'; o.tie = '#d6232a'; }
   if (wear === 'cop') { o.hat = 'cop'; o.shirt = '#2a3a7a'; o.pants = '#1e2a5a'; o.badge = true; o.mustache = '#2a1a14'; }
   return o;
 }

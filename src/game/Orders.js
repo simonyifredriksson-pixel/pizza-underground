@@ -69,7 +69,8 @@ export class Orders {
     if (W.law?.k === 'pineapple' && !top.includes('pineapple')) { if (top.length >= 4) top.pop(); top.push('pineapple'); }
     const extra = Math.random() < 0.25;
     const sting = !opts.big && W.rep >= 3 && Math.random() < Math.min(0.22, 0.06 + W.heat / 400);
-    const rich = !sting && W.rep >= 12 && Math.random() < 0.2;
+    const vip = this.g.debts.tier >= 3;
+    const rich = !sting && (W.rep >= 12 || vip) && Math.random() < (vip ? 0.32 : 0.2);
     const mult = Math.min(8, 1 + W.rep * 0.1);
     let pay = (900 + 300 * top.length + (extra ? 250 : 0)) * mult * rand(0.9, 1.15);
     if (rich) pay *= rand(4, 7);
@@ -147,6 +148,19 @@ export class Orders {
     const late = o.t < 0 ? 0.5 : 1;
     let pay = Math.round(o.pay * s * late * mult);
     if (s >= 1 && late === 1 && mult === 1) pay = Math.round(pay * 1.2); // tip
+    const tier = this.g.debts.tier;
+    if (tier >= 2 && pay > 0) pay = Math.round(pay * 1.15);              // nervous customers tip more
+    // sometimes they can't pay right now: "put it on my tab"
+    const owes = this.g.debts.list.some(d => d.kind === 'house' && d.ref === o.h);
+    if (pid && !o.big && !o.rich && !owes && pay > 0 && s >= 0.5 && Math.random() < (this.forceTab ? 1 : 0.12)) {
+      o.left--;
+      if (o.left <= 0) { W.orders.splice(W.orders.indexOf(o), 1); W.rep++; }
+      W.stats.delivered++;
+      this.g.debts.fromDelivery(pid, o, pay);
+      this.g.addHeat(2); this.g.debts.addRep(0.5); g.dirty();
+      return;
+    }
+    this.g.debts.addRep(o.big ? 4 : o.rich ? 2 : 0.8);
     W.money += pay; W.stats.earned += pay; W.stats.delivered++;
     o.left--;
     if (o.left <= 0) { W.orders.splice(W.orders.indexOf(o), 1); W.rep++; }

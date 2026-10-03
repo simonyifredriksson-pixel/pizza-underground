@@ -31,6 +31,7 @@ function path(a, b) { // BFS on the sidewalk graph
   const out = []; let n = b; while (n) { out.unshift(n); n = prev.get(n); } return out;
 }
 const RNODES = []; for (const x of ROADS) for (const z of ROADS) RNODES.push({ x, z });
+export { path, nearestNode };
 
 let SEQ = 1;
 

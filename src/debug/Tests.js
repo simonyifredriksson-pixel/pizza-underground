@@ -26,6 +26,7 @@ export function setupAt(g, q) {
   g.cam.snap = true;
   const qs = new URLSearchParams(location.search);
   const shot = qs.get('shot');
+  if (qs.has('tp')) g.cam.mode = 'third';
   if (shot) frame(g, shot);
   const ui = qs.get('ui');
   if (ui) setTimeout(() => {
@@ -49,6 +50,17 @@ function frame(g, s) {
     street: () => { P.teleport(-80, -30, 0, 3.1); g.cam.pitch = 0.2; g.cam.dist = 6.5; P.camYaw = 0.2; },
     man: () => { P.teleport(-89, -50, 0, -2.6); g.cam.pitch = 0.25; g.cam.dist = 5; P.camYaw = 0.9; },
     cityhall: () => { P.teleport(0, -60, 0, 3.1); g.cam.pitch = 0.2; g.cam.dist = 8; P.camYaw = 0.0; },
+    kitchen: () => { P.teleport(146.5, 78.5, 0, Math.PI); g.cam.pitch = 0.5; g.cam.dist = 5; P.camYaw = 0; },
+    oven: () => { P.teleport(149.5, 75.6, 0, Math.PI); g.cam.fpPitch = 0.45; },
+    prep: () => { P.teleport(145.7, 75, 0, Math.PI); g.cam.fpPitch = 0.5; },
+    house: () => { const h = g.town.houses[1]; P.teleport(h.x + 1, h.z + 2.5, 0, Math.PI); g.cam.fpPitch = 0.15; },
+    house2: () => { const h = g.town.houses[1]; P.teleport(h.x - 3, h.z - 2, 0, 0.8); g.cam.fpPitch = 0.1; },
+    police: () => { P.teleport(78, -10, 0, 0); g.cam.fpPitch = 0.1; },
+    cityhallIn: () => { P.teleport(0, -74, 0, Math.PI); g.cam.fpPitch = 0.05; },
+    shop: () => { P.teleport(-80, -51.5, 0, Math.PI); g.cam.fpPitch = 0.12; },
+    gas: () => { P.teleport(98, -59.5, 0, Math.PI); g.cam.fpPitch = 0.12; },
+    pizzeria: () => { P.teleport(0, 54, 0, 0); g.cam.fpPitch = 0.15; },
+    storage: () => { const s = g.town.poi.storageIn; P.teleport(s.x, s.z, 0, -Math.PI / 2); g.cam.fpPitch = 0.12; },
     hideoutOut: () => { P.teleport(130, 82, 0, 1.5); g.cam.pitch = 0.3; g.cam.dist = 8; P.camYaw = -2.0; },
   }[s];
   if (at) at();
@@ -75,11 +87,67 @@ export async function run(g, name) {
     if (name === 'story') return story(g);
     if (name === 'inspector') return inspector(g);
     if (name === 'input') return inputTest(g);
+    if (name === 'debts') return debts(g);
     if (name === 'all') { kitchen(g); fire(g); police(g); inspector(g); story(g); note('DONE'); return; }
   } catch (e) { log(false, 'exception ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 3).join(' ')); }
 }
 
 function fresh(g, q = Q.BIZ) { setupAt(g, q); sim(g, 0.2); }
+
+function debts(g) {
+  fresh(g);
+  const me = g.me, W = g.W, D = g.debts;
+  // a customer puts it on the tab
+  g.orders.forceTab = true;
+  const o = g.orders.spawn({ accepted: true }); o.top = []; o.extra = false; o.sting = false; o.rich = false;
+  W.hold[me] = [{ k: 'box', sauce: 1, cheese: 1, top: [], cook: 1 }];
+  const m0 = W.money;
+  g.exec(me, { k: 'deliver', id: o.id });
+  g.orders.forceTab = false;
+  const d = W.debts[0];
+  log(d && W.money === m0 && d.state === 'owed', 'customer put it on the tab: ' + (d && d.name + ' owes ' + d.amount));
+  d.t = 0.05; sim(g, 0.2);
+  log(d.state === 'late', 'the debt went late');
+  g.exec(me, { k: 'debt', id: d.id, op: 'deadline' });
+  log(d.state === 'warned', 'deadline given');
+  d.t = 0.05; sim(g, 0.2);
+  log(d.state === 'overdue', 'deadline blown');
+  const h = g.town.houses[d.ref];
+  g.exec(me, { k: 'debt', id: d.id, op: 'seize' });
+  sim(g, 0.1);
+  log(d.state === 'seized' && !h.vgroup.visible && D.storageGroup.children.length === 1, 'confiscated their ' + h.valuable + ' (gone from the house, in the storage room)');
+  const m1 = W.money;
+  d.t = 0.05; sim(g, 0.3);
+  log(!W.debts.includes(d) && W.money === m1 + d.amount && h.vgroup.visible && D.storageGroup.children.length === 0, 'they paid ' + d.amount + ', the ' + h.valuable + ' went home');
+  // reputation tiers and Knuckles
+  D.addRep(30);
+  log(D.tier === 2, 'mafia rep tier 2: ' + D.tier);
+  W.money = 100000;
+  g.exec(me, { k: 'upgrade', u: 'knuckles' });
+  log(W.owned.up.knuckles, 'hired Knuckles');
+  const b = D.create('biz', 'shoes', "Shoes 'R' Shoes", 6000, 'tab');
+  b.state = 'late';
+  g.exec(me, { k: 'debt', id: b.id, op: 'knuckles' });
+  log(!!W.kn, 'Knuckles is on his way');
+  for (let i = 0; i < 400 && W.kn; i++) sim(g, 1, 1 / 10);
+  log(!W.kn && (!W.debts.includes(b) || b.state === 'seized'), 'Knuckles came back: ' + (W.debts.includes(b) ? 'took their sign' : 'collected'));
+  if (b.state === 'seized') log(!g.town.biz.shoes.info.sign.visible, 'the shoe shop sign is gone');
+  // rival and safe
+  D.addRep(20);
+  W.rival = { x: 0, z: 150, t: 100 };
+  g.exec(me, { k: 'rival', pick: 'rock' });
+  log(!W.rival, 'settled it with the Calzone Cartel (rock paper scissors)');
+  g.exec(me, { k: 'upgrade', u: 'safe' });
+  const total = W.money;
+  g.exec(me, { k: 'safe', op: 'in', amt: 'all' });
+  g.bust(me, 'test', 0.5, 0);
+  log(W.safe === total && W.money === 0, 'the safe kept ' + W.safe + ' away from the fine');
+  // the encounter dialogue path
+  const e = D.create('house', 3, 'Kevin', 1000, 'test');
+  g.exec(me, { k: 'debt', id: e.id, op: 'talk' });
+  log(true, 'talked to a debtor: ' + (W.debts.includes(e) ? 'refused (menu offered)' : 'paid'));
+  note('debts done');
+}
 
 /** the real input path: walk up to things and press keys */
 function inputTest(g) {
@@ -202,7 +270,7 @@ function police(g) {
   const cop = g.police.cops.find(c => c.kind === 'cop');
   log(!!cop, 'cops are on patrol (' + g.police.cops.length + ')');
   // stand in front of a cop on an open sidewalk
-  cop.x = 0; cop.z = 32; cop.yaw = Math.PI; cop.st = 'patrol';
+  cop.x = 0; cop.z = 32; cop.yaw = Math.PI; cop.st = 'guard'; cop.gx = 0; cop.gz = 32; cop.sus = {};
   P.teleport(0, 26, 0, 0);
   const m0 = W.money;
   let chased = false, busted = false;

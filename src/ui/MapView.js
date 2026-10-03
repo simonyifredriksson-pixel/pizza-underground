@@ -25,6 +25,7 @@ export class MapView {
       x.fillStyle = b.tag === 'hq' ? '#ff8fc8' : '#d9cdee';
       x.fillRect(px(b.minx), px(b.minz), Math.max(1, px(b.maxx) - px(b.minx)), Math.max(1, px(b.maxz) - px(b.minz)));
     }
+    for (const b of this.g.town.interiors || []) { x.fillStyle = '#d9cdee'; x.fillRect(px(b.cx - b.w / 2), px(b.cz - b.d / 2), px(b.cx + b.w / 2) - px(b.cx - b.w / 2), px(b.cz + b.d / 2) - px(b.cz - b.d / 2)); }
     x.fillStyle = '#ff8fc8'; x.fillRect(px(HQ.x0), px(HQ.z0), px(HQ.x1) - px(HQ.x0), px(HQ.z1) - px(HQ.z0));
     x.font = 'bold 10px Nunito, sans-serif'; x.fillStyle = '#2a1640'; x.textAlign = 'center';
     const lbl = (t, a, b) => { x.fillStyle = 'rgba(255,255,255,0.75)'; const w = x.measureText(t).width + 6; x.fillRect(px(a) - w / 2, px(b) - 7, w, 13); x.fillStyle = '#2a1640'; x.fillText(t, px(a), px(b) + 3); };
@@ -54,6 +55,9 @@ export class MapView {
     // suppliers you have met the need for
     if (W.quest >= Q.TOWN) for (const [k, s] of Object.entries(SUPPLIERS)) { const p = k === 'cheese' && W.event?.k === 'cheeseMissing' && !W.event.found ? null : T[s.poi]; if (p) dot(p.x, p.z, '#ff9f1a', 4, s.name); }
     if (W.quest >= Q.TOWN) { dot(T.oleg.x, T.oleg.z, '#8fc1e3', 4, 'Oleg (ovens)'); dot(T.mustache.x, T.mustache.z, '#f7a8c8', 4, 'Disguises'); dot(T.hank.x, T.hank.z, '#ffcf33', 4, 'Cars'); }
+    for (const d of W.debts || []) { const a = g.debts.at(d); dot(a.x, a.z, d.state === 'seized' ? '#8a8aa0' : ['late', 'overdue'].includes(d.state) ? '#ff3a3a' : '#ffd23f', 6, '$ ' + d.name); }
+    if (W.rival) dot(W.rival.x, W.rival.z, '#ff6b6b', 7, 'Calzone Cartel');
+    if (W.kn) dot(W.kn.x, W.kn.z, '#ff9f1a', 5, 'Knuckles');
     for (const o of W.orders) if (o.state === 'open') { const a = g.orders.at(o); dot(a.x, a.z, o === this.focus ? '#ffffff' : '#43e07a', o === this.focus ? 8 : 6, o.name); }
     for (const m of g.story.markers()) { x.fillStyle = '#ffffff'; x.font = 'bold 22px "Luckiest Guy", sans-serif'; x.textAlign = 'center'; x.strokeStyle = '#2a1640'; x.lineWidth = 4; x.strokeText('★', px(m.x), px(m.z) + 8); x.fillText('★', px(m.x), px(m.z) + 8); x.font = 'bold 11px Nunito'; x.lineWidth = 3; x.strokeText(m.label, px(m.x), px(m.z) - 12); x.fillText(m.label, px(m.x), px(m.z) - 12); }
     if (W.owned.up.camera) { for (const c of g.police.cops) dot(c.x, c.z, '#3a7bd5', 3); for (const c of g.police.cars) dot(c.x, c.z, '#3a7bd5', 5); }
