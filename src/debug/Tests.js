@@ -124,7 +124,12 @@ export async function run(g, name) {
       const n = W.cars.length; A.run('car', 'getaway'); log(W.cars.length === n + 1, 'admin: spawn a getaway car');
       A.run('tp', { x: 0, z: 12 }); log(Math.hypot(g.player.pos.x, g.player.pos.z - 12) < 1, 'admin: teleport');
       A.run('storm'); log(!!W.weather, 'admin: storm on');
-      A.run('refuse'); log(g.orders.forceTab, 'admin: next customer refuses');
+      A.run('refuse');
+      const ro = W.orders.find(o => o.refuse);
+      log(ro && ro.state === 'open' && g.orders.pins.size >= 0, 'admin: a refusing order appears on the phone right away (' + (ro && ro.name) + ')');
+      const at = g.orders.at(ro); g.player.teleport(at.x, at.z + 0.5, 0); sim(g, 0.2);
+      g.exec(g.me, { k: 'deliver', id: ro.id });
+      log(!W.orders.includes(ro) && (W.debts || []).some(d => d.name === ro.name), 'at the door they refuse to pay: ' + ro.name + ' is now on the debt list');
       A.run('item', 'box'); log(g.hold(g.me).some(i => i.k === 'box'), 'admin: give a pizza box');
       A.close();
       note('admin done');

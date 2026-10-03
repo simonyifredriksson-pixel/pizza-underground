@@ -60,7 +60,7 @@ export class Orders {
   spawn(opts = {}) {
     const g = this.g, W = g.W;
     const houses = g.town.houses;
-    const used = new Set(W.orders.map(o => o.h));
+    const used = new Set([...W.orders.map(o => o.h), ...(opts.refuse ? (W.debts || []).filter(d => d.kind === 'house').map(d => d.ref) : [])]);
     let h; for (let k = 0; k < 20; k++) { h = randi(0, houses.length - 1); if (!used.has(h)) break; }
     const nTop = Math.min(4, randi(0, 1 + Math.floor(W.rep / 6)));
     const pool = TOPPINGS.filter(t => W.rep > 3 || t !== 'olive');
@@ -79,7 +79,8 @@ export class Orders {
     const name = opts.big ? 'The Cheese Lord' : rich ? pick(RICH) : pick(CUSTOMERS);
     const msg = opts.big ? 'I need ONE HUNDRED PIZZAS. ...okay the van only fits twelve. TWELVE PIZZAS. Cheese. Now. Money is no object. Money is several objects.' : sting ? pick(STING_MSG) : rich ? 'I require one (1) pizza of the finest quality. Money is not a concern. Money is never a concern.' : pick(ORDER_MSG);
     const tmax = opts.big ? 300 : 130 + top.length * 20 + qty * 30;
-    const o = { id: W.orderSeq++, h, name, msg, top: opts.big ? [] : top, extra: opts.big ? false : extra, qty, left: qty, pay: Math.round(pay / 10) * 10, t: tmax, tmax, sting, rich, big: !!opts.big, state: opts.accepted ? 'open' : 'new', exp: 35 };
+    const o = { id: W.orderSeq++, h, name, msg, top: opts.big ? [] : top, extra: opts.big ? false : extra, qty, left: qty, pay: Math.round(pay / 10) * 10, t: tmax, tmax, sting, rich, big: !!opts.big, state: opts.accepted ? 'open' : 'new', exp: 35, refuse: !!opts.refuse };
+    if (o.refuse) { o.sting = false; o.big = false; o.qty = o.left = 1; }
     W.orders.push(o);
     g.broadcastEvent({ k: 'ding', id: o.id });
     g.dirty();
@@ -128,11 +129,34 @@ export class Orders {
     if (!o || o.state !== 'open') return;
     const car = carId != null ? g.W.cars.find(c => c.id === carId) : null;
     const H = car ? (car.cargo || []) : g.hold(pid);
+    // the customer who was never going to pay: it doesn't matter what you bring
+    if (o.refuse) {
+      const bi = H.findIndex(b => b.k === 'box');
+      if (bi >= 0) H.splice(bi, 1);
+      return this.refuse(pid, o, bi >= 0);
+    }
     let bi = -1, best = -1;
     H.forEach((b, i) => { if (b.k !== 'box') return; const s = this.score(o, b).s; if (s > best) { best = s; bi = i; } });
     if (bi < 0) return g.tell(pid, 'You need a boxed pizza.');
     const box = H.splice(bi, 1)[0];
     this.complete(pid, o, box, 1);
+  }
+
+  /** host: they open the door... and refuse to pay. Now they owe you. */
+  refuse(pid, o, gotPizza) {
+    const g = this.g, W = g.W;
+    W.orders.splice(W.orders.indexOf(o), 1);
+    const d = g.debts.create('house', o.h, o.name, o.pay * 1.25, 'refused to pay at the door');
+    const at = this.at(o);
+    g.broadcastEvent({ k: 'paid', x: at.x, z: at.z, pay: 0, why: 'tab', line: 'Yeah... I\'m not paying for that.', name: o.name, pid });
+    g.broadcastEvent({ k: 'dlg', pid, who: { debtor: { name: o.name, color: '#c8c8d8' } }, lines: [
+      ['debtor', gotPizza ? 'Oh hey! The pizza! (snatches the box)' : 'Oh hey! Where\'s my pizza? ...Never mind, I wasn\'t going to pay anyway.'],
+      ['debtor', 'Yeah... I\'m not paying for that.'],
+      ['you', 'What?'],
+      ['debtor', 'Put it on my tab. I\'ll pay you next week. Probably. Definitely. Probably.'],
+      ['narr', d ? o.name + ' now owes you ' + money(d.amount) + '. It\'s on your DEBTS list (TAB). Come back and collect - or send Knuckles.' : o.name + ' slams the door. (They already owe you money!)'],
+    ] });
+    g.dirty();
   }
 
   complete(pid, o, box, mult) {
@@ -217,7 +241,8 @@ export class Orders {
       const boxes = H.filter(b => b.k === 'box').length;
       // or straight out of a car parked nearby
       const car = !boxes && this.g.W.cars.find(c => (c.cargo || []).some(b => b.k === 'box') && Math.hypot(c.x - at.x, c.z - at.z) < 16);
-      if (boxes) out.push({ x: at.x, z: at.z, d, label: 'Deliver to ' + o.name + (o.left > 1 ? ' (' + o.left + ' left)' : ''), act: { k: 'deliver', id: o.id } });
+      if (o.refuse && !boxes) out.push({ x: at.x, z: at.z, d, label: 'Knock on ' + o.name + '\'s door', act: { k: 'deliver', id: o.id } });
+      else if (boxes) out.push({ x: at.x, z: at.z, d, label: 'Deliver to ' + o.name + (o.left > 1 ? ' (' + o.left + ' left)' : ''), act: { k: 'deliver', id: o.id } });
       else if (car) out.push({ x: at.x, z: at.z, d, label: 'Deliver to ' + o.name + ' (grab a box from the ' + (VEHICLES[car.kind]?.name || 'car') + ')', act: { k: 'deliver', id: o.id, car: car.id } });
       else out.push({ x: at.x, z: at.z, d, label: o.name + ' wants: ' + recipeText(o) + ' (bring a box)', info: true });
     }

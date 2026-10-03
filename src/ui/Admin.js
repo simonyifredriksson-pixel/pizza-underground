@@ -50,7 +50,12 @@ export class Admin {
       case 'heat': g.addHeat(arg); break;
       case 'heatReset': W.heat = 0; W.tips = 0; break;
       case 'tips': g.inspections.tip(arg); break;
-      case 'refuse': g.orders.forceTab = true; g.ui.toast('The next delivery will be put on the tab.'); break;
+      case 'refuse': {
+        // a real order, right now: the phone rings, a pin goes up, and at the door they won't pay
+        const o = g.orders.spawn({ accepted: true, refuse: true });
+        g.tell(null, o.name + ' ordered a pizza (pin over the door, TAB for details). They seem... shifty.');
+        break;
+      }
       case 'payDebt': { const d = (W.debts || []).find(d => d.state !== 'seized') || (W.debts || [])[0]; if (d) g.debts.pay(me, d); else g.ui.toast('Nobody owes you anything.'); break; }
       case 'order': g.orders.spawn({ accepted: true }); break;
       case 'bigOrder': g.orders.spawn({ big: true, accepted: true }); break;
@@ -98,7 +103,7 @@ export class Admin {
       <div class="agrid">${btn('Trigger police inspection', 'inspect', null, 'red')}${btn('Inspectors arrive NOW', 'inspectNow', null, 'red')}${btn('Heat +20', 'heat', 20)}${btn('Heat +50', 'heat', 50)}${btn('Police tips +15', 'tips', 15)}${btn('Reset police attention', 'heatReset', null, 'green')}</div>`;
     if (this.tab === 'customers') body = `
       <div class="arow"><b>Orders</b> ${W.orders.length} · <b>Debts</b> ${(W.debts || []).length}</div>
-      <div class="agrid">${btn('Next customer refuses to pay', 'refuse')}${btn('A debtor pays immediately', 'payDebt', null, 'green')}${btn('New order', 'order')}${btn('Special: 12-pizza order', 'bigOrder')}${btn('Special: rich customer', 'richOrder')}</div>`;
+      <div class="agrid">${btn('New order that refuses to pay', 'refuse')}${btn('A debtor pays immediately', 'payDebt', null, 'green')}${btn('New order', 'order')}${btn('Special: 12-pizza order', 'bigOrder')}${btn('Special: rich customer', 'richOrder')}</div>`;
     if (this.tab === 'world') {
       const spots = { 'Hideout': { x: HQ.door.x - 2, z: HQ.door.z }, 'Inside the hideout': { x: 146, z: 80 }, 'Crumb Mall': T.mall, 'Town square': { x: 0, z: 12 }, 'City Hall': T.cityHallDoor, 'Police station': T.policeDoor, 'Hospital': T.hospitalDoor, 'Suspicious Man': T.manSpot, 'Storage room': T.storageIn, 'Junkyard': { x: 160, z: 132 }, 'Park': { x: 0, z: 150 } };
       body = `<div class="arow"><b>Teleport me</b></div><div class="agrid">${Object.entries(spots).map(([n, p]) => btn(n, 'tp', { x: p.x, z: p.z })).join('')}</div>
