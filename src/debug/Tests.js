@@ -11,6 +11,7 @@ import { drive as driveFn } from '../game/Vehicles.js';
 import { VEHICLES as VEH, DISGUISES as DISG } from '../data/Data.js';
 import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
 import { makeItem } from '../art/Props.js';
+import { makeHood } from '../art/Gear.js';
 
 export function setupAt(g, q) {
   const W = newWorld();
@@ -73,10 +74,17 @@ export function setupAt(g, q) {
       if (ui === 'inv') { g.inv.show(qs.get('tab') || 'gear'); g.inv.sel = +(qs.get('sel') || 0); g.inv.render(); }
       for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
     }
+    if (ui === 'hood') setTimeout(() => {
+      const h = makeHood(1); h.scale.setScalar(3); h.position.set(20, 0.3, 30); g.scene.add(h);
+      g.player.teleport(20, 20, 0); g.cam.override = { pos: new THREE.Vector3(22.4, 2.4, 33.6), look: new THREE.Vector3(20, 1.4, 30) };
+      g.update(1 / 30); g.paused = true;
+    }, 900);
     if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'chair') {
-      const d = g.debts.create('house', 2, 'Gary', 2000, 'test'); d.state = 'guest'; d.t = 60;
-      const ch = g.town.poi.storageChair; g.player.teleport(ch.x - 1.5, ch.z - 2.5, 0, 0.6); g.cam.fpPitch = 0.2;
+      const d = g.debts.create('house', 2, 'Gary', 2000, 'test'); d.state = 'guest'; d.res = 100;
+      const ch = g.town.poi.storageChair; g.player.teleport(ch.x + 1.7, ch.z - 1.3, 0, Math.atan2(-1.7, 1.3)); g.cam.fpPitch = 0.3; g.cam.dist = 3.2; g.cam.pitch = 0.3; g.player.camYaw = Math.atan2(-1.7, 1.3) + Math.PI + (qs.has('tp') ? 0.9 : 0);
+      if (qs.get('eq')) { W.gear = { [g.me]: { foambat: 1, mallet: 1 } }; W.eq = { [g.me]: qs.get('eq') }; }
+      for (let i = 0; i < 30; i++) { g.update(1 / 30); g.input.endFrame(); }
     }
     if (ui === 'shop') g.npcs.supplierMenuOnly('larry');
     if (ui === 'dialog') g.ui.dialog([['man', 'Do I look like a man who negotiates with carbohydrates?']]);
@@ -469,14 +477,36 @@ function kidnap(g) {
   log(T2.some(t => t.act && t.act.op === 'seat'), 'at the Time-Out Chair: "' + T2.find(t => t.act && t.act.op === 'seat')?.label + '"');
   g.exec(me, { k: 'debt', id: d.id, op: 'seat' });
   sim(g, 0.3);
-  log(d.state === 'guest' && D.guest && D.guest.id === d.id, d.name + ' is in the Time-Out Chair watching Dez\'s slideshow');
-  const t0 = d.t; g.exec(me, { k: 'debt', id: d.id, op: 'slide' });
-  log(!W.debts.includes(d) || d.t < t0 - 10, 'showed them a slide (' + Math.round(t0) + 's -> ' + (W.debts.includes(d) ? Math.round(d.t) + 's' : 'they cracked') + ')');
+  log(d.state === 'guest' && d.res > 99 && D.guest && D.guest.id === d.id && !!D.guest.hood, d.name + ' is in the Time-Out Chair: hood on, cuffed, resolve 100%');
+  g.exec(me, { k: 'debt', id: d.id, op: 'take' });
+  log(W.debts.includes(d), 'at first they refuse: no money to take yet');
+  // bonk them with the foam bat until they agree
+  W.gear = W.gear || {}; W.gear[me] = { foambat: 1, mallet: 1 }; W.eq = W.eq || {};
+  const bonk = (key) => { g.exec(me, { k: 'bm', op: 'equip', key }); g.exec(me, { k: 'bm', op: 'use', key, x: P.pos.x, z: P.pos.z, yaw: P.yaw, f: 0 }); };
+  const r0 = d.res; bonk('foambat');
+  log(d.res < r0 && d.res > 70, 'foam bat: BONK, resolve ' + r0 + ' -> ' + Math.round(d.res) + '% (still threatening to call the cops)');
+  let n = 1; while (d.res > 0 && n < 20) { bonk('mallet'); n++; }
+  log(d.res <= 0, 'after ' + n + ' bonks they agree to pay');
   const m0 = W.money;
-  if (W.debts.includes(d)) { d.t = 0.05; sim(g, 0.3); }
-  log(!W.debts.includes(d) && (W.money === m0 + d.amount || W.money >= m0), 'they paid up and went home');
+  g.exec(me, { k: 'debt', id: d.id, op: 'take' });
+  log(!W.debts.includes(d) && W.money === m0 + d.amount, 'took the money (' + d.amount + '), they went home');
   sim(g, 0.2);
   log(!D.guest, 'the chair is empty again');
+  // the second guest: you don't take their money, you keep them
+  const k = D.create('house', 6, 'Kevin', 1200, 'test'); k.state = 'guest'; k.res = 0;
+  g.exec(me, { k: 'debt', id: k.id, op: 'keep' });
+  sim(g, 0.2);
+  log(k.state === 'kept' && W.debts.includes(k) && D.guest && D.guest.id === k.id, 'refused their money: ' + k.name + ' stays in the chair for good');
+  k.res = 0; sim(g, 5);
+  log(k.state === 'kept', 'still there five seconds later (no timer)');
+  g.exec(me, { k: 'debt', id: k.id, op: 'letgo' });
+  sim(g, 0.2);
+  log(k.state === 'late' && !D.guest, 'let them go home: still owing you');
+  // left alone, the fight slowly goes out of them
+  const s = D.create('house', 7, 'Steve', 1000, 'test'); s.state = 'guest'; s.res = 1;
+  sim(g, 3);
+  log(s.res === 0 && s.state === 'guest', 'left alone long enough, they offer to pay (but wait for you)');
+  g.exec(me, { k: 'debt', id: s.id, op: 'letgo' });
   // a dropped sack: they escape
   const e = D.create('house', 4, 'Brenda', 1500, 'test'); e.state = 'overdue';
   g.exec(me, { k: 'debt', id: e.id, op: 'bag' });

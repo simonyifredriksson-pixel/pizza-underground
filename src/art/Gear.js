@@ -195,6 +195,27 @@ export function makeGroucho(s = 1) {
   return g;
 }
 
+/* ---------------- the Time-Out Chair: a hood and handcuffs ---------------- */
+/** a black cloth hood, the kind from the movies: sized for a makeChar head (bald, no glasses), y = 0 at the neck */
+export function makeHood(hs = 1) {
+  const g = new THREE.Group(), CLOTH = '#26232c', o = { rough: 0.95 };
+  g.add(part(geo.ico(1), CLOTH, 0, 0.42 * hs, 0.04 * hs, 0.8 * hs, 0.9 * hs, 0.92 * hs, o));
+  g.add(part(geo.frust(1.2, 8), CLOTH, 0, 0.06 * hs, 0.02, 0.5 * hs, 0.16, 0.54 * hs, o));       // gathered at the neck
+  g.add(part(geo.cyl(10), '#c8b48a', 0, 0.07 * hs, 0.02, 0.56 * hs, 0.035, 0.6 * hs));             // the drawstring
+  for (const s of [-1, 1]) g.add(rot(part(geo.box(), '#c8b48a', s * 0.06, -0.02, 0.3 * hs, 0.025, 0.16, 0.025), 'z', s * 0.25)); // its two ends
+  // the cloth pulled over the nose, and a mouth-shaped dent that moves when they talk
+  g.add(part(geo.ico(0), '#1c1a22', 0, 0.38 * hs, 0.47 * hs, 0.16 * hs, 0.14 * hs, 0.06, o));
+  g.userData.mouth = part(geo.sph(8, 6), '#1c1a22', 0, 0.2 * hs, 0.45 * hs, 0.14 * hs, 0.05, 0.05, o); g.add(g.userData.mouth);
+  return g;
+}
+/** one steel cuff for a wrist */
+export function makeCuff() {
+  const g = new THREE.Group(), steel = { rough: 0.3, metal: 0.7 };
+  g.add(rot(part(geo.tor(10), '#b8bcc8', 0, 0, 0, 0.3, 0.3, 0.5, steel), 'x', Math.PI / 2));
+  g.add(part(geo.box(), '#8a8e9a', 0.13, 0, 0, 0.06, 0.06, 0.08, steel));                     // the lock
+  return g;
+}
+
 /* ---------------- the big black trash bag ----------------
    A lumpy icosphere: every corner pushed in or out a little (the same amount
    wherever the same corner appears, so the plastic stays in one piece),

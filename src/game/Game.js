@@ -375,6 +375,7 @@ export class Game {
       case 'debtMenu': if (e.pid === this.me) { const open = () => (ui.inDialog ? setTimeout(open, 200) : this.debts.menuFor(e.id)); setTimeout(open, 300); } break;
       case 'alarm': ui.alarm(e.text); a.fail(); break;
       case 'bmReveal': case 'gear': this.bm.onEvent(e); break;
+      case 'guestBonk': this.debts.onBonk(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;
       case 'fx': {

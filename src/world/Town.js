@@ -13,6 +13,7 @@ import { makeChar } from '../art/Chars.js';
 import { makeCar, makeDumpster, MAFIA, bake, makeValuable, VALUABLES, OUTDOOR_VALUABLES, makeStation, makeItem } from '../art/Props.js';
 import { GROCERY, EQUIPMENT, GENERAL, VEHICLES } from '../data/Data.js';
 import { GEAR_ORDER } from '../data/BlackMarket.js';
+import { makeHood, makeCuff } from '../art/Gear.js';
 import { furnish } from './Interiors.js';
 import { Colliders } from './Colliders.js';
 import { seeded } from '../core/Util.js';
@@ -778,14 +779,17 @@ export class Town {
     // the ladder out
     for (let i = 0; i < 8; i++) m.box(X + W / 2 - 0.5, 0.3 + i * 0.5, Z - 4.5, 0.06, 0.06, 0.8, '#8a8aa0');
     for (const s of [-1, 1]) m.box(X + W / 2 - 0.5, 0, Z - 4.5 + s * 0.4, 0.08, 4.5, 0.08, '#8a8aa0');
-    // the Time-Out Chair: a comfy chair, a lamp, a TV playing Dez's vacation slideshow on loop
+    // the Time-Out Chair: a comfy chair under one bare bulb
     const cx2 = X - 4.6, cz2 = Z + 2.2;
     m.box(cx2, 0, cz2, 0.9, 0.5, 0.9, '#c8323a'); m.box(cx2 - 0.4, 0.5, cz2, 0.12, 0.9, 0.9, '#c8323a');
     for (const s of [-1, 1]) m.box(cx2, 0.5, cz2 + s * 0.42, 0.9, 0.3, 0.1, '#a8222a');
     this.col.boxc(cx2, cz2, 0.9, 0.9, { h: 0.6 });
-    m.box(cx2 + 2.4, 0, cz2, 0.6, 0.7, 1.4, '#5a3a22'); m.box(cx2 + 2.4, 0.7, cz2, 0.15, 0.9, 1.5, '#1b1b24');
-    this.col.boxc(cx2 + 2.4, cz2, 0.6, 1.5, { h: 1.6 });
-    this.sign(['DEZ\'S VACATION', 'SLIDESHOW', '(slide 1 of 4,000)'], cx2 + 2.31, 1.15, cz2, -Math.PI / 2, 1.3, 0.75, { bg: '#43c0ff', fg: '#1b1b24', border: false });
+    // a little table with a spare hood, a spare pair of cuffs, and a very small sign
+    m.box(cx2 + 2.2, 0, cz2 - 1.2, 0.7, 0.75, 0.6, '#5a3a22'); m.box(cx2 + 2.2, 0.75, cz2 - 1.2, 0.76, 0.04, 0.66, '#7a5236');
+    this.col.boxc(cx2 + 2.2, cz2 - 1.2, 0.7, 0.6, { h: 0.8 });
+    { const hd = makeHood(1); hd.position.set(cx2 + 2.1, 0.75, cz2 - 1.25); hd.rotation.y = 0.6; hd.scale.setScalar(0.8); bake(m, hd);
+      const cf = makeCuff(); cf.position.set(cx2 + 2.4, 0.8, cz2 - 1.1); cf.rotation.x = Math.PI / 2; bake(m, cf); }
+    this.sign(['(RENTAL HOOD)', '(PLEASE RETURN)'], cx2 + 2.2, 1.0, cz2 - 1.51, Math.PI, 0.7, 0.24, { bg: '#ffffff', fg: '#1b1b24', border: false });
     this.sign(['THE TIME-OUT', 'CHAIR'], cx2 - 0.9, 2.6, cz2, Math.PI / 2, 2.0, 0.7, { bg: '#ffe14a' });
     this.root.add(part(geo.ico(0), '#fff6c8', cx2 + 0.6, 2.8, cz2, 0.35, 0.3, 0.35, { emissive: 0xfff2b0, ei: 1 }));
     this.poi.storageChair = { x: cx2, z: cz2 };
