@@ -31,7 +31,21 @@ SPEAKERS.cop = { name: 'Sergeant Pickles', color: '#6f8fd8' };
 SPEAKERS.boss = SPEAKERS.boss || { name: 'The Boss', color: '#ffd23f' };
 SPEAKERS.frank = { name: 'Frank', color: '#c8c8d8' };
 
-const HOLD_SAB ={ register: 2.4, oven: 1.6, shelf: 1.4, special: 2.0 };
+const HOSTAGE_NAMES = { italian: ['Little Sal', 'Cousin Vito', 'Tony Two-Slices', 'Nephew Gino'], delivery: ['Speedy Steve', 'Zoom Zach', 'Fast Freddie', 'Lil Turbo'], frozen: ['Chilly Chad', 'Frosty Phil', 'Ice Cube Eddie', 'Brain Freeze Bob'] };
+/* the ransom haggle: what the boss says */
+const RANSOM = {
+  open: (h) => [['boss', 'You have ' + h + '.'], ['boss', '...in a trash bag.'], ['hostage', '(muffled) HI BOSS!'], ['boss', 'Hi, ' + h.split(' ').pop() + '.'], ['boss', 'Okay. What do you want for him?']],
+  accept: ['Fine. FINE. Here. Give him back.', 'Deal. Don\'t tell anyone about this. Ever.', 'Take it. We\'ll pretend this never happened.'],
+  counter: ['Pfff. How about {O}. That\'s my final offer.', '{O}. And that\'s already too much for HIM.', 'I can do {O}. He\'s not THAT good at his job.', '...{O}. Last offer. (It\'s not the last offer.)'],
+  insult: ['WHAT? For HIM? He can\'t even sneak into a shoe shop!', 'That\'s more than his whole family is worth. Combined.', 'Are you out of your MIND? Try again.'],
+  scaredYes: ['Okay, okay, no need for that. {O}.', 'Alright! {O}! Calm down!', '(sweating) {O}. And put the bat AWAY.'],
+  scaredNo: ['You don\'t scare me.', 'Is that supposed to be scary? Okay, it\'s a little scary. Still no.', 'Nice try.'],
+  walk: ['You know what? Keep him. We got plenty of cousins.', 'I\'m done. Come back when you\'re reasonable.', 'Keep him. He eats too much anyway.'],
+  hostage: ['(the bag) BOSS! PAY THEM! IT SMELLS LIKE ONIONS IN HERE!', '(the bag) Don\'t haggle! Don\'t you DARE haggle!', '(the bag) Am I worth that much? Aww.', '(the bag) Boss, I can hear you being cheap!'],
+};
+SPEAKERS.hostage = { name: 'The Bag', color: '#9a9aaa' };
+
+const HOLD_SAB = { register: 2.4, oven: 1.6, shelf: 1.4, special: 2.0 };
 const RAID_PATH = [[116, 58], [129, 66], [135.4, 75.5], [137.6, 80], [141.6, 80]];
 const RAID_SPOT = { cash: [150.2, 75.8], fridge: [142.2, 86.1], oven: [149.5, 74.4], boxes: [145.7, 86.1], mess: [146, 80] };
 const SHIPMENT_AREAS = [[-40, 100], [40, -20], [-100, 40], [100, 100], [-20, 140], [60, -100]];
@@ -338,6 +352,11 @@ export class Rivals {
     const r = R.raid;
     if (r.st === 'gone') { R.raid = null; g.dirty(); return; }
     // somebody catches them red-handed
+    if (r.st === 'caught') {
+      r.t -= dt;
+      if (r.t <= 0) { r.st = 'flee'; r.path = [[r.x, r.z], [137.6, 80], [129, 66], [104, 50]].filter((p, i) => i === 0 || Math.hypot(p[0] - r.x, p[1] - r.z) > 2 || i === 3); r.i = 1; g.broadcastEvent({ k: 'rvNews', text: r.name + ' shook it off and ran for it.' }); g.dirty(); }
+      return;
+    }
     if (r.st !== 'flee') for (const p of players) {
       if (p.floor || p.car) continue;
       if (Math.hypot(p.x - r.x, p.z - r.z) < 1.7) { this.foilRaid(p.id); return; }
@@ -390,7 +409,10 @@ export class Rivals {
   /** host: a player got to the intruder (walked into them, or bonked them) */
   foilRaid(pid, bonk) {
     const g = this.g, W = this.W, r = this.R.raid; if (!r || r.st === 'flee' || r.st === 'gone') return false;
-    r.st = 'flee'; r.stun = bonk ? 1.5 : 0; r.cam = null; r.path = [[r.x, r.z], [137.6, 80], [129, 66], [104, 50]].filter((p, i) => i === 0 || Math.hypot(p[0] - r.x, p[1] - r.z) > 2 || i === 3); r.i = 1;
+    if (r.st === 'caught') { if (bonk) r.t = Math.max(r.t, 6); return true; }   // another bonk keeps him dizzy
+    // frozen on the spot for a few seconds (bag him now!), then he runs
+    r.st = 'caught'; r.t = bonk ? 10 : 8; r.cam = null;
+    r.name = r.name || pick(HOSTAGE_NAMES[r.g]);
     W.money += 500; this._xp(r.g, -0.1);
     g.broadcastEvent({ k: 'raidFoiled', g: r.g, pid, x: r.x, z: r.z, bonk: !!bonk });
     g.dirty();
@@ -610,6 +632,20 @@ export class Rivals {
       case 'found': this._foundKitchen(pid); break;
       case 'report': return this._report(pid);
       case 'save': { const f = (W.footage || []).find(f => f.id === a.id); if (f) { f.saved = !f.saved; } break; }
+      case 'bagRaid': {   // a caught intruder goes in a trash bag
+        const r = R.raid, inv = W.inv?.[pid];
+        if (!r || r.st !== 'caught' || Math.hypot(p.x - r.x, p.z - r.z) > 3) return;
+        if (!inv || !(inv.sack > 0)) return g.tell(pid, 'You need a Comically Large Trash Bag (General store at the mall).');
+        if (H.length) return g.tell(pid, 'You need both hands free to bag him.');
+        inv.sack--;
+        H.push({ k: 'bag', hostage: true, g: r.g, id: 'h' + (++R.hseq || (R.hseq = 1)), name: r.name });
+        g.addHeat(2); g.debts.addRep(2);
+        g.broadcastEvent({ k: 'rvNews', text: '*FWUMP.* ' + r.name + ' is in the bag. Bring him to ' + GANGS[r.g].place + ' and demand a ransom.', alarm: 'GOT HIM!' });
+        g.sfx('whoosh', p);
+        R.raid = null;
+        break;
+      }
+      case 'ransom': return this._ransom(pid, a, H);
       case 'askMeet': { const G = this.gang(a.g); if (G.meetCool > 0) return g.tell(pid, GANGS[a.g].boss + ' is "busy". (Try again in ' + Math.ceil(G.meetCool) + 's.)'); G.invite = 300; G.meetCool = 300; g.tell(null, GANGS[a.g].boss + ' will see you at ' + GANGS[a.g].place + '. (5 minutes)'); break; }
     }
     g.dirty();
@@ -707,6 +743,80 @@ export class Rivals {
     W.footage.push({ id: W.footSeq, cam, place: 'photo', culprit: S.g, t: Math.round(W.time), frames: fr, saved: true, reported: false, photo: true });
     g.broadcastEvent({ k: 'rvNews', text: 'It\'s ' + GANGS[S.g].name + '! You snapped a photo (saved as evidence). Wreck the kitchen (hold E) or take the photo to the police.', alarm: 'SECRET KITCHEN FOUND!' });
   }
+  /* ---------------- ransom: you have their guy in a bag ----------------
+     The boss has a secret limit (what the guy is worth to him), an offer
+     that starts low, and patience. Ask for too much and you burn patience;
+     ask for close to his limit and he meets you halfway; threaten him and
+     he might go up. Out of patience: he walks away (try again later). */
+  _ransom(pid, a, H) {
+    const g = this.g, W = this.W, R = this.R;
+    const bi = H.findIndex(i => i.k === 'bag' && i.hostage);
+    const bag = H[bi];
+    R.ransom = R.ransom || {};
+    let n = R.ransom[pid];
+    const send = (lines, done, paid) => g.broadcastEvent({ k: 'ransom', pid, g: n?.g || bag?.g, lines, offer: n?.offer, patience: n?.patience, name: n?.name, done: !!done, paid: paid || 0 });
+    if (a.step === 'start') {
+      if (!bag) return g.tell(pid, 'You need their guy, in a bag, in your hands.');
+      const G = this.gang(bag.g);
+      if (G.ransomCool > this.time) return g.tell(pid, GANGS[bag.g].boss + ' won\'t talk to you yet. (' + Math.ceil(G.ransomCool - this.time) + 's)');
+      const value = Math.round((3000 + G.lvl * 2500 + rand(0, 1500)) / 50) * 50;
+      n = R.ransom[pid] = { g: bag.g, name: bag.name, value, offer: Math.round(value * 0.35 / 50) * 50, patience: 3, id: bag.id };
+      return send(RANSOM.open(bag.name));
+    }
+    if (!n || !bag || bag.id !== n.id) { delete R.ransom[pid]; return; }
+    const N = GANGS[n.g], G = this.gang(n.g), fmt = (s) => s.replace('{O}', money(n.offer));
+    const end = (amt, line) => {
+      H.splice(bi, 1);
+      W.money += amt; W.stats.earned += amt; G.cash = Math.max(0, G.cash - amt);
+      this._xp(n.g, -0.2); G.rel = Math.max(-100, G.rel - 8); g.debts.addRep(3);
+      delete R.ransom[pid];
+      g.broadcastEvent({ k: 'ransom', pid, g: n.g, lines: [['boss', line], ['narr', 'You hand over the bag. ' + n.name + ' tumbles out, blinks, and gets a very long hug from ' + N.boss + '.']], done: true, paid: amt, name: n.name });
+      g.broadcastEvent({ k: 'rvNews', text: N.name + ' paid ' + money(amt) + ' to get ' + n.name + ' back.', alarm: 'RANSOM PAID!' });
+      g.sfx('cash', null);
+    };
+    const walk = () => { G.ransomCool = this.time + 60; delete R.ransom[pid]; send([['boss', pick(RANSOM.walk)], ['narr', 'He slams the door. Try again in a minute - or keep ' + n.name + '. (Drop the bag and he runs home.)']], true); };
+    switch (a.step) {
+      case 'take': return end(n.offer, pick(RANSOM.accept));
+      case 'demand': {
+        const amt = Math.max(n.offer, Math.round(+a.amt || 0));
+        if (amt <= n.value * 0.8) return end(amt, pick(RANSOM.accept));
+        if (amt <= n.value * 1.15) { n.offer = Math.round(Math.min(n.value, n.offer + (amt - n.offer) * rand(0.4, 0.65)) / 50) * 50; n.patience--; }
+        else n.patience -= 2;
+        if (n.patience <= 0) return walk();
+        return send([['you', 'I want ' + money(amt) + '.'], ['boss', amt <= n.value * 1.15 ? fmt(pick(RANSOM.counter)) : pick(RANSOM.insult)], ...(Math.random() < 0.5 ? [['hostage', pick(RANSOM.hostage)]] : [])]);
+      }
+      case 'threat': {
+        if (n.threatened) { n.patience--; if (n.patience <= 0) return walk(); return send([['you', 'Do you want him back or NOT?'], ['boss', 'You already said that. It worked less the second time.']]); }
+        n.threatened = true;
+        const armed = ['foambat', 'mallet'].includes(W.eq?.[pid]);
+        if (Math.random() < (armed ? 0.8 : 0.5)) { n.offer = Math.round(Math.min(n.value, n.offer * 1.35) / 50) * 50; return send([['you', armed ? '(you tap the bag with your bat) Do you want him back or not?' : 'Do you want him back or not?'], ['hostage', 'OW! (it didn\'t hurt) BOSS!'], ['boss', fmt(pick(RANSOM.scaredYes))]]); }
+        n.patience--; if (n.patience <= 0) return walk();
+        return send([['you', 'Do you want him back or not?'], ['boss', pick(RANSOM.scaredNo)]]);
+      }
+      case 'leave': delete R.ransom[pid]; return send([['you', 'I\'ll think about it.'], ['boss', 'You do that.']], true);
+    }
+  }
+  /** everyone: the boss answered */
+  onRansom(e) {
+    const g = this.g; if (e.pid !== g.me) return;
+    SPEAKERS.boss = { name: GANGS[e.g].boss, color: GANGS[e.g].color };
+    SPEAKERS.hostage = { name: e.name || 'The Bag', color: '#9a9aaa' };
+    this.ransomState = e.done ? null : e;
+    g.ui.dialog(e.lines).then(() => { if (!e.done && this.ransomState === e) this.ransomMenu(e); });
+  }
+  ransomMenu(e) {
+    const g = this.g, N = GANGS[e.g], o = e.offer;
+    const tiers = [[1.6, 'Ask for a bit more'], [2.4, 'Ask for a lot more'], [4, 'Ask for a RIDICULOUS amount']];
+    g.ui.menu({
+      title: 'Ransom: ' + e.name, sub: N.boss + ' offers ' + money(o) + ' · his patience: ' + '|'.repeat(Math.max(0, e.patience)) + ' (ask too much and he walks away)',
+      items: [
+        { label: 'Take the ' + money(o), sub: 'Hand him over. Done.', on: () => g.act({ k: 'rv', op: 'ransom', step: 'take' }) },
+        ...tiers.map(([m, l]) => { const amt = Math.round(o * m / 50) * 50; return { label: l + ': ' + money(amt), sub: m < 2 ? 'He\'ll probably meet you halfway.' : m < 3 ? 'Risky. He might get insulted.' : 'He will DEFINITELY get insulted. But what if?', on: () => g.act({ k: 'rv', op: 'ransom', step: 'demand', amt }) }; }),
+        { label: 'Do you want him back or not?', sub: 'Lean on him. Works better with a bat in your hand. Only works once.', on: () => g.act({ k: 'rv', op: 'ransom', step: 'threat' }) },
+        { label: 'Walk away (keep him for now)', on: () => g.act({ k: 'rv', op: 'ransom', step: 'leave' }) },
+      ],
+    });
+  }
   _report(pid) {
     const g = this.g, W = this.W, R = this.R;
     const ev = (W.footage || []).filter(f => f.saved && !f.reported && f.culprit);
@@ -748,7 +858,7 @@ export class Rivals {
       }
       case 'motion': this.motion('MOTION DETECTED!', e.cam, e.where + (e.g ? ' - looks like ' + GANGS[e.g].name : '')); break;
       case 'raidDone': ui.alarm('RAIDED!'); ui.news(e.text); a.fail(); break;
-      case 'raidFoiled': ui.alarm('CAUGHT RED-HANDED!'); ui.news(GANGS[e.g].name + '\'s sneaky guy dropped everything and ran. He also dropped his wallet. (+$500)'); g.fx.text(e.bonk ? 'BONK!' : 'HEY!', new THREE.Vector3(e.x, 2.2, e.z), '#ffd23f', true); a.cheer(); break;
+      case 'raidFoiled': ui.alarm('CAUGHT RED-HANDED!'); ui.news(GANGS[e.g].name + '\'s sneaky guy froze like a deer in headlights and dropped his wallet (+$500). Quick: bag him (R) before he runs!'); g.fx.text(e.bonk ? 'BONK!' : 'HEY!', new THREE.Vector3(e.x, 2.2, e.z), '#ffd23f', true); a.cheer(); break;
       case 'caught': if (me) this.caughtScene(e); else ui.news((e.pid === g.me ? 'You' : 'Your friend') + ' got caught by ' + GANGS[e.g].name + '. They\'ll be back. Your kitchen got "visited".'); break;
     }
   }
@@ -826,6 +936,11 @@ export class Rivals {
       if (dd < 2.4) out.push({ x: Pl.out.door.x, z: Pl.out.door.z, d: dd, label: (friendly ? 'Go into ' : 'Sneak into ') + N.place + ' (' + N.name + ', ' + N.levels[G.lvl - 1] + ')', fn: enter(Pl.spawn, friendly ? null : 'You\'re inside ' + N.place + '. Guards, cameras. Be quick.') });
       const db = d(Pl.out.back.x, Pl.out.back.z);
       if (db < 2.2) out.push({ x: Pl.out.back.x, z: Pl.out.back.z, d: db, label: 'Sneak in through the back door (straight into the back room)', fn: enter(Pl.backSpawn, 'In through the back. Nobody saw that. Probably.') });
+      // their guy in a bag: knock and demand a ransom (front door, or the boss's desk)
+      if (top && top.k === 'bag' && top.hostage && top.g === k) {
+        const dr = Math.min(dd, d(Pl.desk.x, Pl.desk.z));
+        if (dr < 2.6) out.push({ x: Pl.out.door.x, z: Pl.out.door.z, d: dr - 1, label: 'Demand a ransom for ' + top.name + ' from ' + N.boss, act: { k: 'rv', op: 'ransom', step: 'start' } });
+      }
       const inside = this.insideOf(P.pos.x, P.pos.z) === k;
       if (!inside) continue;
       const de = d(Pl.exit.x, Pl.exit.z);
@@ -862,6 +977,11 @@ export class Rivals {
     // the inspection mission: hide crates behind their dumpster
     const M = R.mission;
     if (M && M.k === 'inspection' && H.some(i => i.tom)) { const o = this.place(M.g).out.door, dh = d(o.x, o.z); if (dh < 5) out.push({ x: o.x, z: o.z, d: dh - 0.5, label: 'Hide the crate out here (' + M.done + '/3)', act: { k: 'rv', op: 'hide' } }); }
+    // a caught intruder: bag him before he runs
+    if (R.raid && R.raid.st === 'caught') {
+      const r = R.raid, dr = d(r.x, r.z), sacks = W.inv?.[g.me]?.sack || 0;
+      if (dr < 2.8) out.push({ x: r.x, z: r.z, d: dr - 1, label: sacks ? (H.length ? 'Bag ' + r.name + '! (free your hands first)' : 'BAG ' + r.name.toUpperCase() + '! (' + Math.ceil(r.t) + 's before he runs)') : r.name + ' is frozen in shock (no trash bag! General store, next time)', act: sacks && !H.length ? { k: 'rv', op: 'bagRaid' } : null, info: !sacks || H.length > 0 });
+    }
     // your hideout: cameras to fix, mess to clean, the monitor, trophies to display
     for (const c of this.hqCams()) { if (!R.hqOff[c.id]) continue; const dc = d(c.x, c.z); if (dc < 2.6) out.push({ x: c.x, z: c.z, d: dc, label: 'Fix the ' + c.name, hold: 2.0, act: { k: 'rv', op: 'fixCam', id: c.id } }); }
     for (const m of R.mess) { const dm = d(m.x, m.z); if (dm < 1.3) out.push({ x: m.x, z: m.z, d: dm + 0.1, label: 'Clean up the mess', hold: 1.0, act: { k: 'rv', op: 'clean', x: m.x, z: m.z }, slap: true }); }
@@ -937,7 +1057,10 @@ export class Rivals {
   /** HUD lines for the task list */
   tasks(out) {
     const R = this.R, M = R.mission, W = this.W;
-    if (R.raid && R.raid.st !== 'gone' && R.raid.st !== 'flee') out.unshift({ t: 'INTRUDER at the hideout! (' + GANGS[R.raid.g].short + ') Catch him!', c: 'red' });
+    if (R.raid && R.raid.st === 'caught') out.unshift({ t: 'CAUGHT ' + R.raid.name.toUpperCase() + '! Bag him (E) - ' + Math.ceil(R.raid.t) + 's', c: 'red' });
+    else if (R.raid && R.raid.st !== 'gone' && R.raid.st !== 'flee') out.unshift({ t: 'INTRUDER at the hideout! (' + GANGS[R.raid.g].short + ') Catch him!', c: 'red' });
+    const hb = this.g.hold(this.g.me).find(i => i.k === 'bag' && i.hostage) || (W.cars || []).flatMap(c => c.cargo || []).find(i => i.k === 'bag' && i.hostage);
+    if (hb) out.unshift({ t: hb.name + ' is in a bag: take him to ' + GANGS[hb.g].place + ' for a ransom', c: 'yellow' });
     if (M) {
       const D = MISSIONS[M.k], t = Math.max(0, Math.ceil(M.t));
       let s = D.name + ': ';
@@ -1018,7 +1141,7 @@ export class Rivals {
     // the intruder at your hideout
     if (R.raid && R.raid.st !== 'gone') {
       const r = R.raid, N = GANGS[r.g];
-      const rr = rig('raid', { ...N.crew, glasses: 'sun', hat: 'beanie', hatColor: '#1b1b24', shirt: '#1b1b24', sleeve: '#1b1b24' }, r.x, r.z, r.yaw, { speed: r.st === 'act' ? 0 : r.st === 'flee' ? 7 : 2.4, panic: r.st === 'flee' ? 1 : 0, carry: r.st === 'act', y: r.st === 'in' ? -0.15 : 0.05 });
+      const rr = rig('raid', { ...N.crew, glasses: 'sun', hat: 'beanie', hatColor: '#1b1b24', shirt: '#1b1b24', sleeve: '#1b1b24' }, r.x, r.z, r.yaw, { speed: r.st === 'act' || r.st === 'caught' ? 0 : r.st === 'flee' ? 7 : 2.4, panic: r.st === 'flee' || r.st === 'caught' ? 1 : 0, carry: r.st === 'act', y: r.st === 'in' ? -0.15 : 0.05 });
       if (r.st === 'act' && Math.random() < dt * 2) g.fx.poof(r.x + Math.sin(r.yaw) * 0.6, 1.0, r.z + Math.cos(r.yaw) * 0.6);
       void rr;
     }

@@ -428,7 +428,8 @@ export class Debts {
     // the sack mumbles while you carry it
     const myBag = g.hold(g.me).find(i => i.k === 'bag');
     this.mmphT = (this.mmphT ?? 2) - dt;
-    if (myBag && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the bag) MMPH! I\'LL PAY! I\'LL PAY TUESDAY!', '(the bag) Is this a TRUNK? Are we going to a TRUNK?', '(the bag) MMMPH MMPH! (it sounds like "I want a lawyer")', '(the bag) It\'s dark in here and it smells like old onions!', '(the bag) Can I at least get a garlic knot?'])); }
+    if (myBag && myBag.hostage && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the bag) The boss is gonna be SO mad at you! ...And at me.', '(the bag) I was just looking at your oven! It\'s a nice oven!', '(the bag) Is this a ransom thing? Ask for a lot. I\'m worth a lot.', '(the bag) MMPH! Let me out and I\'ll tell you the secret recipe! (It\'s frozen.)'])); }
+    else if (myBag && this.mmphT <= 0) { this.mmphT = rand(5, 9); g.bubble(g.me, pick(['(the bag) MMPH! I\'LL PAY! I\'LL PAY TUESDAY!', '(the bag) Is this a TRUNK? Are we going to a TRUNK?', '(the bag) MMMPH MMPH! (it sounds like "I want a lawyer")', '(the bag) It\'s dark in here and it smells like old onions!', '(the bag) Can I at least get a garlic knot?'])); }
     else if (!myBag) this.mmphT = Math.max(this.mmphT, 1.5);
     // confiscated things vanish from home and appear in the storage room
     const seized = this.list.filter(d => d.state === 'seized');
@@ -487,7 +488,7 @@ export class Debts {
       const dc = Math.hypot(P.pos.x - ch.x, P.pos.z - ch.z);
       if (dc < 2.6) {
         const guest = this.chairGuest();
-        if (top && top.k === 'bag') out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
+        if (top && top.k === 'bag' && !top.hostage) out.push({ x: ch.x, z: ch.z, d: dc - 0.5, label: guest ? 'The Time-Out Chair is taken (' + guest.name + ')' : 'Sit ' + top.name + ' in the Time-Out Chair (hood and cuffs)', act: guest ? null : { k: 'debt', id: top.id, op: 'seat' }, warn: !!guest });
         else if (guest) {
           const eq = W.eq?.[g.me], bat = eq === 'foambat' || eq === 'mallet';
           const what = guest.state === 'kept' ? guest.name + ', your permanent guest' : guest.res > 0 ? guest.name + ' (resolve ' + Math.ceil(guest.res) + '%, owes ' + money(guest.amount) + ')' : guest.name + ' is ready to pay ' + money(guest.amount);

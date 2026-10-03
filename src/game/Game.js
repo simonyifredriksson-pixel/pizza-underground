@@ -185,6 +185,7 @@ export class Game {
           const it = H.pop(); if (!it) break;
           if (it.k === 'ext') { const st = this.kitchen.st(it.from || 'ext1'); st.ext = true; this.tell(pid, 'The extinguisher magically returns to the wall. (Physics.)'); }
           else if (this.rivals.thrown(pid, a)) { this.fxAt('poof', a.x, 1.2, a.z); }
+          else if (it.k === 'bag' && it.hostage) { this.fxAt('poof', a.x, 0.6, a.z); this.tell(null, it.name + ' wriggled out of the bag and sprinted home to ' + (this.rivals.place(it.g)?.name || 'his gang') + '. No ransom today.'); }
           else if (it.k === 'bag') { this.fxAt('poof', a.x, 0.6, a.z); const d = this.debts.list.find(x => x.id === it.id); if (d && d.state === 'bagged') this.debts.release(d, ' hit the ground, wriggled out of the trash bag and ran home yelling "I\'M TELLING!"'); }
           else this.fxAt('splat', a.x, 1.2, a.z);
           this.sfx('splat', a); this.dirty(); break;
@@ -382,6 +383,7 @@ export class Game {
       case 'alarm': ui.alarm(e.text); a.fail(); break;
       case 'bmReveal': case 'gear': this.bm.onEvent(e); break;
       case 'guestBonk': this.debts.onBonk(e); break;
+      case 'ransom': this.rivals.onRansom(e); break;
       case 'rvNews': case 'rvBark': case 'rvSpotted': case 'rvSab': case 'camOff': case 'motion': case 'raidDone': case 'raidFoiled': case 'caught': this.rivals.onEvent(e); break;
       case 'news': ui.news(e.text); break;
       case 'sfx': if (a[e.s]) a[e.s](e.x != null ? { x: e.x, z: e.z } : null); break;

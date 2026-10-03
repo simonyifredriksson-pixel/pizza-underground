@@ -97,17 +97,19 @@ export class Admin {
         const RV = g.rivals, k = arg || ['italian', 'delivery', 'frozen'][Math.floor(Math.random() * 3)];
         W.owned.up.camera = true; RV.R.hqOff = {};
         RV.gang(k).ally = false;
+        W.inv = W.inv || {}; const inv = (W.inv[me] ||= { smoke: 0 }); inv.sack = Math.max(inv.sack || 0, 2);   // so you can bag him
         RV.R.raid = null; RV._startRaid(k);
         const r = RV.R.raid; r.cam = null; r.camFirst = false; r.rest = null;
         r.path = [[124, 63], [129, 66], [135.4, 75.5], [137.6, 80], [141.6, 80], r.path[r.path.length - 1]];
         r.x = 124; r.z = 63; r.i = 1; r.st = 'in';
         P.teleport(145, 85.5, 0, -2.4); g.cam.snap = true;
         this.close();
-        g.ui.toast('Someone from ' + GANGS_N[k] + ' is sneaking up the back alley. Wait for MOTION DETECTED, then press K to watch the footage. Or catch him!');
+        g.ui.toast('Someone from ' + GANGS_N[k] + ' is sneaking up the back alley. Wait for MOTION DETECTED, then press K to watch the footage. Or catch him (run into him), bag him (E) and take him to his gang for a ransom!');
         g.dirty();
         return;
       }
       case 'rvReset': W.rv = null; W.footage = []; break;
+      case 'rvHostage': { const k = arg || 'italian'; g.hold(me).push({ k: 'bag', hostage: true, g: k, id: 'h' + Date.now(), name: { italian: 'Little Sal', delivery: 'Speedy Steve', frozen: 'Chilly Chad' }[k] }); break; }
     }
     g.dirty();
     this.render();
@@ -143,7 +145,7 @@ export class Admin {
     if (this.tab === 'rivals') {
       const R = g.rivals.R, names = { italian: 'Italian Guys', delivery: 'Delivery Boys', frozen: 'Frozen Gang' };
       body = `<div class="arow"><b>Try the security cameras</b> <span class="adim">installs the cameras, puts you in the hideout, sends an intruder</span></div>
-      <div class="agrid">${btn('A rival sneaks in NOW (random gang)', 'rvCamTest', null, 'red')}${Object.entries(names).map(([k, n]) => btn(n + ' sneak in NOW', 'rvCamTest', k, 'red')).join('')}</div>
+      <div class="agrid">${btn('A rival sneaks in NOW (random gang)', 'rvCamTest', null, 'red')}${Object.entries(names).map(([k, n]) => btn(n + ' sneak in NOW', 'rvCamTest', k, 'red')).join('')}${Object.entries(names).map(([k, n]) => btn('Give me a bagged ' + n + ' guy', 'rvHostage', k)).join('')}</div>
       <div class="arow"><b>Gangs</b> ${Object.entries(R.g).map(([k, G]) => names[k] + ' lv' + G.lvl + (G.ally ? ' (ally)' : '') + ' rel ' + Math.round(G.rel)).join(' · ')}</div>
       <div class="agrid">${Object.entries(names).map(([k, n]) => btn(n + ': level up', 'rvLevel', k) + btn(n + ': ' + (R.g[k].ally ? 'end alliance' : 'make ally'), 'rvAlly', k) + btn(n + ': raid my hideout', 'rvRaid', k, 'red') + btn('Caught by ' + n, 'rvCaught', k, 'red')).join('')}</div>
       <div class="arow"><b>Events</b></div><div class="agrid">${['popup', 'cheese', 'deal', 'secret', 'meeting'].map(k => btn(k, 'rvEvent', k)).join('')}</div>

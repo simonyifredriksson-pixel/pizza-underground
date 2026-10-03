@@ -197,6 +197,32 @@ export async function run(g, name) {
       log(ev.includes('motion'), 'MOTION DETECTED after ' + t + 's');
       for (let i = 0; i < 40 && !(W.footage || []).length; i++) sim(g, 0.5, 1 / 20);
       log((W.footage || []).some(f => f.culprit === 'italian'), 'the footage is on the monitor (' + (W.footage || []).length + ' recordings)');
+      // catch him red-handed, bag him, ransom him
+      const RV = g.rivals, r = RV.R.raid; P0: {
+        const P = g.player;
+        if (!r) { log(false, 'the intruder is gone already'); break P0; }
+        P.teleport(r.x + 0.5, r.z, 0); sim(g, 0.2, 1 / 20);
+        log(r.st === 'caught' && ev.includes('raidFoiled'), 'caught him red-handed: ' + r.name + ' freezes');
+        const T = []; RV.targets(P, T); const bt = T.find(t => t.act && t.act.op === 'bagRaid');
+        log(!!bt, 'prompt: "' + (bt || {}).label + '"');
+        W.hold[g.me] = []; g.exec(g.me, bt.act);
+        const bag = g.hold(g.me).find(i => i.hostage);
+        log(!!bag && !RV.R.raid, 'bagged ' + (bag || {}).name);
+        const Pl = RV.place('italian'); P.teleport(Pl.out.door.x, Pl.out.door.z, 0); sim(g, 0.1, 1 / 20);
+        const T2 = []; RV.targets(P, T2); const rt = T2.find(t => t.act && t.act.op === 'ransom');
+        log(!!rt, 'at Nonna\'s Garage: "' + (rt || {}).label + '"');
+        g.exec(g.me, rt.act); const n = RV.R.ransom[g.me];
+        log(!!n && n.offer > 0, 'Don Vincenzo opens at ' + n.offer + ' (secretly worth ' + n.value + ')');
+        const o0 = n.offer; g.exec(g.me, { k: 'rv', op: 'ransom', step: 'demand', amt: Math.round(n.value * 1.05) });
+        log(RV.R.ransom[g.me] && RV.R.ransom[g.me].offer > o0, 'haggled: he came up to ' + RV.R.ransom[g.me]?.offer);
+        const m0 = W.money, off = RV.R.ransom[g.me].offer; g.exec(g.me, { k: 'rv', op: 'ransom', step: 'take' });
+        log(W.money === m0 + off && !g.hold(g.me).some(i => i.hostage), 'ransom paid: +' + off + ', he got his guy back');
+        // a greedy one: he walks away
+        g.admin.run('rvHostage', 'frozen'); g.admin.close(); const Pf = RV.place('frozen'); P.teleport(Pf.out.door.x, Pf.out.door.z, 0);
+        g.exec(g.me, { k: 'rv', op: 'ransom', step: 'start' });
+        for (let i = 0; i < 3 && RV.R.ransom[g.me]; i++) g.exec(g.me, { k: 'rv', op: 'ransom', step: 'demand', amt: RV.R.ransom[g.me].value * 5 });
+        log(!RV.R.ransom[g.me] && g.hold(g.me).some(i => i.hostage), 'asked for way too much: the boss walked away (you still have his guy)');
+      }
       g.onEvent = on; return;
     }
     if (name === 'free') {   // where in town is there room for a 22 x 16 building (not on roads, not on anything)?
