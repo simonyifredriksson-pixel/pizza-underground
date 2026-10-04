@@ -242,7 +242,7 @@ export function dealership(T, cx, cz) {
   // the pylon sign at the corner, visible from Garlic Way
   m.box(50.5, 0, -87.5, 0.6, 8.5, 0.6, STEEL); col.circle(50.5, -87.5, 0.45);
   m.box(50.5, 6.2, -87.5, 0.5, 3.0, 4.6, '#d6232a');
-  for (const s of [-1, 1]) T.sign(["HANK'S", 'MOTORS', '★ HONEST ★'], 50.5 + s * 0.27, 7.7, -87.5, s * Math.PI / 2, 4.4, 2.8, { bg: '#d6232a', fg: '#ffffff', borderColor: '#ffd23f' });
+  for (const s of [-1, 1]) T.sign(["HANK'S", 'MOTORS', '- HONEST -'], 50.5 + s * 0.27, 7.7, -87.5, s * Math.PI / 2, 4.4, 2.8, { bg: '#d6232a', fg: '#ffffff', borderColor: '#ffd23f' });
 
   /* ---------- the pick-up bay: your new vehicle waits here ---------- */
   const spots = [100.5, 104.5, 108.5];

@@ -22,7 +22,7 @@ export class Quest {
       case Q.CLEAN: sub = W.trash.filter(t => !t).length + ' / ' + W.trash.length + ' junk piles (hold E)'; break;
       case Q.POWER: sub = 'Hold E on the fuse box by the door.'; break;
       case Q.OVEN: sub = this.g.hold(this.g.me).some(i => i.key === 'oven1') ? 'Got it! 70 KG. Load it on the scooter (back of the scooter, E), drive home, and install it in the kitchen.' : 'EQUIP-O-RAMA in the Crumb Mall (east side of the courtyard). ' + money(4000) + '. Take your Rusty Scooter (F): it carries 100 KG.'; break;
-      case Q.STOCK: sub = ['dough', 'sauce', 'cheese'].map(k => STOCK_NAME[k] + (W.stock[k] > 0 ? ' ✓' : ' ✗')).join('   ') + '  - Crumb Mall grocery: crates go in the STOCK fridge (E)'; break;
+      case Q.STOCK: sub = ['dough', 'sauce', 'cheese'].map(k => STOCK_NAME[k] + (W.stock[k] > 0 ? ': got it' : ': need it')).join('   ') + '  - Crumb Mall grocery: crates go in the STOCK fridge (E)'; break;
       case Q.MAKE: sub = 'Dough → counter (hold E) → 1 sauce, 2 cheese → oven → take out golden → box it.'; break;
       case Q.FIRST: sub = 'He\'s in the alley by Oleg\'s. Bring the box.'; break;
       case Q.BIZ: sub = 'Orders on your phone (TAB). Clues found: ' + W.clues.length + ' / ' + CLUES.length + '. Upgrades on the laptop.'; break;

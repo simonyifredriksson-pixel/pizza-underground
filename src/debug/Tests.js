@@ -106,13 +106,27 @@ export function setupAt(g, q) {
       g.player.teleport(20, 20, 0); g.cam.override = { pos: new THREE.Vector3(22.4, 2.4, 33.6), look: new THREE.Vector3(20, 1.4, 30) };
       g.update(1 / 30); g.paused = true;
     }, 900);
+    if (ui === 'caught') {   // the caught scene, frozen at ?at=argue|walk|raise|swing (dialog skipped)
+      const RV = g.rivals; RV.caughtScene({ g: qs.get('g') || 'italian', lose: 800, report: [] });
+      const at = qs.get('at') || 'swing';
+      g.paused = true;   // we drive the clock by hand (headless draws too few frames)
+      (async () => {
+        for (let i = 0; i < 3000; i++) {
+          g.update(1 / 30); g.input.endFrame();
+          await new Promise(r => setTimeout(r, 0));
+          const S = RV.cine;
+          if (g.ui.dlg && at !== 'argue') { g.ui.dlg.typed = 999; g.ui._next(); }
+          if (S && S.phase === at && (at !== 'swing' || S.st > 0.12) && (at !== 'argue' || (g.ui.dlg && i > 60)) && (at !== 'walk' || S.wt > 0.6)) break;
+        }
+      })();
+    }
     if (ui === 'build') {   // a furnished front room, build mode open, a princess table on the mouse
       W.level = 2; W.money = 50000;
       W.build = { inv: { princessTable: 2, chair: 6, plant: 3, booth: 1, clock: 1 }, placed: [], seq: 1 };
       const put = (key, x, z, ry = 0) => W.build.placed.push({ id: W.build.seq++, key, x, z, ry, fl: 0 });
       put('booth', 141.4, 84.5, Math.PI / 2); put('roundTable', 142.8, 84.5); put('chair', 143.9, 84.5, -Math.PI / 2); put('rug', 147, 82); put('gamerChair', 147, 82); put('tv', 147, 87.2, Math.PI);
       put('plant', 151.2, 87.4); put('aquarium', 151.2, 82, -Math.PI / 2); put('poster', 140.06, 75.5, Math.PI / 2); put('drinksFridge', 141, 77.2, Math.PI / 2);
-      g.player.teleport(146, 79.5, 0, 0); g.cam.mode = 'third';
+      g.player.teleport(146, 79.5, 0, 0); g.cam.mode = qs.has('tp') ? 'third' : 'first';
       for (let i = 0; i < 5; i++) { g.update(1 / 30); g.input.endFrame(); }
       g.build.enter(); g.build.cat = qs.get('cat') || 'furniture'; g.build.tab = qs.get('tab') || 'build'; g.build.render();
       g.build.tileClick(qs.get('key') || 'princessTable'); g.build.ry = +(qs.get('ry') || 0);

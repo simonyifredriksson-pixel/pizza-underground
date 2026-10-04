@@ -961,55 +961,110 @@ export class Rivals {
     for (let i = 0; i < 3; i++) setTimeout(() => g.audio.tone(1240, 0.09, 'square', 0.08), i * 180);
   }
 
-  /** the caught scene: dragged to the back room, they argue, cut away, you wake up at home */
+  /** the caught scene, in your own eyes: tied to the chair in their back room, they argue, the big one
+      walks up with a foam bat and swings it at your face - black for one second - you wake up outside */
   async caughtScene(e) {
-    const g = this.g, ui = g.ui, P = g.player, W = this.W, k = e.g, Pl = this.place(k), N = GANGS[k];
+    const g = this.g, ui = g.ui, P = g.player, k = e.g, Pl = this.place(k), N = GANGS[k];
     if (this.cine) return;
     this.cine = { k };
     ui.closeMenu(); g.inv?.close(); ui.alarm('CAUGHT!'); g.audio.fail();
     ui.fade(true);
     await this.wait(0.45);
-    const ch = Pl.chair, cc = Pl.caughtCam;
+    const ch = Pl.chair;
     P.teleport(ch.x, ch.z, 0, Math.PI);
     P.forceHidden = true;
     const grp = new THREE.Group(); g.scene.add(grp);
-    const you = makeChar(lookFor(g.profile.look, W.wear[g.me])); you.root.position.set(ch.x, 0.2, ch.z); you.root.rotation.y = Math.PI; grp.add(you.root);
     const a = makeChar({ ...N.crew, belly: 1.3 }), b = makeChar({ ...N.crew, skin: '#f2c29b', hat: 'bald', mustache: false });
     grp.add(a.root, b.root);
+    // the big one has a foam bat, resting on his shoulder
+    const bat = MAFIA.bat(); bat.rotation.x = Math.PI; bat.position.set(0, -0.55, 0.05); bat.scale.setScalar(1.15); a.armR.add(bat);
     SPEAKERS.crew1 = { name: { italian: 'Big Sal', delivery: 'Speedy Steve', frozen: 'Chilly Chad' }[k], color: N.color };
     SPEAKERS.crew2 = { name: 'Frank', color: '#c8c8d8' };
-    g.cam.override = { pos: new THREE.Vector3(cc.x, cc.y, cc.z), look: new THREE.Vector3(cc.lx, cc.ly, cc.lz) };
-    ui.cinema(true);
+    // first person: your eyes, sitting in the chair, facing the room
+    const eye = new THREE.Vector3(ch.x, 1.18, ch.z), look = new THREE.Vector3(ch.x, 1.15, ch.z - 3);
+    g.cam.override = { pos: eye, look };
+    ui.cinema(true); ui.hudVisible(false);
     ui.fade(false);
-    const t0 = performance.now();
-    this.cine.tick = (dt) => {
+    const t0 = performance.now(), S = this.cine;
+    S.phase = 'argue';
+    S.tick = (dt) => {
       const t = (performance.now() - t0) / 1000;
-      // pacing back and forth, past each other, in front of the chair
-      const ax = ch.x + Math.sin(t * 0.9) * 2.4, bx = ch.x - Math.sin(t * 0.75 + 1) * 2.0;
-      a.root.position.set(ax, 0.05, ch.z - 2.2); a.root.rotation.y = Math.cos(t * 0.9) > 0 ? Math.PI / 2 : -Math.PI / 2;
-      b.root.position.set(bx, 0.05, ch.z - 3.0); b.root.rotation.y = Math.cos(t * 0.75 + 1) < 0 ? Math.PI / 2 : -Math.PI / 2;
-      a.anim(dt, { speed: 2, talk: ui.talking === 'crew1', angry: true }); b.anim(dt, { speed: 1.6, talk: ui.talking === 'crew2' });
-      you.anim(dt, { sit: true, panic: 0.5 });
+      // your head: looks from one of them to the other, a little groggy
+      const wob = Math.sin(t * 1.3) * 0.03;
+      eye.set(ch.x + wob, 1.18 + Math.sin(t * 0.9) * 0.015, ch.z);
+      if (S.phase === 'argue') {
+        const ax = ch.x + Math.sin(t * 0.9) * 2.0, bx = ch.x - Math.sin(t * 0.75 + 1) * 1.7;
+        a.root.position.set(ax, 0.05, ch.z - 3.2); a.root.rotation.y = Math.cos(t * 0.9) > 0 ? Math.PI / 2 : -Math.PI / 2;
+        b.root.position.set(bx, 0.05, ch.z - 4.1); b.root.rotation.y = Math.cos(t * 0.75 + 1) < 0 ? Math.PI / 2 : -Math.PI / 2;
+        a.anim(dt, { speed: 2, talk: ui.talking === 'crew1', angry: true }); b.anim(dt, { speed: 1.6, talk: ui.talking === 'crew2' });
+        a.armR.rotation.x = -2.5; a.armR.rotation.z = -0.3;   // bat on the shoulder
+        const who = ui.talking === 'crew2' ? b : a;
+        look.lerp(new THREE.Vector3(who.root.position.x, 1.35, who.root.position.z), 1 - Math.exp(-3 * dt));
+      } else if (S.phase === 'walk') {
+        // he stops pacing and walks right up to you
+        S.wt = (S.wt || 0) + dt;
+        const p = a.root.position, tx = ch.x, tz = ch.z - 1.6, d = Math.hypot(tx - p.x, tz - p.z);
+        if (d > 0.05) { p.x += (tx - p.x) / d * Math.min(d, 2.2 * dt); p.z += (tz - p.z) / d * Math.min(d, 2.2 * dt); }
+        a.root.rotation.y = d > 0.3 ? Math.atan2(tx - p.x, tz - p.z) : 0;
+        a.anim(dt, { speed: d > 0.05 ? 2.2 : 0 });
+        a.armR.rotation.x = -2.5; a.armR.rotation.z = -0.3;
+        b.anim(dt, { speed: 0, panic: 0.3 });
+        look.lerp(new THREE.Vector3(p.x, 1.75, p.z), 1 - Math.exp(-6 * dt));
+        if (d <= 0.05 && S.wt > 0.4) { S.phase = 'raise'; S.st = 0; }
+      } else if (S.phase === 'raise' || S.phase === 'swing') {
+        S.st += dt;
+        a.anim(dt, { speed: 0 });
+        const p = a.root.position;
+        look.lerp(new THREE.Vector3(p.x, S.phase === 'raise' ? 2.05 : 1.6, p.z), 1 - Math.exp(-5 * dt));
+        if (S.phase === 'raise') {
+          // winds up: the bat goes up and back over his head
+          const u = Math.min(1, S.st / 0.55);
+          a.armR.rotation.x = -2.5 - u * 0.65; a.armR.rotation.z = -0.3 + u * 0.2; a.root.rotation.y = -u * 0.25;
+          if (u >= 1) { S.phase = 'swing'; S.st = 0; g.audio.whoosh(); }
+        } else {
+          // and comes down at your face, fast
+          const u = Math.min(1, S.st / 0.16);
+          a.armR.rotation.x = -3.15 + u * 1.6; a.armR.rotation.z = -0.1;   // ends level with your eyes a.root.rotation.y = -0.25 + u * 0.35;
+          eye.z -= u * 0.08; eye.y -= u * 0.03;   // you flinch forward into it
+          if (u >= 1 && !S.hit) S.hit = true;
+        }
+      }
     };
     const lines = pick(CAUGHT);
     const dlg = ui.dialog(lines);
     if (ui.dlg) ui.dlg.auto = true;
     await Promise.race([dlg, this.wait(11)]);
     ui.closeDialog?.();
-    // cut away before anything happens
-    ui.fade(true);
-    await this.wait(0.6);
-    ui.alarm('*THUNK*');
-    g.audio.thud(null);
-    await this.wait(1.4);
+    S.phase = 'walk';
+    for (let i = 0; i < 160 && !S.hit; i++) await this.wait(0.05);   // (game time: at most 8 seconds)
+    // BONK. Black. Nothing else: one second of black.
+    g.audio.thud(null); g.fx.shake = 0.8;
+    const black = document.createElement('div');
+    black.style.cssText = 'position:fixed;inset:0;background:#000;z-index:999;opacity:1;transition:opacity .8s ease';
+    document.body.appendChild(black);
+    ui.cinema(false);
     g.scene.remove(grp);
-    this.cine = null; P.forceHidden = false;
-    g.cam.override = null; ui.cinema(false);
+    // you come to outside the hideout, flat on the ground
     P.teleport(HQ.door.x - 2.5, HQ.door.z + 1.5, 0, -Math.PI / 2); g.cam.snap = true;
     P.hp = 22;
-    ui.fade(false);
-    await this.wait(0.6);
-    ui.dialog([['narr', 'You wake up outside the hideout. Your head is pounding. Your wallet is ' + money(e.lose) + ' lighter.'], ['narr', 'Something is off about the kitchen...'], ...e.report.map(r => ['narr', r]), ['narr', 'Fix it, clean up... and plan your revenge.']]);
+    await this.wait(1.0);
+    const gx = P.pos.x, gz = P.pos.z;
+    const weye = new THREE.Vector3(gx, 0.3, gz), wlook = new THREE.Vector3(gx - 0.4, 3.0, gz - 2.0);
+    g.cam.override = { pos: weye, look: wlook };
+    const w0 = performance.now();
+    this.cine.tick = () => {
+      // blink, sit up, stand up: from the ground looking at the sky to your own two feet
+      const u = Math.min(1, (performance.now() - w0) / 2200), s = u * u * (3 - 2 * u);
+      weye.set(gx, 0.3 + s * 1.32, gz);
+      wlook.set(gx - 0.4 - s * 1.6, 3.0 - s * 1.5, gz - 2.0 + s * 0.4);
+    };
+    black.style.opacity = '0';
+    setTimeout(() => black.remove(), 900);
+    await this.wait(2.3);
+    this.cine = null; P.forceHidden = false; ui.hudVisible(true);
+    g.cam.override = null; g.cam.snap = true;
+    P.camYaw = Math.atan2(wlook.x - gx, wlook.z - gz) + Math.PI; g.cam.fpPitch = 0.1;
+    ui.dialog([['narr', 'Your head is pounding. Your wallet is ' + money(e.lose) + ' lighter.'], ['narr', 'Something is off about the kitchen...'], ...e.report.map(r => ['narr', r]), ['narr', 'Fix it, clean up... and plan your revenge.']]);
   }
 
   /** what the local player can do near rival things */

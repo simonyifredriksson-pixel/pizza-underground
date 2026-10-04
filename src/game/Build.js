@@ -24,6 +24,9 @@ import { Mesher } from '../art/Mesher.js';
 import { money } from '../core/Util.js';
 
 const Q = Math.PI / 2, GRID = 0.25;
+// the two big buttons get little drawn icons (SVG, no emoji)
+const ICON_HAMMER = '<svg class="ic" viewBox="0 0 32 32" width="30" height="30"><rect x="14" y="10" width="5" height="20" rx="1.5" fill="#b8742a" stroke="#0e3a6a" stroke-width="1.5" transform="rotate(35 16 16)"/><rect x="5" y="3" width="18" height="8" rx="2" fill="#c8ccd8" stroke="#0e3a6a" stroke-width="1.5" transform="rotate(35 16 16)"/></svg>';
+const ICON_SHOP = '<svg class="ic" viewBox="0 0 32 32" width="30" height="30"><rect x="5" y="13" width="22" height="15" fill="#f6f1e6" stroke="#0e3a6a" stroke-width="1.5"/><path d="M3 13 L6 5 H26 L29 13 Z" fill="#d6232a" stroke="#0e3a6a" stroke-width="1.5"/><path d="M8 5 L7 13 M13 5 L12.5 13 M19 5 L19.5 13 M24 5 L25 13" stroke="#ffffff" stroke-width="2"/><rect x="13" y="18" width="6" height="10" fill="#3a7bd5" stroke="#0e3a6a" stroke-width="1.2"/></svg>';
 const snap = v => Math.round(v / GRID) * GRID;
 const floorY = fl => fl ? HQ.base.y + 0.06 : 0.08;
 
@@ -160,7 +163,8 @@ export class BuildMode {
     const g = this.g, why = this.canEnter();
     if (why) { g.ui.toast(why); return false; }
     this.active = true; this.mode = 'place'; this.sel = null; this.moving = null;
-    this._camMode = g.cam.mode; g.cam.mode = 'third'; g.cam.pitch = Math.max(g.cam.pitch, 0.85); g.cam.dist = 9;
+    // you stay in your own eyes (or over your shoulder, if that's how you play): tilt down a bit to see the floor
+    if (g.cam.mode === 'first') g.cam.fpPitch = Math.max(g.cam.fpPitch || 0, 0.4);
     g.input.unlock();
     this.el.classList.add('on'); this.render();
     return true;
@@ -168,7 +172,6 @@ export class BuildMode {
   exit() {
     const g = this.g;
     this.active = false; this._cancel();
-    g.cam.mode = this._camMode || g.cam.mode; g.cam.snap = true;
     this.el.classList.remove('on');
     g.input.lock();
   }
@@ -192,7 +195,9 @@ export class BuildMode {
     if (I.mouse.clicked.has(2)) { this._rd = { x: mx, y: my, moved: 0 }; }
     if (this._rd && I.mouse.buttons.has(2)) {
       const dx = mx - (this._lx ?? mx), dy = my - (this._ly ?? my);
-      P.camYaw -= dx * 0.006; g.cam.pitch = Math.max(0.35, Math.min(1.35, g.cam.pitch + dy * 0.004));
+      P.camYaw -= dx * 0.006;
+      if (g.cam.mode === 'first') g.cam.fpPitch = Math.max(-1.2, Math.min(1.4, (g.cam.fpPitch || 0) + dy * 0.004));
+      else g.cam.pitch = Math.max(0.35, Math.min(1.35, g.cam.pitch + dy * 0.004));
       this._rd.moved += Math.abs(dx) + Math.abs(dy);
     }
     if (this._rd && I.mouse.released.has(2)) { if (this._rd.moved < 5) this._cancel(); this._rd = null; }
@@ -203,7 +208,7 @@ export class BuildMode {
     const ndc = new THREE.Vector2(mx / innerWidth * 2 - 1, -(my / innerHeight) * 2 + 1);
     this.ray.setFromCamera(ndc, g.camera);
     const hitP = new THREE.Vector3(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
-    const onFloor = this.ray.ray.intersectPlane(plane, hitP);
+    const onFloor = this.ray.ray.intersectPlane(plane, hitP) && Math.hypot(hitP.x - P.pos.x, hitP.z - P.pos.z) < 10;   // within reach
     const overUI = this._overUI;
     const click = I.mouse.clicked.has(0) && !overUI; I.mouse.clicked.delete(0);
     if (this.sel) {
@@ -329,12 +334,12 @@ export class BuildMode {
     document.head.appendChild(css);
     const el = this.el = document.createElement('div'); el.id = 'buildui';
     el.innerHTML = `<div class="bstatus"></div><div class="bstyle"></div>
-      <div class="btop"><button class="bbig" data-tab="build"><span class="ic">🔨</span>Build</button><button class="bbig" data-tab="shop"><span class="ic">🏪</span>Shop</button></div>
-      <div class="bpanel"><div class="brow"><span class="bcats"></span><span class="bsp"></span><button class="btab bsell" data-mode="sell">Sell Items</button><button class="btab" data-mode="pickup">Pick Up</button><button class="bx" data-close="1">✕</button></div>
-      <div class="btiles"></div><div class="bkeys">Click a tile, then click the floor · R turn · right-drag: look · wheel: zoom · WASD: walk · N / Esc: done</div></div>`;
+      <div class="btop"><button class="bbig" data-tab="build">${ICON_HAMMER}Build</button><button class="bbig" data-tab="shop">${ICON_SHOP}Shop</button></div>
+      <div class="bpanel"><div class="brow"><span class="bcats"></span><span class="bsp"></span><button class="btab bsell" data-mode="sell">Sell Items</button><button class="btab" data-mode="pickup">Pick Up</button><button class="bx" data-close="1">X</button></div>
+      <div class="btiles"></div><div class="bkeys">Click a tile, then click the floor · R turn · hold right mouse: look around · WASD: walk · N / Esc: done</div></div>`;
     document.body.appendChild(el);
     this.status = el.querySelector('.bstatus'); this.styleEl = el.querySelector('.bstyle'); this.tiles = el.querySelector('.btiles'); this.cats = el.querySelector('.bcats');
-    const hint = this.hint = document.createElement('div'); hint.id = 'buildhint'; hint.textContent = '🔨 N: BUILD'; document.body.appendChild(hint);
+    const hint = this.hint = document.createElement('div'); hint.id = 'buildhint'; hint.textContent = 'N: BUILD'; document.body.appendChild(hint);
     el.addEventListener('mouseover', e => { this._overUI = !!e.target.closest('.bpanel,.btop'); });
     el.addEventListener('mouseout', () => { this._overUI = false; });
     el.addEventListener('mousedown', e => e.stopPropagation());

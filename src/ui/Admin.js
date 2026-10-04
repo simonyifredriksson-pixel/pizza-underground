@@ -157,7 +157,7 @@ export class Admin {
       <div class="arow"><b>Current event</b> ${W.event ? esc(W.event.k) : 'none'} · <b>Weather</b> ${W.weather ? 'storm' : 'clear'}</div>
       <div class="agrid">${['supplierVan', 'rushHour', 'bigOrder', 'ovenFire', 'tow', 'shortage', 'informant', 'posted', 'law', 'checkpoint', 'copOutside', 'cheeseMissing', 'dezSold', 'raccoon'].map(k => btn(k, 'event', k)).join('')}</div>
       <div class="agrid">${btn(W.weather ? 'Stop the storm' : 'Start a storm', 'storm')}${btn('Test inspection', 'inspect', null, 'red')}${btn('Reset current event', 'resetEvent', null, 'green')}</div>`;
-    el.innerHTML = `<div class="abox"><div class="ahead"><b>ADMIN</b><span class="adim">owner tools · host only · J L O 3 to close</span><button class="ax" data-op="close">✕</button></div>
+    el.innerHTML = `<div class="abox"><div class="ahead"><b>ADMIN</b><span class="adim">owner tools · host only · J L O 3 to close</span><button class="ax" data-op="close">X</button></div>
       <div class="atabs">${Object.entries(tabs).map(([k, n]) => `<button class="at ${k === this.tab ? 'on' : ''}" data-tab="${k}">${n}</button>`).join('')}</div><div class="abody">${body}</div></div>`;
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.tab; this.render(); });
     el.querySelectorAll('[data-op]').forEach(b => b.onclick = () => {

@@ -73,7 +73,7 @@ export class MapView {
     }
     if (W.kn) dot(W.kn.x, W.kn.z, '#ff9f1a', 5, 'Knuckles');
     for (const o of W.orders) if (o.state === 'open') { const a = g.orders.at(o); dot(a.x, a.z, o === this.focus ? '#ffffff' : '#43e07a', o === this.focus ? 8 : 6, o.name); }
-    for (const m of g.story.markers()) { x.fillStyle = '#ffffff'; x.font = 'bold 22px "Luckiest Guy", sans-serif'; x.textAlign = 'center'; x.strokeStyle = '#2a1640'; x.lineWidth = 4; x.strokeText('★', px(m.x), px(m.z) + 8); x.fillText('★', px(m.x), px(m.z) + 8); x.font = 'bold 11px Nunito'; x.lineWidth = 3; x.strokeText(m.label, px(m.x), px(m.z) - 12); x.fillText(m.label, px(m.x), px(m.z) - 12); }
+    for (const m of g.story.markers()) { x.fillStyle = '#ffffff'; x.font = 'bold 22px "Luckiest Guy", sans-serif'; x.textAlign = 'center'; x.strokeStyle = '#2a1640'; x.lineWidth = 4; x.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, r = i % 2 ? 4.5 : 10; x.lineTo(px(m.x) + Math.cos(a) * r, px(m.z) + Math.sin(a) * r); } x.closePath(); x.stroke(); x.fill(); x.font = 'bold 11px Nunito'; x.lineWidth = 3; x.strokeText(m.label, px(m.x), px(m.z) - 12); x.fillText(m.label, px(m.x), px(m.z) - 12); }
     if (W.owned.up.camera) { for (const c of g.police.cops) dot(c.x, c.z, '#3a7bd5', 3); for (const c of g.police.cars) dot(c.x, c.z, '#3a7bd5', 5); }
     for (const c of W.cars) dot(c.x, c.z, '#c9a8f0', 4);
     for (const r of g.remotes.values()) if (r.s) dot(r.pos.x, r.pos.z, '#ffffff', 5, r.name);
