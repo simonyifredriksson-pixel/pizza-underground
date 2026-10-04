@@ -177,7 +177,8 @@ export class Orders {
     if (tier >= 2 && pay > 0) pay = Math.round(pay * 1.15);              // nervous customers tip more
     if (W.weather?.k === 'storm' && pay > 0) pay = Math.round(pay * 1.5); // soaked customers tip big
     if (pay > 0 || o.mission) pay = Math.round(pay * this.g.rivals.delivered(pid, o)); // beat a rival to the door
-    if (pay > 0 && W.decor?.length) pay = Math.round(pay * (1 + 0.03 * W.decor.length)); // a classy hideout: customers can tell
+    const style = this.g.build?.style() || 0;
+    if (pay > 0 && style) pay = Math.round(pay * (1 + style / 100)); // a classy hideout (build mode): customers can tell
     this.g.inspections.tip(o.big ? 3 : 1);                               // somebody always talks
     // sometimes they can't pay right now: "put it on my tab"
     const owes = this.g.debts.list.some(d => d.kind === 'house' && d.ref === o.h);

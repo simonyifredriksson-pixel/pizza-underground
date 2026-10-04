@@ -106,6 +106,20 @@ export function setupAt(g, q) {
       g.player.teleport(20, 20, 0); g.cam.override = { pos: new THREE.Vector3(22.4, 2.4, 33.6), look: new THREE.Vector3(20, 1.4, 30) };
       g.update(1 / 30); g.paused = true;
     }, 900);
+    if (ui === 'build') {   // a furnished front room, build mode open, a princess table on the mouse
+      W.level = 2; W.money = 50000;
+      W.build = { inv: { princessTable: 2, chair: 6, plant: 3, booth: 1, clock: 1 }, placed: [], seq: 1 };
+      const put = (key, x, z, ry = 0) => W.build.placed.push({ id: W.build.seq++, key, x, z, ry, fl: 0 });
+      put('booth', 141.4, 84.5, Math.PI / 2); put('roundTable', 142.8, 84.5); put('chair', 143.9, 84.5, -Math.PI / 2); put('rug', 147, 82); put('gamerChair', 147, 82); put('tv', 147, 87.2, Math.PI);
+      put('plant', 151.2, 87.4); put('aquarium', 151.2, 82, -Math.PI / 2); put('poster', 140.06, 75.5, Math.PI / 2); put('drinksFridge', 141, 77.2, Math.PI / 2);
+      g.player.teleport(146, 79.5, 0, 0); g.cam.mode = 'third';
+      for (let i = 0; i < 5; i++) { g.update(1 / 30); g.input.endFrame(); }
+      g.build.enter(); g.build.cat = qs.get('cat') || 'furniture'; g.build.tab = qs.get('tab') || 'build'; g.build.render();
+      g.build.tileClick(qs.get('key') || 'princessTable'); g.build.ry = +(qs.get('ry') || 0);
+      g.cam.pitch = 0.85; g.cam.dist = 8.5; g.player.camYaw = +(qs.get('yaw') || 2.6);
+      g.input.mouse.x = innerWidth * +(qs.get('mx') || 0.62); g.input.mouse.y = innerHeight * +(qs.get('my') || 0.5);
+      for (let i = 0; i < 20; i++) { g.update(1 / 30); g.input.endFrame(); }
+    }
     if (ui === 'crate') { W.hold[g.me] = [{ k: 'equip', key: 'oven1', label: 'Pizza Oven', kg: 70, size: [1.1, 0.9, 1.0] }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'photo') setTimeout(() => {   // a rival in the chair, and you take his picture
@@ -327,6 +341,7 @@ export async function run(g, name) {
       return;
     }
     if (name === 'mall') return mall(g);
+    if (name === 'build') return buildTest(g);
     if (name === 'admin') {
       setupAt(g, 3); sim(g, 0.2);
       const W = g.W, A = g.admin, m0 = W.money;
@@ -988,6 +1003,64 @@ function inspector(g) {
   note('inspector done');
 }
 
+/** build mode: buy, place, overlap, stations, walls, rotate, move, pick up, sell, style tips, the mouse */
+function buildTest(g) {
+  fresh(g);
+  const W = g.W, me = g.me, B = g.build, P = g.player, col = g.town.col;
+  W.money = 100000; W.level = 1; W.build = { inv: {}, placed: [], seq: 1 };
+  P.teleport(146, 80, 0, 0); sim(g, 0.2);
+  log(B.enter() && B.active && document.getElementById('buildui').classList.contains('on'), 'N: build mode opens inside the hideout (panel up, mouse free)');
+  const m0 = W.money;
+  for (let i = 0; i < 3; i++) g.exec(me, { k: 'build', op: 'buy', key: 'chair' });
+  log(W.build.inv.chair === 3 && W.money === m0 - 240, 'shop tab: bought 3 diner chairs ($240)');
+  g.exec(me, { k: 'build', op: 'buy', key: 'sofa' });
+  log(!W.build.inv.sofa, 'the leather sofa is Casa Crumb only (not in the online shop)');
+  ['booth', 'cheapTable', 'clock', 'plant', 'rug'].forEach(k => g.exec(me, { k: 'build', op: 'buy', key: k }));
+  g.exec(me, { k: 'build', op: 'place', key: 'chair', x: 146, z: 80, ry: 0, fl: 0 }); sim(g, 0.1);
+  const ch = W.build.placed[0];
+  log(ch && W.build.inv.chair === 2 && col.solidAt(146, 80, 0.5, 0) && !!B.objs.get(ch.id), 'placed a chair: it is in the room and solid');
+  g.exec(me, { k: 'build', op: 'place', key: 'chair', x: 146.25, z: 80, ry: 0, fl: 0 });
+  log(W.build.placed.length === 1, 'a second chair on top of it: refused ("' + B.check('chair', 146.25, 80, 0, 0).why + '")');
+  log(!B.check('cheapTable', 149.5, 74.2, 0, 0).ok, 'not in front of the oven: "' + B.check('cheapTable', 149.5, 74.2, 0, 0).why + '"');
+  log(!B.check('cheapTable', 130, 80, 0, 0).ok && !B.check('cheapTable', 141, 80, 0, 0).ok, 'not outside, not in the doorway');
+  log(!B.check('cheapTable', 150, 66, 0, 1).ok, 'the basement is locked at level 1: "' + B.check('cheapTable', 150, 66, 0, 1).why + '"');
+  g.exec(me, { k: 'build', op: 'place', key: 'booth', x: 144, z: 81.5, ry: Math.PI / 2, fl: 0 }); sim(g, 0.1);
+  const bo = W.build.placed.find(p => p.key === 'booth'), bc = B.objs.get(bo?.id)?.col;
+  log(bo && bc && Math.abs((bc.maxx - bc.minx) - 0.82) < 0.05 && Math.abs((bc.maxz - bc.minz) - 1.52) < 0.05, 'R: the booth turned 90 degrees (footprint ' + (bc ? (bc.maxx - bc.minx).toFixed(2) + ' x ' + (bc.maxz - bc.minz).toFixed(2) : '?') + ')');
+  g.exec(me, { k: 'build', op: 'move', id: ch.id, x: 147, z: 84, ry: 0, fl: 0 }); sim(g, 0.1);
+  log(ch.x === 147 && !col.solidAt(146, 80, 0.3, 0) && col.solidAt(147, 84, 0.3, 0), 'moved the chair: the old spot is free, the new one solid');
+  g.exec(me, { k: 'build', op: 'place', key: 'rug', x: 147, z: 84, ry: 0, fl: 0 });
+  log(W.build.placed.some(p => p.key === 'rug'), 'a rug goes under the chair');
+  log(B.check('clock', 140.06, 83, Math.PI / 2, 0).ok && !B.check('clock', 140.06, 80, Math.PI / 2, 0).ok && !B.check('clock', 140.06, 75.6, Math.PI / 2, 0).ok, 'wall clock: fine on the wall, not over the door or the fire extinguisher');
+  g.exec(me, { k: 'build', op: 'place', key: 'clock', x: 140.06, z: 83, ry: Math.PI / 2, fl: 0 }); sim(g, 0.1);
+  const st = B.style();
+  log(st === 1 + 3 + 1 + 1 && B.objs.size === 4, 'four things placed, style +' + st + '% tips');
+  g.exec(me, { k: 'build', op: 'pickup', id: ch.id }); sim(g, 0.1);
+  log(W.build.inv.chair === 3 && !W.build.placed.includes(ch) && !col.solidAt(147, 84, 0.3, 0), 'Pick Up: the chair is back in the inventory');
+  const m1 = W.money; g.exec(me, { k: 'build', op: 'sell', id: bo.id }); sim(g, 0.1);
+  log(W.money === m1 + 325 && !W.build.placed.includes(bo), 'Sell Items: the booth sold for half ($325)');
+  // old saves: decor goes into the build inventory
+  W.decor = ['palm']; sim(g, 0.1);
+  log(W.build.inv.palm === 1 && !W.decor.length, 'an old save\'s furniture moved into the build inventory');
+  // the panel
+  B.tab = 'build'; B.cat = 'furniture'; B.render();
+  const tiles = () => document.querySelectorAll('#buildui .tile').length;
+  log(tiles() === 2, 'BUILD tab, furniture: ' + tiles() + ' tiles (chairs x3, cheap table)');
+  B.tab = 'shop'; B.render();
+  log(tiles() === 14 && document.querySelector('#buildui .tile img')?.src.startsWith('data:image'), 'SHOP tab: ' + tiles() + ' pieces of furniture, with pictures');
+  B.tab = 'build'; B.cat = 'decor'; B.render();
+  // the mouse: hold a plant, point at the screen below the middle, click
+  B.tileClick('plant'); g.cam.pitch = 1.0; g.cam.dist = 7;
+  g.input.mouse.x = innerWidth / 2; g.input.mouse.y = innerHeight / 2 + 40;
+  for (let i = 0; i < 6; i++) { g.update(1 / 30); g.input.endFrame(); }
+  const n0 = W.build.placed.length, ok = !!B.ghost && B.status.className.includes('ok');
+  g.input.fakeBtn(0, true); g.update(1 / 30); g.input.endFrame(); g.input.fakeBtn(0, false);
+  log(ok && W.build.placed.length === n0 + 1, 'mouse: the ghost follows the cursor (' + B.status.textContent + '), a click places the plant');
+  g.input.fake('KeyN', true); g.update(1 / 30); g.input.endFrame(); g.input.fake('KeyN', false);
+  log(!B.active && !document.getElementById('buildui').classList.contains('on'), 'N again: done building');
+  note('build done');
+}
+
 function mall(g) {
   fresh(g);
   const W = g.W, me = g.me, items = g.town.shopItems;
@@ -1022,7 +1095,7 @@ function mall(g) {
   g.exec(me, { k: 'shop', cat: 'furn', key: 'jukebox' });
   log(g.hold(me)[0]?.k === 'furn' && kgOf(g.hold(me)[0]) === 70, 'bought a jukebox (70 KG box)');
   g.exec(me, { k: 'install' }); sim(g, 0.2);
-  log((W.decor || []).includes('jukebox'), 'placed it in the hideout (decor: ' + W.decor.join(', ') + ')');
+  log((W.build?.inv?.jukebox || 0) === 1, 'unpacked it: the jukebox waits in the build inventory (N)');
   // KG: the free Rusty Scooter carries 100 KG. The oven (70) fits, a 70 KG jukebox on top does not.
   g.admin.run('car', 'scooter'); g.admin.close();
   const sc = W.cars[W.cars.length - 1];

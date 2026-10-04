@@ -446,7 +446,7 @@ export class BlackMarket {
   _input(dt) {
     const g = this.g, I = g.input, P = g.player, W = this.W;
     this.useT -= dt;
-    if (g.frozen()) return;
+    if (g.frozen() || g.build?.active) return;
     if (I.pressed('KeyB')) g.inv.show('gear');
     const eq = W.eq?.[g.me];
     if (!eq || P.car || P.hidden) return;

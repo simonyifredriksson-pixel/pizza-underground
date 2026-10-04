@@ -14,6 +14,7 @@ import { Police } from './Police.js';
 import { Vehicles, Traffic } from './Vehicles.js';
 import { Citizens } from './Citizens.js';
 import { Life } from './Life.js';
+import { BuildMode } from './Build.js';
 import { NPCs } from './NPCs.js';
 import { Quest } from './Quest.js';
 import { Events } from './Events.js';
@@ -28,7 +29,7 @@ import { Rivals } from './Rivals.js';
 import { Monitor } from '../ui/Monitor.js';
 import { GROCERY, EQUIPMENT, GENERAL, FURNITURE, EQUIP_KG, EQUIP_SIZE } from '../data/Data.js';
 import { makeCar, makeItem } from '../art/Props.js';
-import { makeFurniture, DECOR_SPOTS } from '../art/Furniture.js';
+import { BUILD_ITEM } from '../data/Build.js';
 import { makeChar } from '../art/Chars.js';
 import { tierOf, TIERS, NERVOUS } from '../data/Mafia.js';
 import { Effects } from './Effects.js';
@@ -83,6 +84,7 @@ export class Game {
     this.admin = new Admin(this);
     this.bm = new BlackMarket(this);
     this.inv = new Inventory(this);
+    this.build = new BuildMode(this);
     this.rivals = new Rivals(this);
     this.monitor = new Monitor(this);
     this._netHooks();
@@ -210,6 +212,7 @@ export class Game {
         }
         case 'enter': this.vehicles.enter(pid, a.id); break;
         case 'exit': this.vehicles.exit(pid); break;
+        case 'build': this.build.exec(pid, a); break;
         case 'buy': this._buy(pid, a); break;
         case 'buyOven':
           if (W.oven1 || W.money < OVEN_PRICE) break;
@@ -309,7 +312,6 @@ export class Game {
       this.tell(pid, it.label.replace(/ \(.*/, '') + ': ' + EQUIP_KG[a.key] + ' KG crate. Load it in a vehicle (or carry it, slowly) and install it at the hideout.');
     } else if (a.cat === 'furn') {
       const it = FURNITURE.find(i => i.key === a.key); if (!it) return;
-      if ((W.decor || []).includes(a.key) || this._boxedSomewhere('furn', a.key)) return this.tell(pid, 'You already have one of those. The hideout only needs one ' + it.label.toLowerCase() + '.');
       if (H.length) return this.tell(pid, 'You need both hands free: it comes in a ' + it.kg + ' KG box.');
       if (!pay(it.price)) return;
       H.push({ k: 'furn', key: a.key, label: it.label.replace(/ \(.*|"[^"]*"/g, '').trim(), kg: it.kg, size: it.size });
@@ -349,9 +351,8 @@ export class Game {
       if (it.key === 'oven1') { W.oven1 = true; this.tell(null, 'The pizza oven is set up. It smells like... potential.'); this.story.onOven(); }
       else { W.owned.up[it.key] = true; this.tell(null, it.label + ': installed.'); }
     } else {
-      W.decor = W.decor || [];
-      if (!W.decor.includes(it.key)) W.decor.push(it.key);
-      this.tell(null, it.label + ' placed in the hideout. Classy. (Customers tip ' + W.decor.length * 3 + '% more.)');
+      const B = this.build.B; B.inv[it.key] = (B.inv[it.key] || 0) + 1;
+      this.tell(pid, it.label + ' unpacked. Press N (build mode) to place it anywhere in the hideout.');
     }
     this.sfx('thud', this.allPlayers().find(p => p.id === pid));
     this.fxAt('poof', this.allPlayers().find(p => p.id === pid)?.x || 146, 0.6, this.allPlayers().find(p => p.id === pid)?.z || 80);
@@ -362,7 +363,7 @@ export class Game {
     const W = this.W, tier = this.debts.tier;
     if (s.cat === 'grocery') { const it = GROCERY.find(i => i.key === s.key); if (W.shortage?.s === it.stock) return { label: it.label + ': SOLD OUT', warn: true }; return { label: 'Buy ' + it.label + ' - ' + money(it.price) + ' (a crate)' }; }
     if (s.cat === 'equipment') { const it = EQUIPMENT.find(i => i.key === s.key); const own = s.key === 'oven1' ? W.oven1 : W.owned.up[s.key]; const sub = it.desc || UPGRADES[s.key]?.desc || ''; return own ? { label: it.label + ': OWNED. ' + sub, info: true } : { label: 'Buy ' + it.label + ' - ' + money(it.price) + ' · ' + EQUIP_KG[s.key] + ' KG crate. ' + sub }; }
-    if (s.cat === 'furn') { const it = FURNITURE.find(i => i.key === s.key); const own = (W.decor || []).includes(s.key); return own ? { label: it.label + ': in your hideout', info: true } : { label: 'Buy ' + it.label + ' - ' + money(it.price) + ' · ' + it.kg + ' KG. ' + it.desc + ' (+3% tips)' }; }
+    if (s.cat === 'furn') { const it = FURNITURE.find(i => i.key === s.key); const own = this.build.owned(s.key); return { label: 'Buy ' + it.label + ' - ' + money(it.price) + ' · ' + it.kg + ' KG. ' + it.desc + ' (+' + (BUILD_ITEM[s.key]?.style || 3) + '% tips)' + (own ? ' · you own ' + own : '') }; }
     if (s.cat === 'general') { const it = GENERAL.find(i => i.key === s.key); if (it.disg && W.owned.disg.includes(s.key)) return { label: (W.wear[this.me] === s.key ? 'Take off: ' : 'Wear: ') + it.label.replace(/ \(.*/, '') }; const lock = it.tier && tier < it.tier; return lock ? { label: it.label + ' (Mafia Rep: The Crust Family)', warn: true } : { label: 'Buy ' + it.label + ' - ' + money(it.price) + (it.desc ? '. ' + it.desc : '') }; }
     if (s.cat === 'bm') return this.bm.shopLabel(s);
     if (s.cat === 'vehicle') {
@@ -576,7 +577,8 @@ export class Game {
     const frozen = this.frozen();
     I.blocked = !!ui.menuOpen || this.chatOpen || this.admin.open || !!this.inv?.open || !!this.monitor?.isOpen;
 
-    if (this.phase === 'play' && !frozen) this._keys(dt);
+    this.build.update(dt);   // build mode (N): before the keys, it eats its own (Esc, R, clicks)
+    if (this.phase === 'play' && !frozen && !this.build.active) this._keys(dt);
     this.natural = !frozen && I.held('KeyX') && !P.car;
     if (this.natural && !this._natT) { this._natT = 1; this.bubble(this.me, pick(BARK.natural)); this.audio.whistle(); }
     if (!this.natural) this._natT = 0;
@@ -636,7 +638,6 @@ export class Game {
     }
     this.weather.update(dt);
     this._van(dt);
-    this._decor();
     // the town keeps its secret until the Suspicious Man tells you
     const revealed = W.quest >= Q.FIND;
     if (this.town.revealed !== revealed) this.town.setReveal(revealed);
@@ -692,20 +693,6 @@ export class Game {
     return out.slice(0, 9);
   }
 
-  /** the furniture you placed: in the hideout and the family room */
-  _decor() {
-    const list = this.W.decor || [], key = list.join(',');
-    if (key === this._decorKey) return;
-    this._decorKey = key;
-    this._decorG = this._decorG || new THREE.Group(); if (!this._decorG.parent) this.scene.add(this._decorG);
-    while (this._decorG.children.length) this._decorG.remove(this._decorG.children[0]);
-    this._decorCol = this._decorCol || new Set();
-    for (const k of list) {
-      const s = DECOR_SPOTS[k]; if (!s) continue;
-      const m = makeFurniture(k); m.position.set(s.x, s.y || 0.05, s.z); m.rotation.y = s.ry; this._decorG.add(m);
-      if (s.w && !this._decorCol.has(k)) { this._decorCol.add(k); const turn = Math.abs(Math.sin(s.ry)) > 0.5; this.town.col.boxc(s.x, s.z, turn ? s.d : s.w, turn ? s.w : s.d, { h: 1.2 }); }
-    }
-  }
   /** the supplier van parked in the yard during its event */
   _van(dt) {
     const ev = this.W.event, on = ev && ev.k === 'supplierVan';
@@ -755,7 +742,7 @@ export class Game {
 
   _interact(dt, frozen) {
     const I = this.input, P = this.player, ui = this.ui, W = this.W;
-    if (frozen) { ui.prompt(null); ui.prepKeys(null); this.holdT = 0; return; }
+    if (frozen || this.build.active) { ui.prompt(null); ui.prepKeys(null); this.holdT = 0; return; }
     const T = [];
     if (P.hidden) T.push({ d: 0, label: 'Climb out of the dumpster', local: 'unhide' });
     else if (!P.car) {
@@ -778,7 +765,7 @@ export class Game {
         const top = this.hold(this.me).slice(-1)[0], st = this.town.poi.storage;
         if (top && (top.k === 'equip' || top.k === 'furn')) {
           const inHQ = roomAt(P.pos.x, P.pos.z, P.floor) || (P.pos.x > st.x0 && P.pos.x < st.x1 && P.pos.z > st.z0 && P.pos.z < st.z1);
-          T.push(inHQ ? { d: 0.2, label: (top.k === 'equip' ? 'Install the ' : 'Place the ') + top.label + ' here', hold: 1.2, act: { k: 'install' }, whack: true } : { d: 9, label: 'Carrying: ' + top.label + ' (' + kgOf(top) + ' KG). Take it to the hideout' + (kgOf(top) > 40 ? ' - a vehicle helps' : ''), info: true });
+          T.push(inHQ ? { d: 0.2, label: (top.k === 'equip' ? 'Install the ' : 'Unpack the ') + top.label + ' here', hold: 1.2, act: { k: 'install' }, whack: true } : { d: 9, label: 'Carrying: ' + top.label + ' (' + kgOf(top) + ' KG). Take it to the hideout' + (kgOf(top) > 40 ? ' - a vehicle helps' : ''), info: true });
         }
         const ev = this.W.event;
         if (ev && ev.k === 'supplierVan' && ev.crates.length) { const d = Math.hypot(P.pos.x - 131, P.pos.z - 86.5); if (d < 3.2) T.push({ x: 131, z: 86.5, d, label: 'Grab a crate from the supplier van ($250 · ' + ev.crates.length + ' left: ' + ev.crates.map(c => c.s).join(', ') + ')', act: { k: 'van' } }); }

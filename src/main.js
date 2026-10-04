@@ -75,9 +75,9 @@ async function boot() {
   game.sky = sky;
   window.__game = game;
   window.__tests = () => import('./debug/Tests.js');
-  input.canLock = () => game.phase !== 'title' && game.phase !== 'lobby' && !game.ui.menuOpen && !game.chatOpen && !game.inv?.open;
+  input.canLock = () => game.phase !== 'title' && game.phase !== 'lobby' && !game.ui.menuOpen && !game.chatOpen && !game.inv?.open && !game.build?.active;
   input.onLockChange = (locked) => {
-    if (!locked && game.phase === 'play' && !game.ui.menuOpen && !game.chatOpen && !game.ui.inDialog && !game.cam.override) game.pause();
+    if (!locked && game.phase === 'play' && !game.ui.menuOpen && !game.chatOpen && !game.ui.inDialog && !game.cam.override && !game.build?.active) game.pause();
   };
   addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
   addEventListener('beforeunload', () => { if (game.isHost && game.phase === 'play') { try { localStorage.setItem('pizzaunderground-save-v1', JSON.stringify(game.W)); } catch (e) { /* */ } } });
