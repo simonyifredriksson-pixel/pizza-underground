@@ -31,7 +31,9 @@ export class MapView {
     x.font = 'bold 10px Nunito, sans-serif'; x.fillStyle = '#2a1640'; x.textAlign = 'center';
     const lbl = (t, a, b) => { x.fillStyle = 'rgba(255,255,255,0.75)'; const w = x.measureText(t).width + 6; x.fillRect(px(a) - w / 2, px(b) - 7, w, 13); x.fillStyle = '#2a1640'; x.fillText(t, px(a), px(b) + 3); };
     const T = this.g.town.poi;
-    lbl('CITY HALL', 0, -84); lbl('HOSPITAL', -80, 2); lbl('POLICE', 80, -2); lbl('TOWN SQUARE', 0, -14); lbl('GAS', 98, -64); lbl("HANK'S CARS", 100, -102);
+    lbl('CITY HALL', 0, -84); lbl('HOSPITAL', -80, 2); lbl('POLICE', 80, -2); lbl('TOWN SQUARE', 0, -14); lbl('GAS', 98, -64); lbl("HANK'S MOTORS", 64, -102);
+    lbl('CRUMB MALL', -80, 80); lbl('FURNITURE', -101, 96); lbl('EQUIP-O-RAMA', -59, 96); lbl('GROCERY', -80, 54); lbl('CONSTRUCTION', 22, 96);
+    lbl('CRUMB HEIGHTS', -160, 0); lbl('LOWER CRUMBVILLE', 80, 128); lbl('DOWNTOWN', -80, 24); lbl('INDUSTRIAL', 160, -40);
     lbl("OLEG'S", -103, -56); lbl('MUSTACHE', -80, -56); lbl('DEAD PIZZERIAS', 0, 58); lbl('PARK', 0, 172); lbl('JUNKYARD', 160, 148); lbl('MAYOR', -160, -86);
     lbl('FACTORY', 162, -2); lbl("NONNA'S GARAGE", 187, -100); lbl('SPEEDY DEPOT', 80, 190); lbl('COLD CUTS', -79, 190); lbl('RADIO TOWER', 100, -178); lbl('FOREST', -120, -170); lbl('HIDEOUT', 152, 66);
     x.save(); x.font = '9px Nunito, sans-serif'; x.fillStyle = '#ffffff';

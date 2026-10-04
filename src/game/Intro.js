@@ -25,7 +25,7 @@ export class Intro {
     if (/[?&]hosp/.test(location.search)) return Promise.resolve();
     return new Promise(res => {
       const grp = new THREE.Group(); g.scene.add(grp);
-      const C = makeCar('delivery'); grp.add(C.group);
+      const C = makeCar('convertible'); grp.add(C.group);
       const you = makeChar(lookFor(g.profile.look, null));
       const dez = makeChar(DEZ_LOOK);
       C.group.add(you.root, dez.root);

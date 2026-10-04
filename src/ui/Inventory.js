@@ -245,7 +245,7 @@ export class Inventory {
       gear: W.bm ? 'No gear yet. The Underground Market sells it (down the stairs behind the shelf in Pages & Pages).' : 'No gear yet. They say the bookshop on Pepper Road sells more than books.',
       supplies: 'Nothing here. Smoke bombs and trash bags: the General store at the Crumb Mall.',
       outfits: 'No outfits yet. Madame Moustache and the Crumb Mall\'s costume aisle can help.',
-      vehicles: 'No vehicles yet. Honest Hank or WHEELS 4 LESS at the Crumb Mall.',
+      vehicles: 'No vehicles yet. Honest Hank\'s Motors, north of the gas station.',
     }[this.tab];
     const e = list[this.sel];
     this.card.style.display = e ? '' : 'none';

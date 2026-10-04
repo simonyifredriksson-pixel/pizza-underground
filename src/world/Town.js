@@ -16,6 +16,10 @@ import { GEAR_ORDER } from '../data/BlackMarket.js';
 import { makeHood, makeCuff, makeTrophy, makePolaroid } from '../art/Gear.js';
 import { GANGS as RIVAL_LOOKS } from '../data/Rivals.js';
 import { furnish } from './Interiors.js';
+import { dealership, groceryFront, equipmentFront, furnitureFront, generalFront, loadingDock, shopDress, SHOPLIKE, polishMarket } from './Shops.js';
+import { FURNITURE } from '../data/Data.js';
+import { worldPass } from './World.js';
+import { makeFurniture } from '../art/Furniture.js';
 import { Colliders } from './Colliders.js';
 import { seeded } from '../core/Util.js';
 
@@ -93,11 +97,13 @@ export class Town {
     this.mountains();
     this.lampsAndProps();
     this.streetLife();
+    worldPass(this);      // neighbourhoods, street props, the set pieces that move (World.js)
     this.prettify();
     this.hospitalRoom();
     this.storageRoom();
     this.bookshop(-79, -100);
     this.blackMarket();
+    polishMarket(this, 800, 0, 34, 26, 5.2);   // rugs, brass, string lights, a chandelier, neon (Shops.js)
     this.rivalPlaces();
     for (const [, me] of this.chunks) this.root.add(me.build({ cast: !me.noCast, material: me.unlit ? vcGlowMat() : undefined }));
     // the edge of the world: invisible walls
@@ -183,6 +189,8 @@ export class Town {
     const [fx, fz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[front];
     const t = 0.3, gap = 2.0, ih = Math.min(h - 0.15, o.gable ? h : 4.4);
     const inner = o.inner || '#f2ecdf';
+    const dress = !o.storefront && !o.boarded && o.sign && SHOPLIKE.has(o.kind);   // an ordinary shop: Shops.shopDress does the front
+    if (dress) o = { ...o, storefront: true, flowers: false };
     // ---- the shell: four walls, the front one with a doorway ----
     const wallSeg = (x0, z0, x1, z1, y0 = 0, hh = h) => {
       mw.box((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, hh, z1 - z0, color);
@@ -190,6 +198,7 @@ export class Town {
     };
     const innerSeg = (x0, z0, x1, z1) => m.box((x0 + x1) / 2, 0.07, (z0 + z1) / 2, x1 - x0, ih - 0.07, z1 - z0, inner);
     const X0 = cx - w / 2, X1 = cx + w / 2, Z0 = cz - d / 2, Z1 = cz + d / 2;
+    (this.paved ||= []).push([X0 - 0.5, Z0 - 0.5, X1 + 0.5, Z1 + 0.5]);
     for (const s of ['n', 's', 'e', 'w']) {
       const isF = s === front;
       if (s === 'n' || s === 's') {
@@ -261,6 +270,7 @@ export class Town {
       for (let f = 0; f < floors; f++) for (let i = 0; i < n; i++) {
         const t = (i + 0.5) / n - 0.5;
         if (s === front && f === 0 && Math.abs(t * len) < 1.8) continue; // the door goes there
+        if (s === front && o.storefront && f * 3.2 < 3.6) continue;        // a storefront dresses its own front
         if (o.boarded && f === 0 && s === front) {
           const x = cx + (nx ? nx * (w / 2 + 0.06) : t * len), z = cz + (nz ? nz * (d / 2 + 0.06) : t * len);
           m.box(x, 1.0, z, nx ? 0.06 : 1.4, 1.5, nx ? 1.4 : 0.06, '#3a2a30', 0, 0.02);
@@ -295,6 +305,7 @@ export class Town {
       sg.rotation.y = { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[front];
       this.root.add(sg); info.sign = sg;
     }
+    if (dress) shopDress(this, { cx, cz, w, d, h, front }, o);
     if (o.poster !== false && this.rand() < 0.6) this.poster(cx, cz, w, d, front);
     return { x: cx + fx * (w / 2 + 1.4), z: cz + fz * (d / 2 + 1.4), ry: { n: Math.PI, s: 0, e: Math.PI / 2, w: -Math.PI / 2 }[front], info };
   }
@@ -490,12 +501,8 @@ export class Town {
     m.box(cx + 12, 0, cz + 23.2, 1.2, 1.0, 0.6, '#3a7bd5');
     this.sign(['NEWS'], cx + 12, 0.7, cz + 23.52, 0, 0.9, 0.35, { bg: '#ffffff' });
     this.dumpster(cx + 26, cz + 4);
-    // honest hank's car lot
-    m.flat(cx - 31, cz - 31, cx + 31, cz - 8, 0.06, '#9a94b0', 4, 0.05);
-    this.biz.hank = this.bldg(cx + 20, cz - 22, 12, 9, 4, '#ffcf33', 'w', { kind: 'office', sign: ["HONEST HANK'S"], awning: '#d6232a', poster: false });
-    for (let i = 0; i < 6; i++) { m.cyl(cx - 26 + i * 8, 0, cz - 9, 0.06, 4.5, '#aaa', 4); m.box(cx - 25.6 + i * 8, 3.8, cz - 9, 0.8, 0.6, 0.05, ['#d6232a', '#ffd23f', '#3a7bd5'][i % 3]); }
-    for (const [st, x] of [['scooter', -22], ['van', -12], ['icecream', -2], ['sports', 8]]) this.car(st, cx + x, cz - 20, 0.3);
-    this.poi.hank = { x: cx + 12, z: cz - 22 };
+    // honest hank's motors: showroom, service garage, the truck lot, the pick-up bay (Shops.js)
+    dealership(this, cx, cz);
   }
 
   shops(cx, cz) {
@@ -1162,7 +1169,7 @@ export class Town {
     if (k === 'delivery') {
       for (let i = 0; i < 3; i++) {
         const c = P(-W2 + 3 + i * 6.5, -6), car = this.car('smallvan', c.x, c.z, ry + Math.PI);
-        car.group.traverse(n => { if (n.isMesh && n.material.color && n.material.color.getHexString() === '8fd0c8') n.material = mat('#ff9f1a'); });
+        car.group.traverse(n => { if (n.isMesh && n.material.color && n.material.color.getHexString() === 'f2f2f8') n.material = mat('#ff9f1a'); });
       }
     }
     if (k === 'frozen') { for (let i = 0; i < 9; i++) { const a = P(-W2 + 0.6 + i * (2 * W2 - 1.2) / 8, -0.1); m.cone(a.x, s.h - 0.75, a.z, 0.14, 0.7, '#e8f8ff', 5, 0, 0.02); } for (let i = 0; i < 2; i++) { const f = P(W2 + 1.4, -2 - i * 1.6); m.box(f.x, 0, f.z, 1.2, 1.0, 1.2, '#f6f6fa'); this.col.boxc(f.x, f.z, 1.2, 1.2, { h: 1 }); } }
@@ -1387,7 +1394,7 @@ export class Town {
   /** the Crumb Mall: four real stores round a courtyard. Everything is bought off the shelves. */
   mall(cx, cz) {
     const m = this.m(cx, cz);
-    this.shopItems = [];
+    this.shopItems = this.shopItems || [];   // Hank's spec cards are already in here
     const shop = (it) => this.shopItems.push(it);
     m.flat(cx - 31, cz - 31, cx + 31, cz + 31, 0.07, '#ead8c0', 2, 0.07);
     // a patterned courtyard: rings of pink tiles, a fountain, benches, trees, flower beds
@@ -1399,8 +1406,6 @@ export class Town {
     for (let a = 0; a < 4; a++) { const t = a / 4 * Math.PI * 2 + Math.PI / 4; this.bench(cx + Math.sin(t) * 10.5, yc + Math.cos(t) * 10.5, t + Math.PI); }
     for (const [dx, dz] of [[-9, -8], [9, -8], [-9, 20], [9, 20]]) { m.box(cx + dx, 0, cz + dz, 2.6, 0.6, 2.6, '#c8c0da'); this.tree(cx + dx, cz + dz, 0.8, 'pink'); for (let k = 0; k < 6; k++) m.ico(cx + dx + Math.sin(k) * 1.05, 0.72, cz + dz + Math.cos(k) * 1.05, 0.28, 0.24, 0.28, ['#ff8fc8', '#ffd23f', '#ffffff'][k % 3], 0, k); }
     // the catalogue each store puts on its shelves
-    const minis = { delivery: 'delivery', scooter: 'scooter', smallvan: 'smallvan', pickup: 'pickup', van: 'van', getaway: 'getaway', cargo: 'cargo', icecream: 'icecream', family: 'family', armored: 'armored' };
-    const cars = Object.entries(VEHICLES).map(([key, v]) => ({ key, label: v.name, price: v.price, model: () => makeCar(minis[key] || 'civ1').group }));
     const eqModel = {
       oven1: () => makeStation('oven').group, bigfridge: () => makeStation('fridge').group, safe: () => MAFIA.safe(),
       camera: () => { const g = new THREE.Group(); g.add(part(geo.box(), '#e8e8f0', 0, 0.5, 0, 0.5, 0.35, 0.8)); g.add(part(geo.cyl(10), '#1b1b24', 0, 0.5, 0.45, 0.25, 0.15, 0.25)); g.add(part(geo.cyl(6), '#c8c8d8', 0, 0.2, 0, 0.08, 0.4, 0.08)); return g; },
@@ -1425,10 +1430,13 @@ export class Town {
     };
     const misc = GENERAL.map(e => ({ ...e, model: genModel[e.key] }));
     const extra = { shop, bake: (mm, gp) => bake(mm, gp) };
-    this.bldg(cx, cz - 20, 30, 16, 6, '#9ad08a', 's', { kind: 'grocery', sign: ['CRUMB GROCERY', '"We Have Food"'], awning: '#3fa34d', floor: '#e8e8f0', inner: '#f6f1e6', poster: false, extra: { ...extra, goods: GROCERY } });
-    this.bldg(cx - 21, cz + 8, 18, 24, 6.5, '#8fc1e3', 'e', { kind: 'showroom', sign: ['WHEELS 4 LESS'], awning: '#3a7bd5', floor: '#d8dde6', inner: '#f6f1e6', poster: false, extra: { ...extra, cars } });
-    this.bldg(cx + 21, cz + 8, 18, 24, 6.5, '#ffb88a', 'w', { kind: 'equipment', sign: ['EQUIP-O-RAMA'], awning: '#ff9f1a', floor: '#e0e0e8', inner: '#fff0e0', poster: false, extra: { ...extra, equip } });
-    this.bldg(cx, cz + 24, 18, 12, 5, '#c9a8f0', 'n', { kind: 'general', sign: ['GENERAL STORE', '(everything)'], awning: '#8a4ac8', floor: '#e8e2f2', inner: '#f6f1e6', poster: false, extra: { ...extra, misc } });
+    const furn = FURNITURE.map(f => ({ ...f, model: () => makeFurniture(f.key) }));
+    const B = (x, z, w, d, h, color, f, o) => { this.bldg(x, z, w, d, h, color, f, { storefront: true, flowers: false, poster: false, ...o }); return { cx: x, cz: z, w, d, h, front: f }; };
+    groceryFront(this, B(cx, cz - 20, 30, 16, 6, '#e8f2e0', 's', { kind: 'grocery', sign: ['CRUMB GROCERY', '"We Have Food"'], floor: '#eef0f4', inner: '#f6f1e6', trim: '#3fa34d', extra: { ...extra, goods: GROCERY } }));
+    loadingDock(this, cx + 15.2, cz - 23, Math.PI / 2);
+    furnitureFront(this, B(cx - 21, cz + 8, 18, 24, 6.5, '#f2e6d8', 'e', { kind: 'furniture', floor: '#c8a070', inner: '#f6efe6', trim: '#2a2238', ceiling: '#fbf6ee', extra: { ...extra, furn } }));
+    equipmentFront(this, B(cx + 21, cz + 8, 18, 24, 7, '#c0c6d2', 'w', { kind: 'equipment', sign: ['EQUIP-O-RAMA', 'KITCHEN · INDUSTRIAL'], signBg: '#1b1b24', signFg: '#ff9f1a', floor: '#b8bcc8', inner: '#dde0e8', trim: '#3a3a48', ceiling: '#c8ccd8', extra: { ...extra, equip } }));
+    generalFront(this, B(cx, cz + 24, 18, 12, 5, '#c9a8f0', 'n', { kind: 'general', sign: ['GENERAL STORE', '(everything)'], awning: '#8a4ac8', floor: '#e8e2f2', inner: '#f6f1e6', extra: { ...extra, misc } }));
     // arches over the two entrances
     for (const s of [-1, 1]) {
       const ex = cx + s * 31, ez = cz - 8;
@@ -1453,6 +1461,7 @@ export class Town {
       if (onRoadish(x, z) || col.solidAt(x, z, 0.3, 0, 1.2)) continue;
       if (Math.abs(x) < 34 && Math.abs(z) < 34) continue; // the plaza
       if (x > -113 && x < -47 && z > 47 && z < 113) continue; // the mall
+      if ((this.paved || []).some(([a, b, c, d]) => x > a && x < c && z > b && z < d)) continue; // lots and floors
       const m = this.mn(x, z), k = r();
       if (k < 0.6) { const g = ['#7cc46e', '#8ad07a', '#6ab45e'][Math.floor(r() * 3)]; for (let j = 0; j < 3; j++) m.cone(x + (j - 1) * 0.12, 0, z + (j % 2) * 0.1, 0.07, 0.35 + r() * 0.25, g, 3, r() * 3, 0.1); }
       else if (k < 0.85) { const c = ['#ffffff', '#ffd23f', '#ff8fc8', '#c9a8f0', '#ff6b6b'][Math.floor(r() * 5)]; m.cyl(x, 0, z, 0.02, 0.32, '#4fa64f', 3); m.ico(x, 0.36, z, 0.16, 0.1, 0.16, c, 0, r() * 3, 0.05); m.ico(x, 0.36, z, 0.06, 0.06, 0.06, '#ffd23f', 0, 0, 0); }

@@ -36,8 +36,10 @@ async function boot() {
   scene.add(camera); // first-person hands hang off it
 
   // lights
-  const hemi = new THREE.HemisphereLight('#fff0ff', '#7a5aa8', 1.35); scene.add(hemi);
-  const sun = new THREE.DirectionalLight('#fff4e0', 2.3);
+  const hemi = new THREE.HemisphereLight('#fff0ff', '#8a64a8', 1.3); scene.add(hemi);
+  // a cool fill from the side away from the sun: shaded walls keep their shape instead of going flat
+  const fill = new THREE.DirectionalLight('#b8c8ff', 0.55); fill.position.set(-60, 40, -50); scene.add(fill);
+  const sun = new THREE.DirectionalLight('#ffe9cc', 2.3);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 260 });
   sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04;
@@ -69,7 +71,7 @@ async function boot() {
 
   const game = new Game({ renderer, scene, camera, input, audio, net, profile });
   game.build();
-  game.lights = { sun, hemi };
+  game.lights = { sun, hemi, fill };
   game.sky = sky;
   window.__game = game;
   window.__tests = () => import('./debug/Tests.js');

@@ -8,7 +8,7 @@ import { STOCK } from '../data/Data.js';
 import { HQ } from '../world/Town.js';
 import { STATION } from '../data/Hideout.js';
 import { drive as driveFn } from '../game/Vehicles.js';
-import { VEHICLES as VEH, DISGUISES as DISG } from '../data/Data.js';
+import { VEHICLES as VEH, DISGUISES as DISG, kgOf } from '../data/Data.js';
 import { GEAR, GEAR_ORDER } from '../data/BlackMarket.js';
 import { makeItem } from '../art/Props.js';
 import { makeHood } from '../art/Gear.js';
@@ -106,6 +106,7 @@ export function setupAt(g, q) {
       g.player.teleport(20, 20, 0); g.cam.override = { pos: new THREE.Vector3(22.4, 2.4, 33.6), look: new THREE.Vector3(20, 1.4, 30) };
       g.update(1 / 30); g.paused = true;
     }, 900);
+    if (ui === 'crate') { W.hold[g.me] = [{ k: 'equip', key: 'oven1', label: 'Pizza Oven', kg: 70, size: [1.1, 0.9, 1.0] }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'bag') { W.hold[g.me] = [{ k: 'bag', id: 1, name: 'Gary' }]; for (let i = 0; i < 10; i++) { g.update(1 / 30); g.input.endFrame(); } }
     if (ui === 'photo') setTimeout(() => {   // a rival in the chair, and you take his picture
       W.inv = { [g.me]: { polaroid: true } }; g.rivals.R.captive = { g: qs.get('g') || 'delivery', name: 'Speedy Steve', id: 'h1' };
@@ -162,6 +163,8 @@ function frame(g, s) {
     vip: () => { P.teleport(788.5, 4.0, 0, -0.45); g.cam.fpPitch = 0.12; },
     storage: () => { const s = g.town.poi.storageIn; P.teleport(s.x, s.z, 0, -Math.PI / 2); g.cam.fpPitch = 0.12; },
     hideoutOut: () => { P.teleport(130, 82, 0, 1.5); g.cam.pitch = 0.3; g.cam.dist = 8; P.camYaw = -2.0; },
+    // anywhere: ?shot=at&x=&z=&yaw=&p=  (first person, yaw 0 looks toward +z)
+    at: () => { const q = new URLSearchParams(location.search); P.teleport(+q.get('x'), +q.get('z'), 0, +(q.get('yaw') || 0)); g.cam.fpPitch = +(q.get('p') || 0.1); },
   }[s];
   if (at) at();
   g.cam.snap = true;
@@ -745,8 +748,9 @@ function kidnap(g) {
   // into a trunk
   g.admin.run('car', 'scooter'); g.admin.close();
   const sc = W.cars[W.cars.length - 1];
+  sc.cargo.push({ k: 'equip', key: 'oven1', label: 'Pizza Oven', kg: 70, size: [1.1, 0.9, 1.0] });
   g.exec(me, { k: 'cargo', id: sc.id, op: 'load' });
-  log(g.hold(me).some(i => i.k === 'bag'), 'a sack does not fit on a scooter');
+  log(g.hold(me).some(i => i.k === 'bag') && sc.cargo.length === 1, 'a sack (80 KG) does not fit on a scooter that already carries a 70 KG oven');
   g.admin.run('car', 'family'); g.admin.close();
   const car = W.cars[W.cars.length - 1];
   g.exec(me, { k: 'cargo', id: car.id, op: 'load' });
@@ -992,9 +996,13 @@ function mall(g) {
   const cheese = items.find(s => s.cat === 'grocery' && s.key === 'cheese');
   g.exec(me, { k: 'shop', cat: 'grocery', key: 'cheese' });
   log(g.hold(me)[0]?.k === 'crate' && g.hold(me)[0].s === 'cheese', 'bought a crate of cheese off the shelf');
+  const cards = items.filter(s => s.cat === 'vehicle');
+  log(cards.length === Object.values(VEH).filter(v => !v.free).length && cards.every(s => s.x > 45 && s.x < 112 && s.z < -84), 'Honest Hank\'s Motors: ' + cards.length + ' spec cards, all at the dealership');
+  log(!cards.some(s => s.key === 'scooter'), 'the Rusty Scooter is not for sale (it\'s free)');
+  log(/KG/.test(g.shopLabel(cards[0]).label) && /KM\/H/.test(g.shopLabel(cards[0]).label), 'the card says: "' + g.shopLabel(cards[0]).label.slice(0, 70) + '..."');
   g.exec(me, { k: 'shop', cat: 'vehicle', key: 'pickup' });
-  const car = W.cars.find(c => c.kind === 'pickup');
-  log(!!car, 'bought a pickup truck: it waits at the mall');
+  const car = W.cars.find(c => c.kind === 'pickup'), bay = g.town.poi.dealerLot;
+  log(!!car && bay.spots.some(s => Math.hypot(s.x - car.x, s.z - car.z) < 0.1), 'bought a pickup truck: it waits in the NEW OWNER PICK-UP bay');
   g.exec(me, { k: 'cargo', id: car.id, op: 'load' });
   log(car.cargo.length === 1 && !g.hold(me).length, 'loaded the crate into the pickup');
   car.x = 135; car.z = 80;
@@ -1002,7 +1010,31 @@ function mall(g) {
   g.exec(me, { k: 'cargo', id: car.id, op: 'unloadAll' });
   log(W.stock.cheese > c0 && !car.cargo.length, 'unloaded it into the hideout fridge (cheese ' + c0 + ' -> ' + W.stock.cheese + ')');
   g.exec(me, { k: 'shop', cat: 'equipment', key: 'purifier' });
-  log(W.owned.up.purifier, 'bought an Air Purifier at EQUIP-O-RAMA');
+  const pc = g.hold(me)[0];
+  log(pc?.k === 'equip' && pc.key === 'purifier' && !W.owned.up.purifier, 'bought an Air Purifier at EQUIP-O-RAMA: it comes in a ' + kgOf(pc) + ' KG crate');
+  g.exec(me, { k: 'shop', cat: 'equipment', key: 'purifier' });
+  log(g.hold(me).length === 1, 'can\'t buy a second one while the first is still in its crate');
+  g.exec(me, { k: 'install' });
+  log(W.owned.up.purifier && !g.hold(me).length, 'installed it at the hideout');
+  // the furniture store
+  const furn = items.filter(s => s.cat === 'furn');
+  log(furn.length === 10, 'Casa Crumb Furniture sells ' + furn.length + ' pieces');
+  g.exec(me, { k: 'shop', cat: 'furn', key: 'jukebox' });
+  log(g.hold(me)[0]?.k === 'furn' && kgOf(g.hold(me)[0]) === 70, 'bought a jukebox (70 KG box)');
+  g.exec(me, { k: 'install' }); sim(g, 0.2);
+  log((W.decor || []).includes('jukebox'), 'placed it in the hideout (decor: ' + W.decor.join(', ') + ')');
+  // KG: the free Rusty Scooter carries 100 KG. The oven (70) fits, a 70 KG jukebox on top does not.
+  g.admin.run('car', 'scooter'); g.admin.close();
+  const sc = W.cars[W.cars.length - 1];
+  W.hold[me] = [{ k: 'equip', key: 'oven1', label: 'Pizza Oven', kg: 70, size: [1.1, 0.9, 1.0] }];
+  g.exec(me, { k: 'cargo', id: sc.id, op: 'load' });
+  log(sc.cargo.length === 1 && !g.hold(me).length, 'the 70 KG oven goes on the Rusty Scooter (70 / 100 KG)');
+  W.hold[me] = [{ k: 'furn', key: 'arcade', label: 'Arcade', kg: 90, size: [0.8, 0.8, 1.8] }];
+  const evs = []; const t0 = g.tell; g.tell = (pid, t) => { evs.push(t); return t0.call(g, pid, t); };
+  g.exec(me, { k: 'cargo', id: sc.id, op: 'load' });
+  g.tell = t0;
+  log(sc.cargo.length === 1 && g.hold(me).length === 1 && evs.some(t => /TOO HEAVY/.test(t)), 'the 90 KG arcade is refused: "' + (evs.find(t => /TOO HEAVY/.test(t)) || '?') + '"');
+  W.hold[me] = [];
   g.exec(me, { k: 'shop', cat: 'general', key: 'smoke' });
   log(W.inv[me].smoke === 1, 'bought a smoke bomb');
   // load pizza boxes and deliver straight from the car

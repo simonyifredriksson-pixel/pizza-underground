@@ -81,19 +81,106 @@ export function furnish(T, kind, F) {
         sell(u, v, 'grocery', it, 2.15);
       });
       for (let i = 0; i < 3; i++) { const q = P(A - 1.5, 3 + i * 0.6); m.box(q.x, 0.15, q.z, 0.8, 0.5, 0.55, STEEL); m.box(q.x, 0.65, q.z, 0.85, 0.04, 0.6, STEEL); } // shopping carts
-      box(-A + 0.6, B, 0, 1.0, 0.9, 3.0, '#bfe4ff'); solid(-A + 0.6, B, 1.0, 3.0, 0.9); // a chest freezer
+      // the cold wall: glass-door fridges full of bottles, a lit header
+      for (let k = 0; k < 4; k++) {
+        const v = 4.2 + k * 1.6;
+        box(-A + 0.45, v, 0, 0.8, 2.3, 1.5, '#e8eef4');
+        box(-A + 0.86, v, 0.15, 0.03, 1.95, 1.4, '#bfe4ff');
+        for (let s = 0; s < 4; s++) { box(-A + 0.6, v, 0.3 + s * 0.48, 0.5, 0.03, 1.36, '#c8ccd8'); for (let j = 0; j < 5; j++) cyl(-A + 0.6, v - 0.55 + j * 0.27, 0.33 + s * 0.48, 0.07, 0.3, PRODUCTS[(j + s + k) % PRODUCTS.length], 6); }
+        box(-A + 0.88, v + 0.65, 0.9, 0.04, 0.5, 0.04, '#8a98a6');
+      }
+      solid(-A + 0.45, 6.6, 0.8, 6.4, 2.3);
+      { const p = P(-A + 0.9, 6.6); T.sign(['COLD DRINKS · DAIRY'], p.x, 2.55, p.z, Math.atan2(ax, az), 4.0, 0.4, { bg: '#3a7bd5', fg: '#ffffff', border: false }); }
+      // two freezer islands
+      for (const u of [-A + 4.6, -A + 7.6]) {
+        box(u, 6.0, 0, 1.6, 0.85, 3.4, '#f6f6fa'); box(u, 6.0, 0.85, 1.4, 0.04, 3.2, '#bfe4ff');
+        for (let j = 0; j < 6; j++) box(u + (j % 2 - 0.5) * 0.6, 4.8 + Math.floor(j / 2) * 1.1, 0.6, 0.5, 0.2, 0.9, ['#ffd23f', '#ff8fc8', '#ffffff'][j % 3]);
+        solid(u, 6.0, 1.6, 3.4, 0.9);
+      }
+      tag(-A + 6.1, 4.0, 1.4, ['FROZEN', '(like the economy)'], '#c9e8ff');
+      // produce bins near the door, slanted, heaped with colour
+      for (let k = 0; k < 3; k++) {
+        const u = A - 4.6 - k * 2.3, v = 3.6;
+        box(u, v, 0, 2.0, 0.75, 1.3, '#a87c44'); solid(u, v, 2.0, 1.3, 0.9);
+        for (let j = 0; j < 12; j++) ico(u - 0.75 + (j % 4) * 0.5, v - 0.4 + Math.floor(j / 4) * 0.4, 0.82 + Math.floor(j / 4) * 0.08, 0.3, 0.26, ['#d6232a', '#43a85a', '#ffd23f'][k]);
+      }
+      { const p = P(A - 6.9, 3.6); T.sign(['PRODUCE'], p.x, 3.3, p.z, facing, 3.0, 0.6, { bg: '#43a85a', fg: '#ffffff', border: false }); }
+      // hanging aisle signs and the price board
+      { const p = P(0, B + 0.6); T.sign(['AISLE 1', 'BAKING · DOUGH · "BREAD STUFF"'], p.x, 3.4, p.z, facing, 4.2, 0.8, { bg: '#ffffff', fg: '#2a1640', stripe: '#3fa34d' }); }
+      { const p = P(0, D - 2.0); T.sign(['AISLE 2', 'CHEESE · SAUCE · TOPPINGS'], p.x, 3.4, p.z, facing, 4.2, 0.8, { bg: '#ffffff', fg: '#2a1640', stripe: '#3fa34d' }); }
+      tag(0, 2.4, 2.9, ["TODAY'S DEALS:", 'EVERYTHING IS FINE'], '#ffe14a');
+      // the back room door: rubber strip curtain, EMPLOYEES ONLY, boxes stacked beside it
+      box(A - 0.1, D - 2.4, 0, 0.12, 2.6, 1.8, '#3a3048');
+      for (let j = 0; j < 6; j++) box(A - 0.2, D - 3.1 + j * 0.28, 0.1, 0.03, 2.4, 0.26, '#d8e8e8');
+      { const p = P(A - 0.25, D - 2.4); T.sign(['EMPLOYEES', 'ONLY'], p.x, 2.95, p.z, Math.atan2(-ax, -az), 1.4, 0.5, { bg: '#d6232a', fg: '#ffffff', border: false }); }
+      crates(A - 1.6, D - 4.6, 6);
       return {};
     }
-    case 'equipment':
-      counter(-A + 2, 1.4, 2.6, 0.8, '#e8e2d2', '#ff9f1a');
+    case 'equipment': {
+      // an industrial warehouse: hazard lines, pallet racking along the back, a forklift parked inside
+      counter(-A + 2, 1.4, 2.6, 0.8, '#3a3a48', '#ff9f1a');
       { const p = P(-A + 2, 0.6); T.person({ shirt: '#ff9f1a', pants: '#3a3048', hat: 'bald', beard: '#5a3a1a', skin: '#f2c29b', belly: 1.25 }, p.x, p.z, facing + Math.PI); }
+      box(-A + 2, 1.4, 0.95, 0.5, 0.35, 0.3, '#1b1b24');
+      for (const u of [-A + 5.2, A - 1.6]) box(u, B, 0.075, 0.18, 0.01, D - 1.5, '#ffd23f');
+      box(0, D - 2.6, 0.075, 2 * A - 2, 0.01, 0.18, '#ffd23f');
+      // racking: orange uprights, blue beams, pallets of boxes on three levels
+      for (let r = 0; r < 4; r++) {
+        const u0 = -A + 1.4 + r * ((2 * A - 2.8) / 4), lu = (2 * A - 2.8) / 4 - 0.15, v = D - 0.9;
+        for (const s of [0, 1]) for (const dv of [-0.5, 0.5]) box(u0 + s * lu, v + dv, 0, 0.1, 4.2, 0.1, '#ff6a1a');
+        for (let k = 0; k < 3; k++) {
+          box(u0 + lu / 2, v - 0.5, 0.3 + k * 1.35, lu, 0.12, 0.08, '#2a5ac8'); box(u0 + lu / 2, v + 0.5, 0.3 + k * 1.35, lu, 0.12, 0.08, '#2a5ac8');
+          for (let j = 0; j < 2; j++) {
+            const pu = u0 + lu * (0.27 + j * 0.46);
+            box(pu, v, 0.42 + k * 1.35, 1.1, 0.12, 0.9, '#b8894c');
+            if ((r + j + k) % 4 !== 3) box(pu, v, 0.54 + k * 1.35, 0.95, 0.65 + ((r + k) % 2) * 0.3, 0.8, (r + j + k) % 3 ? '#c79a5b' : '#e8e8f0');
+          }
+        }
+      }
+      solid(0, D - 0.9, 2 * A - 2.4, 1.2, 4.2);
+      // industrial pendant lamps
+      for (const u of [-A / 2, 0, A / 2]) for (const v of [B * 0.5, B, B * 1.5]) { box(u, v, F.ih - 0.6, 0.03, 0.6, 0.03, '#1b1b24'); cyl(u, v, F.ih - 0.85, 0.35, 0.28, '#3a3a48', 8); cyl(u, v, F.ih - 0.88, 0.2, 0.04, '#fff6c8', 8); }
+      // the products: each on a steel platform with a yellow outline
       F.equip.forEach((it, i) => {
-        const u = -A + 3 + (i % 3) * ((2 * A - 6) / 2), v = 3.8 + Math.floor(i / 3) * ((D - 5) / 2);
-        pedestal(u, v);
+        const u = -A + 3.6 + (i % 3) * ((2 * A - 7.2) / 2), v = 3.3 + Math.floor(i / 3) * 3.9;
+        box(u, v, 0.075, 2.0, 0.01, 2.0, '#ffd23f'); box(u, v, 0.08, 1.8, 0.01, 1.8, '#b8bcc8');
+        box(u, v, 0.07, 1.5, 0.45, 1.5, '#5a5a6a'); box(u, v, 0.52, 1.55, 0.04, 1.55, '#c8ccd8'); solid(u, v, 1.5, 1.5, 0.6);
         if (it.model) bakeAt(it.model(), u, v, 0.56, it.scale || 0.8);
         sell(u, v, 'equipment', it, 2.1);
       });
+      { const p = P(A - 2.8, D - 3.6); T.sign(['WAREHOUSE', 'HARD HATS', '(we have none)'], p.x, 3.4, p.z, facing, 2.6, 1.0, { bg: '#ffd23f', fg: '#1b1b24', border: false }); }
       return {};
+    }
+    case 'furniture': {
+      // Casa Crumb: three furnished display rooms along the back, a counter by the door, a palm by the entrance
+      const ROOMS = [
+        { u: -7.6, wall: '#c8e0d0', rug: '#c84a5a', name: 'THE LIVING ROOM', items: [['sofa', 0, 1.2], ['lamp', 2.5, 1.0], ['table', -1.6, 3.6]] },
+        { u: 0, wall: '#2a4a3a', rug: '#6a2a3a', name: 'THE STUDY', items: [['desk', 0, 3.1], ['bookcase', -2.2, 0.45], ['painting', 1.7, 0.14, 1.3]] },
+        { u: 7.6, wall: '#2a1640', rug: '#3a7bd5', name: 'THE GAME ROOM', items: [['arcade', -2.0, 0.7], ['jukebox', 0.3, 0.55], ['neon', 2.5, 0.14, 1.8]] },
+      ];
+      const byKey = Object.fromEntries(F.furn.map(f => [f.key, f]));
+      for (const R of ROOMS) {
+        box(R.u, D - 0.06, 0.07, 7.4, F.ih - 0.1, 0.04, R.wall);
+        rug(R.u, D - 3.0, 6.4, 5.2, R.rug);
+        { const p = P(R.u, D - 0.1); T.sign([R.name], p.x, 3.65, p.z, facing, 3.6, 0.55, { bg: '#fffaf0', fg: '#2a1640', border: false, font: 'Georgia, serif' }); }
+        for (const [k, du, dv, y = 0.07] of R.items) {
+          const it = byKey[k]; if (!it) continue;
+          const u = R.u + du, v = D - dv;
+          bakeAt(it.model(), u, v, y, 1);
+          if (y < 0.5) solid(u, v, it.size[0], it.size[1], it.size[2]);
+          sell(u, v, 'furn', it, y > 0.5 ? 0.9 : Math.max(1.3, it.size[2] + 0.35));
+        }
+      }
+      // half-height partitions between the rooms
+      for (const u of [-3.8, 3.8]) { box(u, D - 3.0, 0.07, 0.16, 2.7, 6.0, '#f6efe6'); box(u, D - 3.0, 2.77, 0.22, 0.08, 6.1, '#a8743a'); solid(u, D - 3.0, 0.16, 6.0, 2.7); }
+      // the palm, by the door
+      { const it = byKey.palm; if (it) { bakeAt(it.model(), -4.5, 3.4, 0.07, 1); solid(-4.5, 3.4, 0.7, 0.7, 1.4); sell(-4.5, 3.4, 'furn', it, 1.8); } }
+      // a sleek counter, a clerk, a catalogue stand, pendant lamps
+      counter(5.2, 1.7, 3.0, 0.8, '#f6efe6', '#2a2238');
+      { const p = P(5.2, 0.8); T.person({ shirt: '#2a2238', pants: '#1b1b24', hairStyle: 'big', hair: '#1b1b24', skin: '#c8865a', glasses: 'round', tie: '#ff8fc8' }, p.x, p.z, facing + Math.PI); }
+      for (const u of [-6, 0, 6]) { box(u, 5.4, F.ih - 0.7, 0.02, 0.7, 0.02, '#1b1b24'); cyl(u, 5.4, F.ih - 0.95, 0.3, 0.25, '#ffd23f', 10); }
+      tag(0, 5.0, 2.6, ['EVERY PIECE', '+3% TIPS'], '#ffe9c8');
+      return {};
+    }
     case 'showroom':
       counter(A - 2.2, 1.4, 2.6, 0.8, '#e8e2d2', '#3a7bd5');
       { const p = P(A - 2.2, 0.6); T.person({ hat: 'cowboy', shirt: '#ffcf33', pants: '#3a5a9a', skin: '#e0a57c', mustache: true, tie: '#d6232a', belly: 1.2 }, p.x, p.z, facing + Math.PI); }

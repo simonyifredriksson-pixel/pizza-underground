@@ -8,9 +8,9 @@ import * as THREE from '../../lib/three.module.js';
 import { makeCar, makeItem } from '../art/Props.js';
 import { makeCockpit } from '../art/Cockpit.js';
 import { lookFor } from './Player.js';
-import { VEHICLES, DELIVERY_CAR } from '../data/Data.js';
+import { VEHICLES, DELIVERY_CAR, kgOf } from '../data/Data.js';
 import { ROADS, RW } from '../world/Town.js';
-import { clamp, damp, dampAngle, wrapAngle, pick } from '../core/Util.js';
+import { clamp, damp, dampAngle, wrapAngle, pick, rand } from '../core/Util.js';
 import { BARK } from '../data/Data.js';
 
 export function carSpec(kind) { return VEHICLES[kind] || DELIVERY_CAR; }
@@ -49,9 +49,40 @@ export function drive(c, ctrl, dt, col, spec, len = 3.6, wid = 1.8) {
   return hit;
 }
 
-/** cargo units in a car / for an item */
-export const unitsOf = (it) => (it.k === 'bag' ? 4 : it.k === 'crate' ? 2 : 1);
-export const cargoUsed = (c) => (c.cargo || []).reduce((s, it) => s + unitsOf(it), 0);
+/** cargo weight: what an item weighs / what a car holds, in KG */
+export const unitsOf = (it) => kgOf(it);
+export const cargoUsed = (c) => Math.round((c.cargo || []).reduce((s, it) => s + kgOf(it), 0));
+/** things that can go in a vehicle */
+export const LOADABLE = new Set(['box', 'crate', 'bag', 'equip', 'furn', 'trophy']);
+const ITEM_NAME = (it) => it.k === 'box' ? 'pizza box' : it.k === 'bag' ? 'trash bag (' + it.name + ', wriggling)' : it.k === 'crate' ? 'crate of ' + (it.s || 'supplies') : it.k === 'equip' || it.k === 'furn' ? (it.label || 'box') : it.k === 'trophy' ? 'stolen trophy' : 'thing';
+/** footprint of an item in a cargo hold: [width, length, height] */
+function footprint(it) {
+  if (it.k === 'box') return [0.62, 0.62, 0.14];
+  if (it.k === 'crate') return [0.66, 0.52, 0.46];
+  if (it.k === 'bag') return [0.9, 0.8, 1.1];
+  if (it.k === 'trophy') return [0.55, 0.55, 0.7];
+  if (it.k === 'equip' || it.k === 'furn') { const s = it.size || [1, 1, 1]; return s; }
+  return [0.6, 0.6, 0.5];
+}
+/** lay items out in a cargo hold: rows across, then deeper, then up. Pizza boxes stack in towers of 6. */
+export function packCargo(items, area) {
+  const out = [], towers = [];
+  let x = 0, z = 0, y = 0, rowL = 0, layerH = 0;
+  for (const it of items) {
+    if (it.k === 'box') { const t = towers.find(t => t.n < 6); if (t) { t.n++; out.push({ it, x: t.x, y: t.y + t.n * 0.14 - 0.14, z: t.z }); continue; } }
+    let [w, l, h] = footprint(it);
+    const s = Math.min(1, area.w / w, area.l / l, area.h / h);   // big things squeeze into small vehicles
+    w *= s; l *= s; h *= s;
+    if (x + w > area.w + 0.01) { x = 0; z += rowL; rowL = 0; }
+    if (z + l > area.l + 0.01) { x = 0; z = 0; rowL = 0; y += layerH; layerH = 0; }
+    if (y + h > area.h + 0.6) break;   // the rest doesn't show (it's in there somewhere)
+    const p = { it, s, x: area.x - area.w / 2 + x + w / 2, y: area.y + y, z: area.z + area.l / 2 - z - l / 2 };
+    out.push(p);
+    if (it.k === 'box') towers.push({ x: p.x, y: p.y, z: p.z, n: 1 });
+    x += w; rowL = Math.max(rowL, l); layerH = Math.max(layerH, h);
+  }
+  return out;
+}
 
 export class Vehicles {
   constructor(game) {
@@ -114,7 +145,16 @@ export class Vehicles {
     if (this.local) {
       const I = g.input, frozen = g.frozen();
       const spec = { ...carSpec(mine.c.kind), wet: g.W.weather?.k === 'storm' };
+      // a full vehicle is a slow vehicle
+      const load = Math.min(1, cargoUsed(mine.c) / spec.cap);
+      spec.accel *= 1 - 0.4 * load; spec.speed *= 1 - 0.15 * load;
       const ctrl = frozen ? { thr: 0, steer: 0, brake: 1 } : { thr: I.axis('KeyS', 'KeyW'), steer: I.axis('KeyD', 'KeyA'), brake: I.held('Space') };
+      // the Rusty Scooter: wobbly steering, coughs now and then
+      if (spec.clunky && !frozen) {
+        ctrl.steer += Math.sin(performance.now() * 0.0037) * 0.12 * Math.min(1, Math.abs(this.local.spd) / 8);
+        this._cough = (this._cough || 3) - dt;
+        if (this._cough <= 0) { this._cough = rand(3, 7); if (ctrl.thr > 0) { this.local.spd *= 0.85; g.audio.noise(0.18, 0.06, 'lowpass', 500, 1); g.fx.smoke(this.local.x - Math.sin(this.local.yaw) * 0.9, 0.5, this.local.z - Math.cos(this.local.yaw) * 0.9, 3, 0.6); } }
+      }
       const m = this.ensure(mine.c);
       const hit = drive(this.local, ctrl, dt, g.town.col, spec, m.C.S.len, m.C.S.wid);
       // tyre smoke when you slide
@@ -151,20 +191,27 @@ export class Vehicles {
       };
       if (c.drv) place(c.drv, 0);
       c.pas.forEach((p, i) => place(p, i + 1));
-      // what's in the back: boxes and crates in an open bed you can see
+      // what's in the back: packed into the cargo hold, where you can see it
       const key = JSON.stringify(c.cargo || []);
       if (m.cargoKey !== key) {
         m.cargoKey = key;
         if (m.cargoG) m.C.body.remove(m.cargoG);
         m.cargoG = new THREE.Group();
-        const b = m.C.bed;
-        if (b) (c.cargo || []).slice(0, 18).forEach((it, i) => {
-          const col = i % b.cols, row = Math.floor(i / b.cols) % 3, lay = Math.floor(i / (b.cols * 3));
-          const g2 = makeItem(it); g2.scale.setScalar(0.8);
-          g2.position.set(b.x + (col - (b.cols - 1) / 2) * 0.55, b.y + lay * (it.k === 'crate' ? 0.4 : 0.14), b.z + (row - 1) * 0.5);
+        const area = m.C.hold || (m.C.bed && { x: m.C.bed.x, y: m.C.bed.y, z: m.C.bed.z, w: m.C.bed.w || 0.6, l: m.C.bed.l || 0.5, h: 1 });
+        if (area) for (const p of packCargo((c.cargo || []).slice(0, 120), area)) {
+          const g2 = makeItem(p.it); g2.scale.setScalar(0.92 * (p.s || 1));
+          g2.position.set(p.x, p.y, p.z);
           m.cargoG.add(g2);
-        });
+        }
         m.C.body.add(m.cargoG);
+      }
+      // doors and lids: open when somebody is at the back (or loading)
+      if (m.C.doors?.length) {
+        const r = this.rear(c), near = !P.car && Math.hypot(P.pos.x - r.x, P.pos.z - r.z) < 3.2;
+        const open = near || [...g.remotes.values()].some(rm => rm.s && !rm.s.car && Math.hypot(rm.s.x - r.x, rm.s.z - r.z) < 3.2);
+        m.doorK = damp(m.doorK || 0, open ? 1 : 0, 6, dt);
+        for (const d of m.C.doors) d.pivot.rotation[d.axis] = d.open * m.doorK;
+        if (m.C.hideCargoClosed) m.cargoG.visible = m.doorK > 0.15;
       }
     }
     for (const [id, m] of this.meshes) if (!seen.has(id)) { g.scene.remove(m.C.group); this.meshes.delete(id); }
@@ -211,17 +258,18 @@ export class Vehicles {
     for (const c of W.cars) {
       const r = this.rear(c), d = Math.hypot(P.pos.x - r.x, P.pos.z - r.z);
       if (d > 2.4) continue;
-      const spec = carSpec(c.kind), used = cargoUsed(c), name = spec.name;
+      const spec = carSpec(c.kind), used = cargoUsed(c), name = spec.name, kg = used + ' / ' + spec.cap + ' KG';
       const nearHQ = Math.hypot(c.x - 138, c.z - 80) < 16;
       const crates = (c.cargo || []).filter(i => i.k === 'crate').length;
-      const takeAlt = (c.cargo || []).length ? { label: 'Take something out (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' } } : null;
+      const last = (c.cargo || [])[c.cargo?.length - 1];
+      const takeAlt = last ? { label: 'Take out the ' + ITEM_NAME(last) + ' (' + kgOf(last) + ' KG)', act: { k: 'cargo', id: c.id, op: 'take' } } : null;
       const unloadAlt = nearHQ && crates ? { label: 'Unload all ' + crates + ' crates into the hideout fridge', act: { k: 'cargo', id: c.id, op: 'unloadAll' } } : takeAlt;
-      if (top && (top.k === 'box' || top.k === 'crate' || top.k === 'bag')) {
-        const what = top.k === 'box' ? 'pizza box' : top.k === 'bag' ? 'trash bag (' + top.name + ', wriggling)' : 'crate';
-        if (used + unitsOf(top) <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Put the ' + what + ' in the ' + (top.k === 'bag' ? 'trunk of the ' : '') + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
-        else out.push({ x: r.x, z: r.z, d, label: top.k === 'bag' ? 'The trash bag doesn\'t fit in the ' + name + ' (needs 4 space, ' + (spec.cap - used) + ' free)' : 'The ' + name + ' is full (' + used + '/' + spec.cap + ')', warn: true, alt: unloadAlt });
-      } else if ((c.cargo || []).length) out.push({ x: r.x, z: r.z, d, label: 'Take something out of the ' + name + ' (' + used + '/' + spec.cap + ')', act: { k: 'cargo', id: c.id, op: 'take' }, alt: unloadAlt !== takeAlt ? unloadAlt : null });
-      else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ': empty (holds ' + spec.cap + ' - a box is 1, a crate is 2)', info: true });
+      if (top && LOADABLE.has(top.k)) {
+        const w = Math.round(kgOf(top));
+        if (used + w <= spec.cap) out.push({ x: r.x, z: r.z, d, label: 'Load the ' + ITEM_NAME(top) + ' (' + w + ' KG) into the ' + name + ' · ' + kg, act: { k: 'cargo', id: c.id, op: 'load' }, alt: unloadAlt });
+        else out.push({ x: r.x, z: r.z, d, label: 'TOO HEAVY - ' + name.toUpperCase() + ' CAPACITY: ' + spec.cap + ' KG (the ' + ITEM_NAME(top) + ' is ' + w + ' KG, ' + Math.max(0, spec.cap - used) + ' KG free)', warn: true, alt: unloadAlt });
+      } else if ((c.cargo || []).length) out.push({ x: r.x, z: r.z, d, label: 'Take out the ' + ITEM_NAME(last) + ' · ' + kg, act: { k: 'cargo', id: c.id, op: 'take' }, alt: unloadAlt !== takeAlt ? unloadAlt : null });
+      else out.push({ x: r.x, z: r.z, d, label: 'The ' + name + ': empty · carries ' + spec.cap + ' KG in ' + (spec.storage || 'the back'), info: true });
     }
   }
 
@@ -231,11 +279,14 @@ export class Vehicles {
     c.cargo = c.cargo || [];
     const H = g.hold(pid), top = H[H.length - 1], spec = carSpec(c.kind);
     if (a.op === 'load') {
-      if (!top || (top.k !== 'box' && top.k !== 'crate' && top.k !== 'bag') || cargoUsed(c) + unitsOf(top) > spec.cap) return;
+      if (!top || !LOADABLE.has(top.k)) return;
+      if (cargoUsed(c) + kgOf(top) > spec.cap) return g.tell(pid, 'TOO HEAVY - VEHICLE CAPACITY: ' + spec.cap + ' KG');
       c.cargo.push(H.pop()); g.sfx('drop', c);
     } else if (a.op === 'take') {
       if (!c.cargo.length || H.length >= 8) return;
-      if (c.cargo[c.cargo.length - 1].k === 'bag' && H.length) return g.tell(pid, 'You need both arms for the trash bag.');
+      const lt = c.cargo[c.cargo.length - 1];
+      if ((lt.k === 'bag' || lt.k === 'equip' || lt.k === 'furn') && H.length) return g.tell(pid, 'You need both arms for that.');
+      if (H.some(i => i.k === 'equip' || i.k === 'furn' || i.k === 'bag')) return g.tell(pid, 'Your arms are full.');
       H.push(c.cargo.pop()); g.sfx('pickup', c);
     } else if (a.op === 'unloadAll') {
       let n = 0;
@@ -273,6 +324,12 @@ export class Traffic {
       t.to = this._next(t.from, null);
       this.cars.push(t);
     }
+    // the garbage truck: slow, stops every block or so to chomp, two guys hanging off the back
+    const a = NODES[7 % NODES.length], C = makeCar('garbage');
+    game.scene.add(C.group);
+    const gt = { C, from: a, to: null, t: 0.3, spd: 6.5, cur: 0, reckless: false, honkT: 0, x: a.x, z: a.z, yaw: 0, stuck: 0, garbage: true, stop: 0 };
+    gt.to = this._next(a, null);
+    this.cars.push(gt);
   }
   /** the intro road must be empty: only the limo is allowed to hit you */
   setVisible(v) { for (const c of this.cars) c.C.group.visible = v; }
@@ -302,9 +359,20 @@ export class Traffic {
       for (const cop of g.police.cars) if (ahead(cop.x, cop.z, 9)) want = 0;
       if (g.vehicles) for (const oc of g.W.cars) if (ahead(oc.x, oc.z, 8)) want = 0;
       c.honkT -= dt;
+      if (c.garbage) {
+        if (c.stop > 0) {
+          c.stop -= dt; want = 0;
+          c.C.hopper.rotation.x = -Math.abs(Math.sin(c.stop * 1.6)) * 0.9;
+          for (const r of c.C.crew) r.anim(dt, { wave: c.stop > 2.5 });
+        } else { c.C.hopper.rotation.x = 0; for (const r of c.C.crew) { r.armR.rotation.x = -2.4; r.armL.rotation.x = -0.3; } }
+        if (c.t > 0.45 && c.t < 0.47 && !c.stopped && Math.random() < 0.6) {
+          c.stop = 5; c.stopped = true;
+          if (P && Math.hypot(P.pos.x - c.x, P.pos.z - c.z) < 25) g.bubble(() => ({ x: c.x, z: c.z, y: 1.5 }), pick(['BEEP. BEEP. BEEP.', 'TRASH DAY! (it\'s always trash day)', 'Morning! Got any pizza boxes? ...Just asking. For a friend.']));
+        }
+      }
       c.cur = damp(c.cur, want, want < c.cur ? 5 : 1.5, dt);
       c.t += c.cur * dt / L;
-      if (c.t >= 1) { const prev = c.from; c.from = c.to; c.to = this._next(c.from, prev); c.t = 0; continue; }
+      if (c.t >= 1) { const prev = c.from; c.from = c.to; c.to = this._next(c.from, prev); c.t = 0; c.stopped = false; continue; }
       const nx = c.from.x + dx * c.t + ox, nz = c.from.z + dz * c.t + oz;
       c.x = nx; c.z = nz;
       c.yaw = dampAngle(c.yaw, Math.atan2(ux, uz), 8, dt);

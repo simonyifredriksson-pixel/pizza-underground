@@ -120,7 +120,8 @@ export class UI {
     const top = items[items.length - 1];
     const name = top.k === 'bag' ? 'Trash bag (' + top.name + ', wriggling)'
       : top.k === 'crate' ? 'Crate of ' + (STOCK_NAME[top.s] || top.s || 'supplies').toLowerCase() + (top.hot ? ' (STOLEN)' : top.tom ? ' ("tomatoes")' : '')
-      : top.k === 'trophy' ? 'A stolen trophy' : pizzaName(top);
+      : top.k === 'trophy' ? 'A stolen trophy'
+      : top.k === 'equip' || top.k === 'furn' ? top.label + ' (' + top.kg + ' KG)' : pizzaName(top);
     el.innerHTML = `<div class="h-top">${esc(name)}</div>` + (items.length > 1 ? `<div class="h-n">+ ${items.length - 1} more under it</div>` : '') + `<div class="h-help"><b class="key">Q</b> throw away top</div>` + (top.k === 'ext' ? `<div class="h-help"><b class="key">LMB</b> spray</div>` : '');
   }
 

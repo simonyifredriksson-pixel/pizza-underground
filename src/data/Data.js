@@ -47,8 +47,6 @@ export const GENERAL = [
   { key: 'suit', label: 'Suspicious Suit (costume aisle)', price: 12000, disg: true, tier: 2 },
   { key: 'cop', label: 'Police Uniform (costume aisle, "for a party")', price: 40000, disg: true },
 ];
-/** cargo units: a pizza box is 1, a crate of supplies is 2 */
-export const CARGO = { box: 1, crate: 2, bag: 4 };
 
 export const LOOKS = [
   { name: 'Red', hat: 'cap', hatColor: '#d23a3a', shirt: '#d23a3a', pants: '#2b2b38', skin: '#f2c29b', hair: '#3a2418', capLogo: '#ffd23f' },
@@ -130,21 +128,59 @@ export const UPGRADES = {
   safe: { name: 'Secret Safe', price: 10000, desc: 'A safe in the hidden storage room (hatch in the yard). Money in it can\'t be fined or confiscated.', tier: 1 },
   knuckles: { name: 'Hire Knuckles', price: 15000, desc: 'A debt collector with a foam bat. Send him to anyone who is late paying (phone > Debts).', tier: 2 },
 };
-/* Every vehicle has a job. cap = cargo units (box 1, crate 2). grip < 1 slides.
-   sus = how suspicious cops find it (1 normal). */
+/* Every vehicle has a job. cap = how much it carries, in KG (see kgOf).
+   storage = what the cargo space is. grip < 1 slides. sus = how suspicious
+   cops find it (1 normal). The order here is the order of the dealership. */
 export const VEHICLES = {
-  scooter: { name: 'Rusty Scooter', price: 2000, speed: 21, accel: 18, cap: 2, grip: 1.2, sus: 1, desc: 'Two boxes on the back. Squeezes through anything. Sounds like an angry bee.' },
-  delivery: { name: 'Pizza Delivery Car', price: 4500, speed: 24, accel: 16, cap: 6, grip: 1, sus: 1.6, desc: 'Cheap. Cheerful. Has a giant PIZZA! sign on the roof. Cops love it. Not in a good way.' },
-  smallvan: { name: 'Small Van', price: 14000, speed: 23, accel: 14, cap: 12, grip: 0.95, sus: 1, desc: 'A sensible little van. Nobody has ever looked at it twice.' },
-  pickup: { name: 'Pickup Truck', price: 22000, speed: 26, accel: 16, cap: 10, grip: 0.9, sus: 0.9, desc: 'Crates ride in the open bed. Everyone can see them. Nobody asks.' },
-  van: { name: 'Large Delivery Van', price: 30000, speed: 20, accel: 12, cap: 24, grip: 0.85, sus: 1.1, desc: 'Fits a whole rush hour. Turns like a fridge.' },
-  getaway: { name: 'Getaway Car', price: 65000, speed: 42, accel: 30, cap: 4, grip: 0.6, sus: 1.2, getaway: true, desc: 'Absurdly fast. Slides around every corner. Cops lose you twice as quickly.' },
-  cargo: { name: 'Cargo Truck', price: 55000, speed: 17, accel: 9, cap: 40, grip: 0.8, sus: 1.4, desc: 'A warehouse on wheels. Slow. Enormous. Every cop wonders what is inside.' },
-  icecream: { name: 'Ice Cream Truck', price: 80000, speed: 21, accel: 13, cap: 10, grip: 0.9, sus: 0, disguise: true, desc: 'The perfect disguise. Cops ignore it unless the town is really hot.' },
-  family: { name: 'The Family Sedan', price: 60000, speed: 30, accel: 18, cap: 8, grip: 1, sus: 0.5, tier: 3, desc: 'Long. Black. Shiny. Cops look away out of respect. Seats four.' },
-  armored: { name: 'Armored Pizza Truck', price: 750000, speed: 26, accel: 15, cap: 20, grip: 0.9, sus: 1, armored: true, desc: 'Cops can not stop it. They will try.' },
+  scooter: { name: 'Rusty Scooter', price: 0, free: true, speed: 16, accel: 12, cap: 100, grip: 0.95, sus: 1, clunky: true, storage: 'a little delivery box on a rack', desc: 'The worst vehicle in town. Rust, duct tape and hope. Free (Dez "found" it).' },
+  moped: { name: 'Delivery Moped', price: 2500, speed: 22, accel: 17, cap: 180, grip: 1.15, sus: 1, storage: 'a big insulated top box', desc: 'A real moped with a real top box. Zippy. Actually starts every time.' },
+  delivery: { name: 'Small Delivery Car', price: 7500, speed: 25, accel: 16, cap: 350, grip: 1, sus: 1.5, storage: 'a hatchback trunk', desc: 'A cheerful little hatchback with a giant PIZZA! sign on the roof. Cops love it. Not in a good way.' },
+  smallvan: { name: 'Delivery Van', price: 20000, speed: 23, accel: 14, cap: 750, grip: 0.95, sus: 1, storage: 'a cargo van with barn doors', desc: 'A sensible white van with two rear doors. Nobody has ever looked at it twice.' },
+  pickup: { name: 'Pickup Truck', price: 14000, speed: 26, accel: 16, cap: 600, grip: 0.9, sus: 0.9, storage: 'an open bed (everyone can see)', desc: 'Crates ride in the open bed. Everyone can see them. Nobody asks.' },
+  van: { name: 'Cargo Van', price: 50000, speed: 21, accel: 12, cap: 1500, grip: 0.85, sus: 1.1, storage: 'a tall cargo hold with shelves', desc: 'High roof, shelves on both sides, rear doors that open wide. Turns like a fridge.' },
+  cargo: { name: 'Mafia Transport Truck', price: 120000, speed: 19, accel: 10, cap: 3500, grip: 0.8, sus: 1.4, storage: 'a box truck with a roll-up door', desc: 'Black and gold. A warehouse on wheels with a roll-up door and the family crest. Every cop wonders what is inside.' },
+  transporter: { name: 'Massive Pizza Transporter', price: 300000, speed: 18, accel: 8, cap: 9000, grip: 0.75, sus: 1.6, storage: 'a whole trailer (shaped like a pizza box)', desc: 'A semi truck pulling a trailer shaped like a GIANT PIZZA BOX. Subtle? No. Enormous? Yes.' },
+  getaway: { name: 'Getaway Car', price: 65000, speed: 42, accel: 30, cap: 80, grip: 0.6, sus: 1.2, getaway: true, storage: 'a tiny trunk', desc: 'Absurdly fast. Slides around every corner. Cops lose you twice as quickly. The trunk is a joke.' },
+  family: { name: 'The Family Sedan', price: 60000, speed: 30, accel: 18, cap: 300, grip: 1, sus: 0.5, tier: 3, storage: 'a long trunk', desc: 'Long. Black. Shiny. Cops look away out of respect. Seats four.' },
+  icecream: { name: 'Ice Cream Truck', price: 80000, speed: 21, accel: 13, cap: 500, grip: 0.9, sus: 0, disguise: true, storage: 'a freezer in the back', desc: 'The perfect disguise. Cops ignore it unless the town is really hot.' },
+  armored: { name: 'Armored Pizza Truck', price: 750000, speed: 26, accel: 15, cap: 2500, grip: 0.9, sus: 1, armored: true, storage: 'an armored vault', desc: 'Cops can not stop it. They will try.' },
 };
-export const DELIVERY_CAR = { name: 'Car', speed: 24, accel: 16, cap: 6, grip: 1, sus: 1 };
+export const DELIVERY_CAR = { name: 'Car', speed: 24, accel: 16, cap: 350, grip: 1, sus: 1 };
+
+/** the furniture store: things for the hideout. Carry them home, place them. Every piece makes the
+    place nicer: customers tip 3% more per piece ("they can smell the class"). */
+export const FURNITURE = [
+  { key: 'sofa', label: 'Leather Sofa', price: 3500, kg: 60, size: [2.0, 0.9, 0.9], desc: 'Real leather. Real comfortable. Dez will never get up again.' },
+  { key: 'table', label: 'Dining Table & Chairs', price: 2200, kg: 45, size: [1.4, 0.9, 0.8], desc: 'For "family dinners". Seats four. Seats six if they like each other.' },
+  { key: 'lamp', label: 'Brass Floor Lamp', price: 900, kg: 8, size: [0.5, 0.5, 1.6], desc: 'Mood lighting for a moody business.' },
+  { key: 'bookcase', label: 'Mahogany Bookcase', price: 2800, kg: 55, size: [1.4, 0.5, 2.0], desc: 'Full of books nobody reads. Very mafia.' },
+  { key: 'arcade', label: 'Arcade Machine "PIZZA PANIC"', price: 4500, kg: 90, size: [0.8, 0.8, 1.8], desc: 'A game about making pizza. In a pizza kitchen. Very meta.' },
+  { key: 'palm', label: 'Potted Palm', price: 600, kg: 12, size: [0.7, 0.7, 1.4], desc: 'It\'s plastic. It will outlive us all.' },
+  { key: 'jukebox', label: 'Jukebox', price: 5000, kg: 70, size: [0.9, 0.6, 1.5], desc: 'Plays one song: an accordion version of a song you know.' },
+  { key: 'painting', label: '"The Godfather of Dough" (painting)', price: 7500, kg: 10, size: [1.2, 0.2, 1.0], desc: 'An oil painting of a very serious man holding a very serious pizza.' },
+  { key: 'neon', label: 'Neon Sign "SHOES"', price: 1800, kg: 9, size: [1.4, 0.2, 0.6], desc: 'Pink neon. Says SHOES. Fools nobody. Looks amazing.' },
+  { key: 'desk', label: 'Boss Desk', price: 6000, kg: 80, size: [1.8, 0.9, 0.8], desc: 'Big. Wooden. Leather chair. Makes you feel like you run a crime empire. You do.' },
+];
+
+/* ---------------- weight: everything you can carry or load, in KG ---------------- */
+export const STOCK_KG = { dough: 10, sauce: 5, cheese: 5, pepperoni: 4, sausage: 4, mushroom: 3, pineapple: 6, olive: 3, pepper: 3 };
+export const EQUIP_KG = { oven1: 70, camera: 15, hidden: 90, sprinkler: 25, fastoven: 30, bigfridge: 220, safe: 160, shoes: 40, purifier: 35 };
+export const EQUIP_SIZE = { oven1: [1.3, 1.1, 1.2], camera: [0.6, 0.5, 0.4], hidden: [1.2, 0.3, 2.0], sprinkler: [0.8, 0.6, 0.5], fastoven: [0.8, 0.6, 0.6], bigfridge: [1.6, 1.2, 2.1], safe: [0.9, 0.9, 1.1], shoes: [1.4, 0.5, 1.4], purifier: [0.6, 0.6, 1.1] };
+/** how heavy a held / loaded item is */
+export function kgOf(it) {
+  if (!it) return 0;
+  switch (it.k) {
+    case 'box': return 1.5;
+    case 'pizza': case 'base': case 'dough': return 1;
+    case 'crate': return Math.round((STOCK_KG[it.s] || 5) * (it.n || 10) / 10);
+    case 'equip': return EQUIP_KG[it.key] || it.kg || 50;
+    case 'furn': return it.kg || 40;
+    case 'bag': return 80;
+    case 'trophy': return 15;
+    case 'ext': return 6;
+    default: return it.kg || 5;
+  }
+}
 export const DISGUISES = {
   mustache: { name: 'Fake Mustache', price: 1500, detect: 0.7, desc: 'Cops notice you 30% later. Glued on with cheese.' },
   coat: { name: 'Trench Coat & Shades', price: 6000, detect: 0.55, desc: 'Cops notice you 45% later. Very undercover. Extremely obvious.' },

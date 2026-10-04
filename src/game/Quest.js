@@ -21,7 +21,7 @@ export class Quest {
       case Q.FIND: sub = 'East side of town. It\'s marked on your map (M).'; break;
       case Q.CLEAN: sub = W.trash.filter(t => !t).length + ' / ' + W.trash.length + ' junk piles (hold E)'; break;
       case Q.POWER: sub = 'Hold E on the fuse box by the door.'; break;
-      case Q.OVEN: sub = 'EQUIP-O-RAMA in the Crumb Mall (east side of the courtyard). ' + money(4000) + '.'; break;
+      case Q.OVEN: sub = this.g.hold(this.g.me).some(i => i.key === 'oven1') ? 'Got it! 70 KG. Load it on the scooter (back of the scooter, E), drive home, and install it in the kitchen.' : 'EQUIP-O-RAMA in the Crumb Mall (east side of the courtyard). ' + money(4000) + '. Take your Rusty Scooter (F): it carries 100 KG.'; break;
       case Q.STOCK: sub = ['dough', 'sauce', 'cheese'].map(k => STOCK_NAME[k] + (W.stock[k] > 0 ? ' ✓' : ' ✗')).join('   ') + '  - Crumb Mall grocery: crates go in the STOCK fridge (E)'; break;
       case Q.MAKE: sub = 'Dough → counter (hold E) → 1 sauce, 2 cheese → oven → take out golden → box it.'; break;
       case Q.FIRST: sub = 'He\'s in the alley by Oleg\'s. Bring the box.'; break;
@@ -80,7 +80,23 @@ export class Quest {
     }
   }
   onClean() { if (this.W.quest === Q.CLEAN) { this.set(Q.POWER); this.g.sayAll(HQ_CLEAN); } }
-  onPower() { if (this.W.quest === Q.POWER) { this.set(Q.OVEN); this.g.sayAll(HQ_POWER); } }
+  onPower() {
+    if (this.W.quest !== Q.POWER) return;
+    this.set(Q.OVEN); this.g.sayAll(HQ_POWER);
+    // the free starter vehicle: Dez "found" a scooter
+    const W = this.W;
+    if (!W.owned.veh.includes('scooter')) {
+      W.owned.veh.push('scooter');
+      W.cars.push({ id: W.carSeq++, kind: 'scooter', x: 131, z: 84.5, yaw: Math.PI, drv: null, pas: [], cargo: [] });
+      setTimeout(() => this.g.sayAll([
+        ['dez', 'Oh! Before you go. You\'re gonna need something to move all that pizza.'],
+        ['dez', 'So I found you a scooter. Out back. It was just... there. With the keys in it. And a lot of rust.'],
+        ['narr', 'You got the RUSTY SCOOTER. Free! It carries 100 KG in its little crate. The oven weighs 70. (Get in with F, load things at the back with E.)'],
+        ['dez', 'It makes a noise like a dying goose. That\'s normal. I think.'],
+      ]), 6000);
+      this.g.dirty();
+    }
+  }
   onOven() { if (this.W.quest === Q.OVEN) { this.set(Q.STOCK); this.g.sayAll(HQ_STOCK); this.onStock(); } }
   onStock() {
     const W = this.W;

@@ -4,7 +4,7 @@
 import * as THREE from '../../lib/three.module.js';
 import { makeChar } from '../art/Chars.js';
 import { makeItem } from '../art/Props.js';
-import { LOOKS } from '../data/Data.js';
+import { LOOKS, kgOf } from '../data/Data.js';
 import { clamp, damp, dampAngle, wrapAngle } from '../core/Util.js';
 import { HQ } from '../world/Town.js';
 import { textTexture, part, geo } from '../art/Mesher.js';
@@ -36,7 +36,8 @@ export function buildStack(group, items, sq) {
       pivot.userData.wiggle = m; group.add(pivot); y += 0.3; continue;
     }
     group.add(m);
-    y += it.k === 'box' ? 0.14 : it.k === 'trash' ? 0.6 : 0.16;
+    if (it.k === 'equip' || it.k === 'furn') { const s = 0.62 / Math.max(1, (it.size || [1])[0]); m.scale.setScalar(Math.min(0.75, s + 0.25)); m.position.y = y - 0.35; }   // a big box, hugged
+    y += it.k === 'box' ? 0.14 : it.k === 'trash' ? 0.6 : it.k === 'equip' || it.k === 'furn' ? 1.0 : 0.16;
   }
 }
 /** the trash bag sways as you walk, and kicks now and then: somebody is in there */
@@ -117,8 +118,9 @@ export class Player {
     this.vm.visible = fp && n > 0 && !this.car && !this.hidden;
     if (this.vm.visible) {
       const t = tnow, w = Math.min(1, this.speed / 6);
-      const ext = items[n - 1].k === 'ext', bag = items[n - 1].k === 'bag';
-      this.vm.position.set(ext ? 0.32 : Math.sin(t * 6) * 0.015 * w, (ext ? -0.45 : bag ? -0.36 : -0.55) + Math.abs(Math.cos(t * 6)) * 0.02 * w, ext ? -0.6 : bag ? -1.25 : -0.95);
+      const ext = items[n - 1].k === 'ext', bag = items[n - 1].k === 'bag', big = items.some(i => i.k === 'equip' || i.k === 'furn');
+      // a big crate is hugged low: you peer over the top of it
+      this.vm.position.set(ext ? 0.32 : Math.sin(t * 6) * 0.015 * w, (ext ? -0.45 : bag ? -0.36 : big ? -0.98 : -0.55) + Math.abs(Math.cos(t * 6)) * 0.02 * w, ext ? -0.6 : bag ? -1.25 : big ? -1.05 : -0.95);
       this.vmStack.rotation.z = this.stack.rotation.z; this.vmStack.rotation.x = this.stack.rotation.x;
       this.vmStack.rotation.y = ext ? Math.PI : 0;
       for (const [i, h] of this.vmHands.entries()) {
@@ -142,7 +144,9 @@ export class Player {
     }
     const len = Math.hypot(mx, mz);
     this.running = !frozen && len > 0 && I.held('ShiftLeft') && this.stun <= 0;
-    const slow = Math.max(0.55, 1 - 0.03 * Math.max(0, n - 1));
+    // heavy things slow you down: a 70 KG oven is a slow walk
+    const kg = items.reduce((s, it) => s + kgOf(it), 0);
+    const slow = Math.max(0.4, Math.min(1 - 0.03 * Math.max(0, n - 1), kg > 20 ? 1 - (kg - 20) / 160 : 1));
     let target = (this.running ? RUN : WALK) * slow;
     if (this.g.natural) target *= 0.55;
     if (this.boost > 0) { this.boost -= dt; target *= 1.4; }

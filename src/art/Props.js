@@ -4,6 +4,8 @@
 import * as THREE from '../../lib/three.module.js';
 import { geo, part, mat, Mesher, signMesh, rot } from './Mesher.js';
 import { makeTrashBag, makeTrophy } from './Gear.js';
+import { FLEET, makeBigBox } from './Fleet.js';
+import { LIFE_CARS } from './LifeArt.js';
 
 export const TOP_COLORS = {
   pepperoni: '#b8322c', mushroom: '#e9dcc4', pineapple: '#f6cf3a', olive: '#2a2a22', pepper: '#3fa34d', ham: '#f0a0a0', sausage: '#a8553a',
@@ -32,6 +34,7 @@ export function makeItem(item) {
   }
   if (item.k === 'trash') { g.add(part(geo.ico(0), '#2b2b33', 0, 0.3, 0, 0.6, 0.6, 0.6)); return g; }
   if (item.k === 'bag') return makeTrashBag(); // a big black trash bag, with a very unhappy debtor in it
+  if (item.k === 'equip' || item.k === 'furn') return makeBigBox(item);
   if (item.k === 'trophy') { const t = makeTrophy(item.g); t.scale.setScalar(0.7); return t; } // a rival gang's pride and joy
   if (item.k === 'crate') { // a crate of supplies, with a sample of what's inside on top
     g.add(part(geo.box(), '#b8894c', 0, 0.22, 0, 0.62, 0.44, 0.5));
@@ -254,6 +257,7 @@ export { sign };
 /* ---------------- vehicles ---------------- */
 export const CAR_STYLES = {
   delivery: { body: '#e8473a', roof: '#f6f1e6', len: 3.4, wid: 1.8, h: 1.0, cab: 1.0, sign: true, open: true },
+  convertible: { body: '#e8473a', roof: '#f6f1e6', len: 3.4, wid: 1.8, h: 1.0, cab: 1.0, sign: true, open: true },   // the intro's car (the open-top delivery car)
   limo: { body: '#1b1b24', roof: '#26263a', len: 5.2, wid: 2.0, h: 0.95, cab: 0.8 },
   scooter: { body: '#3fb8af', len: 1.8, wid: 0.7, h: 0.8, scooter: true },
   van: { body: '#f2f2f8', roof: '#e0e0ea', len: 4.4, wid: 2.1, h: 1.9, cab: 0.6, van: true },
@@ -274,6 +278,8 @@ export const CAR_STYLES = {
 };
 
 export function makeCar(style) {
+  if (FLEET[style]) return FLEET[style]();   // the vehicles you can own: each its own build (Fleet.js)
+  if (LIFE_CARS[style]) return LIFE_CARS[style]();   // the garbage truck, the utility truck (LifeArt.js)
   const S = CAR_STYLES[style] || CAR_STYLES.civ1;
   const g = new THREE.Group();
   const body = new THREE.Group(); g.add(body);
@@ -315,6 +321,12 @@ export function makeCar(style) {
     for (const s of [-1, 1]) body.add(part(geo.box(), '#c41a1a', s * W * 0.4, 0.75, -L / 2 - 0.02, 0.24, 0.14, 0.04, { emissive: 0xff2020, ei: 0.3 }));
     wheelsAt(S.cargo ? 0.5 : 0.42, S.cargo ? [L * 0.36, -L * 0.2, -L * 0.36] : [L * 0.32, -L * 0.3]);
     const sy = 0.55;
+    if (C.bed) {   // the open bed: cargo in plain sight, a tailgate that drops
+      C.hold = { x: 0, y: C.bed.y, z: C.bed.z, w: C.bed.w, l: C.bed.l, h: 1.0 };
+      const tg = new THREE.Group(); tg.position.set(0, 0.68, -L / 2 + 0.05); body.add(tg);
+      tg.add(part(geo.box(), S.body, 0, 0.25, 0, W - 0.2, 0.5, 0.08));
+      C.doors = [{ pivot: tg, axis: 'x', open: -1.5 }];
+    }
     C.seats = [{ x: W * 0.22, y: sy, z: cabZ }, { x: -W * 0.22, y: sy, z: cabZ }, ...(S.pickup ? [{ x: -W * 0.25, y: 0.75, z: bedZ }, { x: W * 0.25, y: 0.75, z: bedZ }] : [])];
     return C;
   }
@@ -384,6 +396,20 @@ export function makeCar(style) {
     g.add(w); C.wheels.push(w);
   }
   const sy = 0.35 + bodyH * 0.35;
+  // a trunk: a lid on a hinge behind the cabin, the cargo on the deck under it
+  if (!S.van && !S.open && !S.police) {
+    const top = 0.35 + bodyH, tz1 = cabZ - cabL / 2, tz0 = -L / 2 + 0.08;
+    C.hold = { x: 0, y: top, z: (tz0 + tz1) / 2, w: W * 0.78, l: tz1 - tz0 - 0.1, h: 0.55 };
+    const lid = new THREE.Group(); lid.position.set(0, top + 0.02, tz1); body.add(lid);
+    lid.add(part(geo.box(), S.body, 0, 0.03, -(tz1 - tz0) / 2, W * 0.94, 0.06, tz1 - tz0));
+    C.doors = [{ pivot: lid, axis: 'x', open: -1.25 }];
+    C.hideCargoClosed = true;
+  } else if (S.van) {   // vans: barn doors at the back (the cargo stays in the dark inside)
+    C.hold = { x: 0, y: 0.45, z: -L * 0.2, w: W * 0.8, l: L * 0.5, h: S.h * 0.6 };
+    C.doors = [];
+    for (const s of [-1, 1]) { const d = new THREE.Group(); d.position.set(s * W / 2, 0.4, -L / 2 - 0.02); body.add(d); d.add(part(geo.box(), S.body, -s * W / 4, S.h * 0.38, -0.03, W / 2 - 0.02, S.h * 0.72, 0.05)); C.doors.push({ pivot: d, axis: 'y', open: s * 1.9 }); }
+    C.hideCargoClosed = true;
+  }
   C.seats = [{ x: W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: -W * 0.22, y: sy, z: cabZ + cabL * 0.12 }, { x: -W * 0.22, y: sy, z: cabZ - cabL * 0.3 }, { x: W * 0.22, y: sy, z: cabZ - cabL * 0.3 }];
   return C;
 }

@@ -1314,7 +1314,7 @@ export class Rivals {
     keep('ship', M && M.k === 'shipment', () => { const grp = new THREE.Group(); M.drops.forEach((d, i) => { const c = MAFIA.crate('FROZEN'); c.position.set(d.x, 0, d.z); c.rotation.y = i; c.userData.i = i; grp.add(c); }); return grp; }, (grp) => { grp.children.forEach(c => { c.visible = !M.drops[c.userData.i]?.got; c.position.y = Math.abs(Math.sin(performance.now() * 0.003 + c.userData.i)) * 0.15; }); });
     // the Delivery Boys' van in a race
     const o = M && M.order ? this.W.orders.find(o => o.id === M.order && o.rv) : null;
-    keep('van', !!o, () => { const C = makeCar('smallvan'); C.group.traverse(n => { if (n.isMesh && n.material.color && n.material.color.getHexString() === '8fd0c8') n.material = n.material.clone(), n.material.color.set('#ff9f1a'); }); C.group.userData.C = C; return C.group; }, (grp) => {
+    keep('van', !!o, () => { const C = makeCar('smallvan'); C.group.traverse(n => { if (n.isMesh && n.material.color && n.material.color.getHexString() === 'f2f2f8') n.material = n.material.clone(), n.material.color.set('#ff9f1a'); }); C.group.userData.C = C; return C.group; }, (grp) => {
       const at = g.orders.at(o), from = this.place('delivery').out;
       if (!grp.userData.path) { const a = nearestNode(from.x, from.z - 14), b = nearestNode(at.x, at.z); grp.userData.path = [{ x: from.x, z: from.z - 8 }, ...path(a, b).map(n => ({ x: n.x, z: n.z })), { x: at.x, z: at.z }]; }
       const pts = grp.userData.path, k = clamp(1 - o.rv.t / (o.rv.t0 || 60), 0, 1);

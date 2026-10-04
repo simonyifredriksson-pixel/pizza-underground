@@ -160,12 +160,12 @@ export class NPCs {
     const g = this.g, W = g.W;
     await g.ui.dialog([['hank', pick(HANK.hi)]]);
     g.ui.menu({
-      title: "Honest Hank's Used Cars", sub: 'Bought cars wait for you at the hideout. Get in with F.',
-      items: [...Object.entries(VEHICLES).map(([k, v]) => {
+      title: "Honest Hank's Motors", sub: 'Bought vehicles wait in the NEW OWNER PICK-UP bay. Capacity is in KG: weigh your stuff.',
+      items: [...Object.entries(VEHICLES).filter(([, v]) => !v.free).map(([k, v]) => {
         const own = W.owned.veh.includes(k);
         const tlock = v.tier && g.debts.tier < v.tier;
         const lock = (k === 'armored' && W.level < 4) || tlock;
-        return { label: v.name, sub: tlock ? 'Hank only sells this to the family. (Mafia Rep: ' + TIERS[v.tier].name + ')' : lock ? 'Hank only sells this to serious operations (HQ level 4).' : v.desc, price: own ? 'OWNED' : v.price, owned: own, disabled: own || lock || W.money < v.price, on: () => g.act({ k: 'buyCar', kind: k }) };
+        return { label: v.name, sub: tlock ? 'Hank only sells this to the family. (Mafia Rep: ' + TIERS[v.tier].name + ')' : lock ? 'Hank only sells this to serious operations (HQ level 4).' : v.cap.toLocaleString('en-US') + ' KG · ' + Math.round(v.speed * 3.6) + ' KM/H · ' + v.storage + '. ' + v.desc, price: own ? 'OWNED' : v.price, owned: own, disabled: own || lock || W.money < v.price, on: () => g.act({ k: 'buyCar', kind: k }) };
       }), { label: 'Leave' }],
     });
   }
